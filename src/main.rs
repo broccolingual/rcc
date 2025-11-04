@@ -1,12 +1,12 @@
 use std::env;
 
 pub mod ast;
-pub mod codegen;
 pub mod parser;
+pub mod x86;
 
 use crate::ast::Ast;
-use crate::codegen::gen_asm_from_expr;
 use crate::parser::Tokenizer;
+use crate::x86::gen_asm_from_expr;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
