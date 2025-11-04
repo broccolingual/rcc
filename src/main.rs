@@ -1,11 +1,11 @@
 use std::env;
 
 pub mod ast;
-pub mod parser;
 pub mod codegen;
+pub mod parser;
 
-use crate::parser::Tokenizer;
 use crate::codegen::gen_asm_from_expr;
+use crate::parser::Tokenizer;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -17,14 +17,24 @@ fn main() {
     let mut tokenizer = Tokenizer::new();
     tokenizer.tokenize(&args[1]);
     // println!("{:?}", tokenizer);
-    let node = tokenizer.expr().unwrap();
+    tokenizer.program();
 
+    // おまじない
     println!(".intel_syntax noprefix");
     println!(".globl main");
     println!("main:");
 
-    gen_asm_from_expr(&node);
+    // 変数26個分の領域を確保
+    println!("  push rbp");
+    println!("  mov rbp, rsp");
+    println!("  sub rsp, 208");
 
-    println!("  pop rax");
+    for node in tokenizer.code.iter() {
+        gen_asm_from_expr(node.as_ref().unwrap());
+        println!("  pop rax");
+    }
+
+    println!("  mov rsp, rbp");
+    println!("  pop rbp");
     println!("  ret");
 }

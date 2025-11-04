@@ -1,9 +1,37 @@
 use crate::ast::{Node, NodeKind};
 
+pub fn gen_asm_from_lval(node: &Node) {
+    if node.kind != NodeKind::LVar {
+        panic!("代入の左辺値が変数ではありません");
+    }
+    println!("  mov rax, rbp");
+    println!("  sub rax, {}", node.offset);
+    println!("  push rax");
+}
+
 pub fn gen_asm_from_expr(node: &Node) {
-    if node.kind == NodeKind::Num {
-        println!("  push {}", node.val);
-        return;
+    match node.kind {
+        NodeKind::Num => {
+            println!("  push {}", node.val);
+            return;
+        }
+        NodeKind::LVar => {
+            gen_asm_from_lval(node);
+            println!("  pop rax");
+            println!("  mov rax, [rax]");
+            println!("  push rax");
+            return;
+        }
+        NodeKind::Assign => {
+            gen_asm_from_lval(node.lhs.as_ref().unwrap());
+            gen_asm_from_expr(node.rhs.as_ref().unwrap());
+            println!("  pop rdi");
+            println!("  pop rax");
+            println!("  mov [rax], rdi");
+            println!("  push rdi");
+            return;
+        }
+        _ => {}
     }
 
     gen_asm_from_expr(node.lhs.as_ref().unwrap());

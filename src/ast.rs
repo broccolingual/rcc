@@ -1,21 +1,24 @@
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum NodeKind {
-    Add, // +
-    Sub, // -
-    Mul, // *
-    Div, // /
-    Eq,  // ==
-    Ne,  // !=
-    Lt,  // <
-    Le,  // <=
-    Num, // 整数
+    Add,    // +
+    Sub,    // -
+    Mul,    // *
+    Div,    // /
+    Eq,     // ==
+    Ne,     // !=
+    Lt,     // <
+    Le,     // <=
+    Assign, // =
+    LVar,   // ローカル変数
+    Num,    // 整数
 }
 
 pub struct Node {
     pub kind: NodeKind,
     pub lhs: Option<Box<Node>>,
     pub rhs: Option<Box<Node>>,
-    pub val: i64,
+    pub val: i64,    // kindがNumのときに使う
+    pub offset: i64, // kindがLVarのときに使う
 }
 
 impl Node {
@@ -25,6 +28,7 @@ impl Node {
             lhs,
             rhs,
             val: 0,
+            offset: 0,
         }
     }
 
@@ -34,6 +38,7 @@ impl Node {
             lhs: None,
             rhs: None,
             val,
+            offset: 0,
         }
     }
 }

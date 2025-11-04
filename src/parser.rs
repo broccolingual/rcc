@@ -5,6 +5,7 @@ use crate::ast::{Node, NodeKind};
 #[derive(PartialEq, Eq, Clone, Debug)]
 enum TokenKind {
     Reserved, // 記号
+    Ident,    // 識別子
     Num,      // 整数トークン
     EOF,      // 入力の終わりを表すトークン
 }
@@ -33,6 +34,7 @@ impl Token {
 pub struct Tokenizer {
     head: Option<Box<Token>>,
     current_token: Option<Box<Token>>,
+    pub code: Vec<Option<Box<Node>>>,
 }
 
 impl fmt::Debug for Tokenizer {
@@ -60,6 +62,7 @@ impl Tokenizer {
         Tokenizer {
             head: None,
             current_token: None,
+            code: Vec::new(),
         }
     }
 
@@ -73,6 +76,17 @@ impl Tokenizer {
         }
         self.current_token = self.current_token.as_mut().unwrap().next.take();
         true
+    }
+
+    fn consume_ident(&mut self) -> Option<String> {
+        if self.current_token.is_none()
+            || self.current_token.as_ref().unwrap().kind != TokenKind::Ident
+        {
+            return None;
+        }
+        let name = self.current_token.as_ref().unwrap().input.clone();
+        self.current_token = self.current_token.as_mut().unwrap().next.take();
+        Some(name)
     }
 
     fn expect(&mut self, op: &str) -> Result<(), &str> {
@@ -98,7 +112,6 @@ impl Tokenizer {
         Ok(val)
     }
 
-    #[allow(dead_code)]
     fn at_eof(&self) -> bool {
         self.current_token.is_none() || self.current_token.as_ref().unwrap().kind == TokenKind::EOF
     }
@@ -116,8 +129,30 @@ impl Tokenizer {
         }
     }
 
-    pub fn expr(&mut self) -> Option<Box<Node>> {
-        self.equality()
+    pub fn program(&mut self) {
+        while !self.at_eof() {
+            let node = self.stmt();
+            self.code.push(node);
+        }
+    }
+
+    fn expr(&mut self) -> Option<Box<Node>> {
+        self.assign()
+    }
+
+    fn stmt(&mut self) -> Option<Box<Node>> {
+        let node = self.expr();
+        self.expect(";").unwrap();
+        node
+    }
+
+    fn assign(&mut self) -> Option<Box<Node>> {
+        let mut node = self.equality();
+
+        if self.consume("=") {
+            node = Some(Box::new(Node::new(NodeKind::Assign, node, self.assign())));
+        }
+        node
     }
 
     fn equality(&mut self) -> Option<Box<Node>> {
@@ -186,6 +221,15 @@ impl Tokenizer {
             self.expect(")").unwrap();
             return node;
         }
+        let token = self.consume_ident();
+        if let Some(name) = token {
+            // ローカル変数ノードを作成
+            let mut node = Node::new(NodeKind::LVar, None, None);
+            let ascii_code = name.chars().next().unwrap() as u8;
+            // 変数のオフセットを設定（ここでは仮に1から始まる連番とする）
+            node.offset = (ascii_code - 'a' as u8 + 1) as i64 * 8;
+            return Some(Box::new(node));
+        }
         Some(Box::new(Node::new_num(self.expect_number().unwrap())))
     }
 
@@ -224,7 +268,7 @@ impl Tokenizer {
             }
 
             // 単一文字の記号トークン
-            if "+-*/()<>".contains(c) {
+            if "+-*/=()<>;".contains(c) {
                 let token = Token::new(TokenKind::Reserved, &c.to_string());
                 self.append_token(token);
                 continue;
@@ -250,6 +294,13 @@ impl Tokenizer {
                     input: num_str,
                     length,
                 };
+                self.append_token(token);
+                continue;
+            }
+
+            // 識別子トークン(asciiのアルファベットのみ)
+            if c.is_ascii_alphabetic() {
+                let token = Token::new(TokenKind::Ident, &c.to_string());
                 self.append_token(token);
                 continue;
             }
