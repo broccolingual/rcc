@@ -1,8 +1,13 @@
 use std::fmt;
 
 const RESERVED_COMP_OP: [&str; 4] = ["==", "!=", "<=", ">="];
-const RESERVED_SINGLE_OP: &str = "+-*/=()<>;";
-const RESERVED_WORDS: [&str; 5] = ["return", "if", "else", "while", "for"];
+const RESERVED_SINGLE_OP: &str = "+-*/%=()<>;";
+const RESERVED_WORDS: [&str; 32] = [
+    "auto", "break", "case", "char", "const", "continue", "default", "do", "double", "else",
+    "enum", "extern", "float", "for", "goto", "if", "int", "long", "register", "return", "short",
+    "signed", "sizeof", "static", "struct", "switch", "typedef", "union", "unsigned", "void",
+    "volatile", "while",
+];
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum TokenKind {

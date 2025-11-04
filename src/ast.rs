@@ -8,6 +8,7 @@ pub enum NodeKind {
     Sub,    // -
     Mul,    // *
     Div,    // /
+    Rem,    // %
     Eq,     // ==
     Ne,     // !=
     Lt,     // <
@@ -226,6 +227,8 @@ impl Ast {
                 node = Some(Box::new(Node::new(NodeKind::Mul, node, self.unary())));
             } else if self.consume("/") {
                 node = Some(Box::new(Node::new(NodeKind::Div, node, self.unary())));
+            } else if self.consume("%") {
+                node = Some(Box::new(Node::new(NodeKind::Rem, node, self.unary())));
             } else {
                 return node;
             }

@@ -56,6 +56,11 @@ pub fn gen_asm_from_expr(node: &Node) {
             println!("  cqo");
             println!("  idiv rdi");
         }
+        NodeKind::Rem => {
+            println!("  cqo");
+            println!("  idiv rdi");
+            println!("  mov rax, rdx");
+        }
         NodeKind::Eq => {
             println!("  cmp rax, rdi");
             println!("  sete al");
