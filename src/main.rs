@@ -4,6 +4,7 @@ pub mod ast;
 pub mod codegen;
 pub mod parser;
 
+use crate::ast::Ast;
 use crate::codegen::gen_asm_from_expr;
 use crate::parser::Tokenizer;
 
@@ -15,9 +16,12 @@ fn main() {
     }
 
     let mut tokenizer = Tokenizer::new();
-    tokenizer.tokenize(&args[1]);
-    tokenizer.program();
-    // println!("{:?}", tokenizer);
+    let tokens = tokenizer.tokenize(&args[1]);
+    // println!("{:#?}", tokens);
+
+    let mut ast = Ast::new(tokens);
+    ast.program();
+    // println!("{:#?}", ast.locals);
 
     // おまじない
     println!(".intel_syntax noprefix");
@@ -29,7 +33,7 @@ fn main() {
     println!("  mov rbp, rsp");
     println!("  sub rsp, 208");
 
-    for node in tokenizer.code.iter() {
+    for node in ast.code.iter() {
         gen_asm_from_expr(node.as_ref().unwrap());
         println!("  pop rax");
     }
