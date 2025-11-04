@@ -16,8 +16,8 @@ fn main() {
 
     let mut tokenizer = Tokenizer::new();
     tokenizer.tokenize(&args[1]);
-    // println!("{:?}", tokenizer);
     tokenizer.program();
+    // println!("{:?}", tokenizer);
 
     // おまじない
     println!(".intel_syntax noprefix");

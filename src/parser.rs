@@ -31,10 +31,19 @@ impl Token {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct LVar {
+    next: Option<Box<LVar>>,
+    name: String,
+    length: usize,
+    offset: i64,
+}
+
 pub struct Tokenizer {
     head: Option<Box<Token>>,
     current_token: Option<Box<Token>>,
     pub code: Vec<Option<Box<Node>>>,
+    pub locals: Option<Box<LVar>>,
 }
 
 impl fmt::Debug for Tokenizer {
@@ -45,12 +54,15 @@ impl fmt::Debug for Tokenizer {
             tokens.push(token.as_ref().clone());
             current = token.next.as_ref();
         }
+        writeln!(f, "\nTokens:")?;
         for token in tokens {
-            writeln!(
-                f,
-                "<{:?}: '{}' (len: {})>",
-                token.kind, token.input, token.length
-            )?;
+            writeln!(f, "   <{:?}: '{}'>", token.kind, token.input)?;
+        }
+        writeln!(f, "\nLocal Variables:")?;
+        let mut lvar = self.locals.as_ref();
+        while let Some(var) = lvar {
+            writeln!(f, "   <{:?}: (offset: {})>", var.name, var.offset)?;
+            lvar = var.next.as_ref();
         }
         Ok(())
     }
@@ -63,7 +75,19 @@ impl Tokenizer {
             head: None,
             current_token: None,
             code: Vec::new(),
+            locals: None,
         }
+    }
+
+    fn find_lvar(&mut self, name: &str) -> Option<&mut Box<LVar>> {
+        let mut lvar = self.locals.as_mut();
+        while let Some(var) = lvar {
+            if var.name == name {
+                return Some(var);
+            }
+            lvar = var.next.as_mut();
+        }
+        None
     }
 
     fn consume(&mut self, op: &str) -> bool {
@@ -225,9 +249,25 @@ impl Tokenizer {
         if let Some(name) = token {
             // ローカル変数ノードを作成
             let mut node = Node::new(NodeKind::LVar, None, None);
-            let ascii_code = name.chars().next().unwrap() as u8;
-            // 変数のオフセットを設定（ここでは仮に1から始まる連番とする）
-            node.offset = (ascii_code - 'a' as u8 + 1) as i64 * 8;
+            let lvar = self.find_lvar(&name);
+            if let Some(lvar) = lvar {
+                node.offset = lvar.offset; // 既存のローカル変数のオフセットを設定
+            } else {
+                let offset = if let Some(ref locals) = self.locals {
+                    locals.offset + 8
+                } else {
+                    8
+                };
+                // 新しいローカル変数を追加
+                let new_lvar = LVar {
+                    next: self.locals.take(),
+                    name: name.clone(),
+                    length: name.len(),
+                    offset,
+                };
+                node.offset = new_lvar.offset;
+                self.locals = Some(Box::new(new_lvar));
+            }
             return Some(Box::new(node));
         }
         Some(Box::new(Node::new_num(self.expect_number().unwrap())))
@@ -298,9 +338,18 @@ impl Tokenizer {
                 continue;
             }
 
-            // 識別子トークン(asciiのアルファベットのみ)
+            // 識別子トークン（ローカル変数: 複数文字対応）
             if c.is_ascii_alphabetic() {
-                let token = Token::new(TokenKind::Ident, &c.to_string());
+                let mut ident = c.to_string();
+                while let Some(&next_c) = c_iter.peek() {
+                    if next_c.is_ascii_alphanumeric() || next_c == '_' {
+                        ident.push(next_c);
+                        c_iter.next();
+                    } else {
+                        break;
+                    }
+                }
+                let token = Token::new(TokenKind::Ident, &ident);
                 self.append_token(token);
                 continue;
             }

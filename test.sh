@@ -45,5 +45,7 @@ assert 0 '1>=2;'
 
 assert 3 'a=3;a;'
 assert 13 'a=3;b=5*2;a+b;'
+assert 13 't=3;e=5*2;r=t+e;r;'
+assert 13 'three=3;ten=5*2;result=three+ten;result;'
 
 echo OK
