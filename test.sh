@@ -48,4 +48,8 @@ assert 13 'a=3;b=5*2;a+b;'
 assert 13 't=3;e=5*2;r=t+e;r;'
 assert 13 'three=3;ten=5*2;result=three+ten;result;'
 
+assert 3 'return 3;'
+assert 8 'a=3;return a+5;'
+assert 8 'return 8;5;'
+
 echo OK

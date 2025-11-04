@@ -11,6 +11,14 @@ pub fn gen_asm_from_lval(node: &Node) {
 
 pub fn gen_asm_from_expr(node: &Node) {
     match node.kind {
+        NodeKind::Return => {
+            gen_asm_from_expr(node.lhs.as_ref().unwrap());
+            println!("  pop rax");
+            println!("  mov rsp, rbp");
+            println!("  pop rbp");
+            println!("  ret");
+            return;
+        }
         NodeKind::Num => {
             println!("  push {}", node.val);
             return;

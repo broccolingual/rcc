@@ -93,7 +93,6 @@ impl Tokenizer {
     fn consume(&mut self, op: &str) -> bool {
         if self.current_token.is_none()
             || self.current_token.as_ref().unwrap().kind != TokenKind::Reserved
-            || self.current_token.as_ref().unwrap().length != op.len()
             || self.current_token.as_ref().unwrap().input != op
         {
             return false;
@@ -116,7 +115,6 @@ impl Tokenizer {
     fn expect(&mut self, op: &str) -> Result<(), &str> {
         if self.current_token.is_none()
             || self.current_token.as_ref().unwrap().kind != TokenKind::Reserved
-            || self.current_token.as_ref().unwrap().length != op.len()
             || self.current_token.as_ref().unwrap().input != op
         {
             return Err("予期せぬトークンです");
@@ -165,7 +163,13 @@ impl Tokenizer {
     }
 
     fn stmt(&mut self) -> Option<Box<Node>> {
-        let node = self.expr();
+        let node: Option<Box<Node>>;
+
+        if self.consume("return") {
+            node = Some(Box::new(Node::new(NodeKind::Return, self.expr(), None)));
+        } else {
+            node = self.expr();
+        }
         self.expect(";").unwrap();
         node
     }
@@ -349,9 +353,15 @@ impl Tokenizer {
                         break;
                     }
                 }
-                let token = Token::new(TokenKind::Ident, &ident);
-                self.append_token(token);
-                continue;
+                if ident == "return" {
+                    let token = Token::new(TokenKind::Reserved, &ident);
+                    self.append_token(token);
+                    continue;
+                } else {
+                    let token = Token::new(TokenKind::Ident, &ident);
+                    self.append_token(token);
+                    continue;
+                }
             }
 
             panic!("不明な文字です: {}", c);

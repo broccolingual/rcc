@@ -10,6 +10,7 @@ pub enum NodeKind {
     Le,     // <=
     Assign, // =
     LVar,   // ローカル変数
+    Return, // return
     Num,    // 整数
 }
 
