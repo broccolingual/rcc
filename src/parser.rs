@@ -2,6 +2,10 @@ use std::fmt;
 
 use crate::ast::{Node, NodeKind};
 
+const RESERVED_COMP_OP: [&str; 4] = ["==", "!=", "<=", ">="];
+const RESERVED_SINGLE_OP: &str = "+-*/=()<>;";
+const RESERVED_WORDS: [&str; 5] = ["return", "if", "else", "while", "for"];
+
 #[derive(PartialEq, Eq, Clone, Debug)]
 enum TokenKind {
     Reserved, // 記号
@@ -303,7 +307,7 @@ impl Tokenizer {
             // 2文字の記号トークン
             if let Some(&next_c) = c_iter.peek() {
                 let two_char_op = format!("{}{}", c, next_c);
-                if ["==", "!=", "<=", ">="].contains(&two_char_op.as_str()) {
+                if RESERVED_COMP_OP.contains(&two_char_op.as_str()) {
                     let token = Token::new(TokenKind::Reserved, &two_char_op);
                     self.append_token(token);
                     c_iter.next(); // 次の文字を消費
@@ -312,7 +316,7 @@ impl Tokenizer {
             }
 
             // 単一文字の記号トークン
-            if "+-*/=()<>;".contains(c) {
+            if RESERVED_SINGLE_OP.contains(c) {
                 let token = Token::new(TokenKind::Reserved, &c.to_string());
                 self.append_token(token);
                 continue;
@@ -353,7 +357,7 @@ impl Tokenizer {
                         break;
                     }
                 }
-                if ident == "return" {
+                if RESERVED_WORDS.contains(&ident.as_str()) {
                     let token = Token::new(TokenKind::Reserved, &ident);
                     self.append_token(token);
                     continue;
