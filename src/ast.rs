@@ -14,6 +14,10 @@ pub enum NodeKind {
     Lt,     // <
     Le,     // <=
     Assign, // =
+    If,     // if
+    While,  // while
+    For,    // for
+    Do,     // do
     LVar,   // ローカル変数
     Return, // return
     Num,    // 整数
@@ -23,8 +27,13 @@ pub struct Node {
     pub kind: NodeKind,
     pub lhs: Option<Box<Node>>,
     pub rhs: Option<Box<Node>>,
-    pub val: i64,    // kindがNumのときに使う
-    pub offset: i64, // kindがLVarのときに使う
+    pub val: i64,                // kindがNumのときに使う
+    pub offset: i64,             // kindがLVarのときに使う
+    pub cond: Option<Box<Node>>, // if, while文の条件式
+    pub then: Option<Box<Node>>, // if, while文のthen節
+    pub els: Option<Box<Node>>,  // if文のelse節
+    pub init: Option<Box<Node>>, // for文の初期化式
+    pub inc: Option<Box<Node>>,  // for文の更新式
 }
 
 impl Node {
@@ -35,6 +44,11 @@ impl Node {
             rhs,
             val: 0,
             offset: 0,
+            cond: None,
+            then: None,
+            els: None,
+            init: None,
+            inc: None,
         }
     }
 
@@ -45,6 +59,11 @@ impl Node {
             rhs: None,
             val,
             offset: 0,
+            cond: None,
+            then: None,
+            els: None,
+            init: None,
+            inc: None,
         }
     }
 }
@@ -143,7 +162,7 @@ impl Ast {
 
     pub fn program(&mut self) {
         while !self.at_eof() {
-            let node = self.stmt();
+            let node = self.statement();
             self.code.push(node);
         }
     }
@@ -152,14 +171,70 @@ impl Ast {
         self.assign()
     }
 
-    fn stmt(&mut self) -> Option<Box<Node>> {
-        let node: Option<Box<Node>>;
+    fn statement(&mut self) -> Option<Box<Node>> {
+        let mut node: Option<Box<Node>>;
 
         if self.consume("return") {
             node = Some(Box::new(Node::new(NodeKind::Return, self.expr(), None)));
-        } else {
-            node = self.expr();
+            self.expect(";").unwrap();
+            return node;
         }
+
+        if self.consume("if") {
+            node = Some(Box::new(Node::new(NodeKind::If, None, None)));
+            self.expect("(").unwrap();
+            node.as_mut().unwrap().cond = self.expr();
+            self.expect(")").unwrap();
+            node.as_mut().unwrap().then = self.statement();
+            if self.consume("else") {
+                node.as_mut().unwrap().els = self.statement();
+            }
+            return node;
+        }
+
+        if self.consume("while") {
+            node = Some(Box::new(Node::new(NodeKind::While, None, None)));
+            self.expect("(").unwrap();
+            node.as_mut().unwrap().cond = self.expr();
+            self.expect(")").unwrap();
+            node.as_mut().unwrap().then = self.statement();
+            return node;
+        }
+
+        if self.consume("for") {
+            node = Some(Box::new(Node::new(NodeKind::For, None, None)));
+            self.expect("(").unwrap();
+            // 初期化式
+            if !self.consume(";") {
+                node.as_mut().unwrap().init = self.expr();
+                self.expect(";").unwrap();
+            }
+            // 条件式
+            if !self.consume(";") {
+                node.as_mut().unwrap().cond = self.expr();
+                self.expect(";").unwrap();
+            }
+            // 更新式
+            if !self.consume(")") {
+                node.as_mut().unwrap().inc = self.expr();
+                self.expect(")").unwrap();
+            }
+            node.as_mut().unwrap().then = self.statement();
+            return node;
+        }
+
+        if self.consume("do") {
+            node = Some(Box::new(Node::new(NodeKind::Do, None, None)));
+            node.as_mut().unwrap().then = self.statement();
+            self.expect("while").unwrap();
+            self.expect("(").unwrap();
+            node.as_mut().unwrap().cond = self.expr();
+            self.expect(")").unwrap();
+            self.expect(";").unwrap();
+            return node;
+        }
+
+        node = self.expr();
         self.expect(";").unwrap();
         node
     }

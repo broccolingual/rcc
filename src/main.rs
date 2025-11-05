@@ -6,7 +6,7 @@ pub mod x86;
 
 use crate::ast::Ast;
 use crate::parser::Tokenizer;
-use crate::x86::gen_asm_from_expr;
+use crate::x86::Generator;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -23,6 +23,8 @@ fn main() {
     ast.program();
     // println!("{:#?}", ast.locals);
 
+    let mut generator = Generator::new();
+
     // おまじない
     println!(".intel_syntax noprefix");
     println!(".globl main");
@@ -34,7 +36,7 @@ fn main() {
     println!("  sub rsp, 208");
 
     for node in ast.code.iter() {
-        gen_asm_from_expr(node.as_ref().unwrap());
+        generator.gen_asm_from_expr(node.as_ref().unwrap());
         println!("  pop rax");
     }
 
