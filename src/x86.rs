@@ -130,7 +130,10 @@ impl Generator {
 
         self.gen_asm_from_expr(node.lhs.as_ref().unwrap());
         self.gen_asm_from_expr(node.rhs.as_ref().unwrap());
+        self.gen_asm_from_binary_op(node);
+    }
 
+    fn gen_asm_from_binary_op(&mut self, node: &Node) {
         println!("  pop rdi");
         println!("  pop rax");
 
@@ -146,6 +149,14 @@ impl Generator {
                 println!("  cqo");
                 println!("  idiv rdi");
                 println!("  mov rax, rdx");
+            }
+            NodeKind::Shl => {
+                println!("  mov cl, dil");
+                println!("  shl rax, cl");
+            }
+            NodeKind::Shr => {
+                println!("  mov cl, dil");
+                println!("  shr rax, cl");
             }
             NodeKind::Eq => {
                 println!("  cmp rax, rdi");

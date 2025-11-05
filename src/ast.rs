@@ -9,6 +9,8 @@ pub enum NodeKind {
     Mul,    // *
     Div,    // /
     Rem,    // %
+    Shl,    // <<
+    Shr,    // >>
     Eq,     // ==
     Ne,     // !=
     Lt,     // <
@@ -371,9 +373,21 @@ impl Ast {
         }
     }
 
-    // shift_expr ::= add_expr
+    // shift_expr ::= add_expr (("<<" | ">>") add_expr)*
     fn shift_expr(&mut self) -> Option<Box<Node>> {
-        self.add_expr()
+        let mut node = self.add_expr();
+
+        loop {
+            if self.consume("<<") {
+                // left shift
+                node = Some(Box::new(Node::new(NodeKind::Shl, node, self.add_expr())));
+            } else if self.consume(">>") {
+                // right shift
+                node = Some(Box::new(Node::new(NodeKind::Shr, node, self.add_expr())));
+            } else {
+                return node;
+            }
+        }
     }
 
     // add_expr ::= mul_expr (("+" | "-") mul_expr)*
