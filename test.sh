@@ -9,9 +9,9 @@ assert() {
   actual="$?"
 
   if [ "$actual" = "$expected" ]; then
-    echo "$input => $actual"
+    echo "( OK ) $input => $actual"
   else
-    echo "$input => $expected expected, but got $actual"
+    echo "( NG ) $input => $expected expected, but got $actual"
     exit 1
   fi
 }
@@ -70,5 +70,10 @@ assert 55 'sum = 0; for (i = 1; i <= 10; i = i + 1) sum = sum + i; return sum;'
 
 # do while statement
 assert 5 'i = 0; do i = i + 1; while (i < 5); return i;'
+
+# block statement
+assert 8 '{ a = 3; b = 5; return a + b; }'
+assert 10 '{ a = 3; b = 5; { c = 2; return a + b + c; } }'
+assert 55 'sum = 0; { i = 1; while (i <= 10) { sum = sum + i; i = i + 1; } } return sum;'
 
 echo OK

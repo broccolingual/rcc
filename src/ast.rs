@@ -18,6 +18,7 @@ pub enum NodeKind {
     While,  // while
     For,    // for
     Do,     // do
+    Block,  // {}
     LVar,   // ローカル変数
     Return, // return
     Num,    // 整数
@@ -25,6 +26,7 @@ pub enum NodeKind {
 
 pub struct Node {
     pub kind: NodeKind,
+    pub next: Option<Box<Node>>, // 次のノードへのポインタ
     pub lhs: Option<Box<Node>>,
     pub rhs: Option<Box<Node>>,
     pub val: i64,                // kindがNumのときに使う
@@ -34,12 +36,14 @@ pub struct Node {
     pub els: Option<Box<Node>>,  // if文のelse節
     pub init: Option<Box<Node>>, // for文の初期化式
     pub inc: Option<Box<Node>>,  // for文の更新式
+    pub body: Option<Box<Node>>, // ブロック内の文
 }
 
 impl Node {
     pub fn new(kind: NodeKind, lhs: Option<Box<Node>>, rhs: Option<Box<Node>>) -> Self {
         Node {
             kind,
+            next: None,
             lhs,
             rhs,
             val: 0,
@@ -49,12 +53,14 @@ impl Node {
             els: None,
             init: None,
             inc: None,
+            body: None,
         }
     }
 
     pub fn new_num(val: i64) -> Self {
         Node {
             kind: NodeKind::Num,
+            next: None,
             lhs: None,
             rhs: None,
             val,
@@ -64,6 +70,7 @@ impl Node {
             els: None,
             init: None,
             inc: None,
+            body: None,
         }
     }
 }
@@ -231,6 +238,23 @@ impl Ast {
             node.as_mut().unwrap().cond = self.expr();
             self.expect(")").unwrap();
             self.expect(";").unwrap();
+            return node;
+        }
+
+        if self.consume("{") {
+            // 一時的に頭のダミーノードを作成
+            let mut head: Option<Box<Node>> =
+                Some(Box::new(Node::new(NodeKind::Block, None, None)));
+            // 現在のノードを指すポインタ
+            let mut cur: &mut Option<Box<Node>> = &mut head;
+            while !self.consume("}") {
+                cur.as_mut().unwrap().next = self.statement();
+                cur = &mut cur.as_mut().unwrap().next;
+            }
+            // ブロックノードを作成
+            let mut node = Some(Box::new(Node::new(NodeKind::Block, None, None)));
+            // ブロック内の文を設定
+            node.as_mut().unwrap().body = head.as_mut().unwrap().next.take();
             return node;
         }
 

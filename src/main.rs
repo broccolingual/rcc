@@ -43,4 +43,7 @@ fn main() {
     println!("  mov rsp, rbp");
     println!("  pop rbp");
     println!("  ret");
+
+    // スタックを実行不可に設定
+    println!(".section .note.GNU-stack,\"\",@progbits");
 }

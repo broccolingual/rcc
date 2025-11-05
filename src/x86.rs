@@ -116,6 +116,15 @@ impl Generator {
                 println!("  jne .Lbegin{}", seq);
                 return;
             }
+            NodeKind::Block => {
+                let mut cur = node.body.as_ref();
+                while let Some(n) = cur {
+                    self.gen_asm_from_expr(n);
+                    println!("  pop rax"); // ブロック内の各文の結果を捨てる
+                    cur = n.next.as_ref();
+                }
+                return;
+            }
             _ => {}
         }
 
