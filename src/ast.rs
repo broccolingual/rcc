@@ -169,19 +169,19 @@ impl Ast {
 
     pub fn program(&mut self) {
         while !self.at_eof() {
-            let node = self.statement();
+            let node = self.stmt();
             self.code.push(node);
         }
     }
 
-    // statement = "return" expr ";"
-    //           | "if" "(" expr ")" statement ("else" statement)?
-    //           | "while" "(" expr ")" statement
-    //           | "for" "(" expr? ";" expr? ";" expr? ")" statement
-    //           | "do" statement "while" "(" expr ")" ";"
-    //           | "{" statement* "}"
-    //           | expr ";"
-    fn statement(&mut self) -> Option<Box<Node>> {
+    // stmt ::= "return" expr ";"
+    //          | "if" "(" expr ")" stmt ("else" stmt)?
+    //          | "while" "(" expr ")" stmt
+    //          | "for" "(" expr? ";" expr? ";" expr? ")" stmt
+    //          | "do" stmt "while" "(" expr ")" ";"
+    //          | "{" stmt* "}"
+    //          | expr_stmt
+    fn stmt(&mut self) -> Option<Box<Node>> {
         let mut node: Option<Box<Node>>;
 
         if self.consume("return") {
@@ -190,14 +190,15 @@ impl Ast {
             return node;
         }
 
+        // selection statement
         if self.consume("if") {
             node = Some(Box::new(Node::new(NodeKind::If, None, None)));
             self.expect("(").unwrap();
             node.as_mut().unwrap().cond = self.expr();
             self.expect(")").unwrap();
-            node.as_mut().unwrap().then = self.statement();
+            node.as_mut().unwrap().then = self.stmt();
             if self.consume("else") {
-                node.as_mut().unwrap().els = self.statement();
+                node.as_mut().unwrap().els = self.stmt();
             }
             return node;
         }
@@ -207,10 +208,11 @@ impl Ast {
             self.expect("(").unwrap();
             node.as_mut().unwrap().cond = self.expr();
             self.expect(")").unwrap();
-            node.as_mut().unwrap().then = self.statement();
+            node.as_mut().unwrap().then = self.stmt();
             return node;
         }
 
+        // iteration statement
         if self.consume("for") {
             node = Some(Box::new(Node::new(NodeKind::For, None, None)));
             self.expect("(").unwrap();
@@ -229,13 +231,13 @@ impl Ast {
                 node.as_mut().unwrap().inc = self.expr();
                 self.expect(")").unwrap();
             }
-            node.as_mut().unwrap().then = self.statement();
+            node.as_mut().unwrap().then = self.stmt();
             return node;
         }
 
         if self.consume("do") {
             node = Some(Box::new(Node::new(NodeKind::Do, None, None)));
-            node.as_mut().unwrap().then = self.statement();
+            node.as_mut().unwrap().then = self.stmt();
             self.expect("while").unwrap();
             self.expect("(").unwrap();
             node.as_mut().unwrap().cond = self.expr();
@@ -244,6 +246,7 @@ impl Ast {
             return node;
         }
 
+        // compound statement
         if self.consume("{") {
             // 一時的に頭のダミーノードを作成
             let mut head: Option<Box<Node>> =
@@ -251,7 +254,7 @@ impl Ast {
             // 現在のノードを指すポインタ
             let mut cur: &mut Option<Box<Node>> = &mut head;
             while !self.consume("}") {
-                cur.as_mut().unwrap().next = self.statement();
+                cur.as_mut().unwrap().next = self.stmt();
                 cur = &mut cur.as_mut().unwrap().next;
             }
             // ブロックノードを作成
@@ -261,118 +264,187 @@ impl Ast {
             return node;
         }
 
-        node = self.expr();
+        self.expr_stmt()
+    }
+
+    // expr_stmt ::= expr ";"
+    fn expr_stmt(&mut self) -> Option<Box<Node>> {
+        let node = self.expr();
         self.expect(";").unwrap();
         node
     }
 
-    // expr = assign
+    // expr ::= assign_expr
     fn expr(&mut self) -> Option<Box<Node>> {
-        self.assign()
+        self.assign_expr()
     }
 
-    // assign = equality ("=" assign)?
-    fn assign(&mut self) -> Option<Box<Node>> {
-        let mut node = self.equality();
+    // assign_expr ::= conditional_expr ("=" assign_expr)?
+    fn assign_expr(&mut self) -> Option<Box<Node>> {
+        let mut node = self.conditional_expr();
 
         if self.consume("=") {
-            node = Some(Box::new(Node::new(NodeKind::Assign, node, self.assign())));
+            node = Some(Box::new(Node::new(
+                NodeKind::Assign,
+                node,
+                self.assign_expr(),
+            )));
         }
         node
     }
 
-    // equality = relational (("==" | "!=") relational)*
-    fn equality(&mut self) -> Option<Box<Node>> {
-        let mut node = self.relational();
+    // conditional_expr ::= logical_or_expr
+    fn conditional_expr(&mut self) -> Option<Box<Node>> {
+        self.logical_or_expr()
+    }
+
+    // logical_or_expr ::= logical_and_expr
+    fn logical_or_expr(&mut self) -> Option<Box<Node>> {
+        self.logical_and_expr()
+    }
+
+    // logical_and_expr ::= inclusive_or_expr
+    fn logical_and_expr(&mut self) -> Option<Box<Node>> {
+        self.inclusive_or_expr()
+    }
+
+    // inclusive_or_expr ::= exclusive_or_expr
+    fn inclusive_or_expr(&mut self) -> Option<Box<Node>> {
+        self.exclusive_or_expr()
+    }
+
+    // exclusive_or_expr ::= and_expr
+    fn exclusive_or_expr(&mut self) -> Option<Box<Node>> {
+        self.and_expr()
+    }
+
+    // and_expr ::= equality_expr
+    fn and_expr(&mut self) -> Option<Box<Node>> {
+        self.equality_expr()
+    }
+
+    // equality_expr ::= relational_expr (("==" | "!=") relational_expr)*
+    fn equality_expr(&mut self) -> Option<Box<Node>> {
+        let mut node = self.relational_expr();
 
         loop {
             if self.consume("==") {
-                node = Some(Box::new(Node::new(NodeKind::Eq, node, self.relational())));
+                // equal
+                node = Some(Box::new(Node::new(
+                    NodeKind::Eq,
+                    node,
+                    self.relational_expr(),
+                )));
             } else if self.consume("!=") {
-                node = Some(Box::new(Node::new(NodeKind::Ne, node, self.relational())));
+                // not equal
+                node = Some(Box::new(Node::new(
+                    NodeKind::Ne,
+                    node,
+                    self.relational_expr(),
+                )));
             } else {
                 return node;
             }
         }
     }
 
-    // relational = add (("<" | "<=" | ">" | ">=") add)*
-    fn relational(&mut self) -> Option<Box<Node>> {
-        let mut node = self.add();
+    // relational_expr ::= shift_expr (("<" | "<=" | ">" | ">=") shift_expr)*
+    fn relational_expr(&mut self) -> Option<Box<Node>> {
+        let mut node = self.shift_expr();
 
         loop {
             if self.consume("<") {
                 // less than
-                node = Some(Box::new(Node::new(NodeKind::Lt, node, self.add())));
+                node = Some(Box::new(Node::new(NodeKind::Lt, node, self.shift_expr())));
             } else if self.consume("<=") {
                 // less than or equal
-                node = Some(Box::new(Node::new(NodeKind::Le, node, self.add())));
+                node = Some(Box::new(Node::new(NodeKind::Le, node, self.shift_expr())));
             } else if self.consume(">") {
                 // greater than
-                node = Some(Box::new(Node::new(NodeKind::Lt, self.add(), node)));
+                node = Some(Box::new(Node::new(NodeKind::Lt, self.shift_expr(), node)));
             } else if self.consume(">=") {
                 // greater than or equal
-                node = Some(Box::new(Node::new(NodeKind::Le, self.add(), node)));
+                node = Some(Box::new(Node::new(NodeKind::Le, self.shift_expr(), node)));
             } else {
                 return node;
             }
         }
     }
 
-    // add = mul (("+" | "-") mul)*
-    fn add(&mut self) -> Option<Box<Node>> {
-        let mut node = self.mul();
+    // shift_expr ::= add_expr
+    fn shift_expr(&mut self) -> Option<Box<Node>> {
+        self.add_expr()
+    }
+
+    // add_expr ::= mul_expr (("+" | "-") mul_expr)*
+    fn add_expr(&mut self) -> Option<Box<Node>> {
+        let mut node = self.mul_expr();
 
         loop {
             if self.consume("+") {
                 // addition
-                node = Some(Box::new(Node::new(NodeKind::Add, node, self.mul())));
+                node = Some(Box::new(Node::new(NodeKind::Add, node, self.mul_expr())));
             } else if self.consume("-") {
                 // subtraction
-                node = Some(Box::new(Node::new(NodeKind::Sub, node, self.mul())));
+                node = Some(Box::new(Node::new(NodeKind::Sub, node, self.mul_expr())));
             } else {
                 return node;
             }
         }
     }
 
-    // mul = unary (("*" | "/" | "%") unary)*
-    fn mul(&mut self) -> Option<Box<Node>> {
-        let mut node = self.unary();
+    // mul_expr ::= cast_expr (("*" | "/" | "%") cast_expr)*
+    fn mul_expr(&mut self) -> Option<Box<Node>> {
+        let mut node = self.cast_expr();
 
         loop {
             if self.consume("*") {
-                node = Some(Box::new(Node::new(NodeKind::Mul, node, self.unary())));
+                // multiplication
+                node = Some(Box::new(Node::new(NodeKind::Mul, node, self.cast_expr())));
             } else if self.consume("/") {
-                node = Some(Box::new(Node::new(NodeKind::Div, node, self.unary())));
+                // division
+                node = Some(Box::new(Node::new(NodeKind::Div, node, self.cast_expr())));
             } else if self.consume("%") {
-                node = Some(Box::new(Node::new(NodeKind::Rem, node, self.unary())));
+                // remainder
+                node = Some(Box::new(Node::new(NodeKind::Rem, node, self.cast_expr())));
             } else {
                 return node;
             }
         }
     }
 
-    // unary = ("+" | "-") unary
-    //       | primary
-    fn unary(&mut self) -> Option<Box<Node>> {
+    // cast_expr ::= unary_expr
+    fn cast_expr(&mut self) -> Option<Box<Node>> {
+        self.unary_expr()
+    }
+
+    // unary_expr ::= ("+" | "-") cast_expr
+    //                | postfix_expr
+    fn unary_expr(&mut self) -> Option<Box<Node>> {
         if self.consume("+") {
-            return self.unary();
+            // unary plus
+            return self.cast_expr();
         }
         if self.consume("-") {
+            // unary minus
             return Some(Box::new(Node::new(
                 NodeKind::Sub,
                 Some(Box::new(Node::new_num(0))),
-                self.unary(),
+                self.cast_expr(),
             )));
         }
-        self.primary()
+        self.postfix_expr()
     }
 
-    // primary = "(" expr ")"
-    //         | ident
-    //         | num
-    fn primary(&mut self) -> Option<Box<Node>> {
+    // postfix_expr ::= primary_expr
+    fn postfix_expr(&mut self) -> Option<Box<Node>> {
+        self.primary_expr()
+    }
+
+    // primary_expr ::= "(" expr ")"
+    //                  | ident
+    //                  | num
+    fn primary_expr(&mut self) -> Option<Box<Node>> {
         if self.consume("(") {
             let node = self.expr();
             self.expect(")").unwrap();

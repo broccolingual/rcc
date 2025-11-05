@@ -1,7 +1,10 @@
 use std::fmt;
 
-const RESERVED_COMP_OP: [&str; 4] = ["==", "!=", "<=", ">="];
-const RESERVED_SINGLE_OP: &str = "+-*/%=()<>;{}";
+const RESERVED_DOUBLE_OP: [&str; 19] = [
+    "==", "!=", "<=", ">=", "*=", "/=", "%=", "+=", "-=", "&=", "^=", "|=", "<<", ">>", "&&", "||",
+    "++", "--", "->",
+];
+const RESERVED_SINGLE_OP: &str = "+-*/%=()<>;{}&~!^|[],.";
 const RESERVED_WORDS: [&str; 32] = [
     "auto", "break", "case", "char", "const", "continue", "default", "do", "double", "else",
     "enum", "extern", "float", "for", "goto", "if", "int", "long", "register", "return", "short",
@@ -65,7 +68,7 @@ impl Tokenizer {
             // 2文字の記号トークン
             if let Some(&next_c) = c_iter.peek() {
                 let two_char_op = format!("{}{}", c, next_c);
-                if RESERVED_COMP_OP.contains(&two_char_op.as_str()) {
+                if RESERVED_DOUBLE_OP.contains(&two_char_op.as_str()) {
                     let token = Token::new(TokenKind::Reserved, &two_char_op);
                     tokens.push(token);
                     c_iter.next(); // 次の文字を消費
