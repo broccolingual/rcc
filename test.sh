@@ -23,16 +23,19 @@ assert 4 '(3 + 5) / 2;'
 assert 2 '8 % 3;'
 assert 0 '(3 + 5) % 4;'
 
-# bit shift operators
-assert 32 '1 << 5;'
-assert 2 '8 >> 2;'
-assert 2 '(1 << 4) >> 3;'
+# bitwise operators
+assert 7 '3 | 5;' # 3 (011) | 5 (101) = 7 (111)
+assert 1 '3 & 5;' # 3 (011) & 5 (101) = 1 (001)
+assert 6 '3 ^ 5;' # 3 (011) ^ 5 (101) = 6 (110)
+assert 32 '1 << 5;' # 1 (0001) << 5 = 32 (100000)
+assert 2 '8 >> 2;' # 8 (1000) >> 2 = 2 (0010)
 
 # unary operators
 assert 10 '-10 + 20;'
 assert 10 '- -10;'
 assert 10 '- - +10;'
 
+# comparison operators
 assert 0 '0 == 1;'
 assert 1 '42 == 42;'
 assert 1 '0 != 1;'

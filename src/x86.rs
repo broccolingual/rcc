@@ -150,6 +150,15 @@ impl Generator {
                 println!("  idiv rdi");
                 println!("  mov rax, rdx");
             }
+            NodeKind::BitAnd => {
+                println!("  and rax, rdi");
+            }
+            NodeKind::BitOr => {
+                println!("  or rax, rdi");
+            }
+            NodeKind::BitXor => {
+                println!("  xor rax, rdi");
+            }
             NodeKind::Shl => {
                 println!("  mov cl, dil");
                 println!("  shl rax, cl");

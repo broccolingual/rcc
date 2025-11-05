@@ -11,6 +11,9 @@ pub enum NodeKind {
     Rem,    // %
     Shl,    // <<
     Shr,    // >>
+    BitAnd, // &
+    BitXor, // ^
+    BitOr,  // |
     Eq,     // ==
     Ne,     // !=
     Lt,     // <
@@ -310,19 +313,54 @@ impl Ast {
         self.inclusive_or_expr()
     }
 
-    // inclusive_or_expr ::= exclusive_or_expr
+    // inclusive_or_expr ::= exclusive_or_expr ("|" exclusive_or_expr)*
     fn inclusive_or_expr(&mut self) -> Option<Box<Node>> {
-        self.exclusive_or_expr()
+        let mut node = self.exclusive_or_expr();
+
+        loop {
+            if self.consume("|") {
+                // bitwise or
+                node = Some(Box::new(Node::new(
+                    NodeKind::BitOr,
+                    node,
+                    self.exclusive_or_expr(),
+                )));
+            } else {
+                return node;
+            }
+        }
     }
 
-    // exclusive_or_expr ::= and_expr
+    // exclusive_or_expr ::= and_expr ("^" and_expr)*
     fn exclusive_or_expr(&mut self) -> Option<Box<Node>> {
-        self.and_expr()
+        let mut node = self.and_expr();
+
+        loop {
+            if self.consume("^") {
+                // bitwise xor
+                node = Some(Box::new(Node::new(NodeKind::BitXor, node, self.and_expr())));
+            } else {
+                return node;
+            }
+        }
     }
 
-    // and_expr ::= equality_expr
+    // and_expr ::= equality_expr ("&" equality_expr)*
     fn and_expr(&mut self) -> Option<Box<Node>> {
-        self.equality_expr()
+        let mut node = self.equality_expr();
+
+        loop {
+            if self.consume("&") {
+                //bitwise and
+                node = Some(Box::new(Node::new(
+                    NodeKind::BitAnd,
+                    node,
+                    self.equality_expr(),
+                )));
+            } else {
+                return node;
+            }
+        }
     }
 
     // equality_expr ::= relational_expr (("==" | "!=") relational_expr)*
