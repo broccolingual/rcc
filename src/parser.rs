@@ -39,7 +39,7 @@ impl Tokenizer {
             let c = chars[pos];
 
             // 空白文字をスキップ
-            if c.is_whitespace() {
+            if matches!(c, ' ' | '\t' | '\n' | '\r') {
                 pos += 1;
                 continue;
             }
@@ -63,13 +63,13 @@ impl Tokenizer {
             }
 
             // 数字トークン
-            if c.is_digit(10) {
+            if matches!(c, '0'..='9') {
                 let mut num_str = String::new();
                 num_str.push(c);
                 pos += 1;
                 while pos < chars.len() {
                     let next_c = chars[pos];
-                    if next_c.is_digit(10) {
+                    if matches!(next_c, '0'..='9') {
                         num_str.push(next_c);
                         pos += 1;
                     } else {
@@ -81,13 +81,13 @@ impl Tokenizer {
                 continue;
             }
 
-            // 識別子トークン（ローカル変数: 複数文字対応）
-            if c.is_ascii_alphabetic() {
+            // 識別子トークン
+            if matches!(c, 'a'..='z' | 'A'..='Z') {
                 let mut ident = c.to_string();
                 pos += 1;
                 while pos < chars.len() {
                     let next_c = chars[pos];
-                    if next_c.is_ascii_alphanumeric() || next_c.is_ascii_digit() || next_c == '_' {
+                    if matches!(next_c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_') {
                         ident.push(next_c);
                         pos += 1;
                     } else {
