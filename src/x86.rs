@@ -1,4 +1,5 @@
-use crate::ast::{Ast, Node, NodeKind};
+use crate::ast::Ast;
+use crate::node::{Node, NodeKind};
 
 pub struct Generator {
     label_seq: usize,
