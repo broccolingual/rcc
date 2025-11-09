@@ -274,11 +274,9 @@ impl Generator {
                 return;
             }
             NodeKind::Block => {
-                let mut cur = node.body.as_ref();
-                while let Some(n) = cur {
-                    self.gen_asm_from_expr(n);
+                for stmt in node.body.iter() {
+                    self.gen_asm_from_expr(stmt);
                     println!("  pop rax"); // ブロック内の各文の結果を捨てる
-                    cur = n.next.as_ref();
                 }
                 return;
             }
@@ -291,17 +289,15 @@ impl Generator {
                 return;
             }
             NodeKind::Call => {
-                let mut arg_node = node.args.as_ref();
-                let mut arg_count = 0;
+                let arg_count = node.args.len();
 
-                // 引数を評価してスタックに積む
-                while let Some(arg) = arg_node {
-                    self.gen_asm_from_expr(arg);
-                    arg_count += 1;
-                    arg_node = arg.next.as_ref();
-                }
                 if arg_count > 6 {
-                    unimplemented!("引数が6個を超える関数呼び出しは未実装です");
+                    panic!("6個を超える引数の関数呼び出しには対応していません");
+                }
+
+                // 引数をスタックに積む
+                for arg in node.args.iter() {
+                    self.gen_asm_from_expr(arg);
                 }
 
                 // 引数を逆順でレジスタに移動

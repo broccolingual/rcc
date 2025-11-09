@@ -1,5 +1,3 @@
-use std::fmt;
-
 use crate::parser::{Token, TokenKind};
 
 #[derive(PartialEq, Eq, Clone, Debug)]
@@ -50,7 +48,7 @@ pub enum NodeKind {
 #[derive(Debug)]
 pub struct Node {
     pub kind: NodeKind,
-    pub next: Option<Box<Node>>, // 次のノードへのポインタ
+    // pub next: Option<Box<Node>>, // 次のノードへのポインタ
     pub lhs: Option<Box<Node>>,
     pub rhs: Option<Box<Node>>,
     pub val: i64,                // kindがNumのときに使う
@@ -60,17 +58,16 @@ pub struct Node {
     pub els: Option<Box<Node>>,  // if文のelse節
     pub init: Option<Box<Node>>, // for文の初期化式
     pub inc: Option<Box<Node>>,  // for文の更新式
-    pub body: Option<Box<Node>>, // ブロック内の文
+    pub body: Vec<Box<Node>>,    // ブロック内のstatementリスト
     pub label_name: String,      // ラベル名
     pub func_name: String,       // 関数名
-    pub args: Option<Box<Node>>, // 関数呼び出しの引数リスト
+    pub args: Vec<Box<Node>>,    // 関数呼び出しの引数リスト
 }
 
 impl Node {
     pub fn new(kind: NodeKind, lhs: Option<Box<Node>>, rhs: Option<Box<Node>>) -> Self {
         Node {
             kind,
-            next: None,
             lhs,
             rhs,
             val: 0,
@@ -80,17 +77,16 @@ impl Node {
             els: None,
             init: None,
             inc: None,
-            body: None,
+            body: Vec::new(),
             label_name: String::new(),
             func_name: String::new(),
-            args: None,
+            args: Vec::new(),
         }
     }
 
     pub fn new_num(val: i64) -> Self {
         Node {
             kind: NodeKind::Num,
-            next: None,
             lhs: None,
             rhs: None,
             val,
@@ -100,36 +96,33 @@ impl Node {
             els: None,
             init: None,
             inc: None,
-            body: None,
+            body: Vec::new(),
             label_name: String::new(),
             func_name: String::new(),
-            args: None,
+            args: Vec::new(),
         }
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct LVar {
-    next: Option<Box<LVar>>,
     name: String,
     pub offset: i64,
 }
 
-impl fmt::Debug for LVar {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut current = Some(self);
-        while let Some(var) = current {
-            writeln!(f, "LVar {{ name: {}, offset: {} }}", var.name, var.offset)?;
-            current = var.next.as_ref().map(|b| b.as_ref());
+impl LVar {
+    pub fn new(name: &str, offset: i64) -> Self {
+        LVar {
+            name: name.to_string(),
+            offset,
         }
-        Ok(())
     }
 }
 
 pub struct Function {
     pub name: String,
     pub nodes: Vec<Box<Node>>,
-    pub args: Vec<Box<LVar>>,
+    pub args: Vec<LVar>,
 }
 
 impl Function {
@@ -145,7 +138,7 @@ impl Function {
 pub struct Ast {
     pub tokens: Vec<Token>,
     pub funcs: Vec<Box<Function>>,
-    pub locals: Option<Box<LVar>>,
+    pub locals: Vec<LVar>,
 }
 
 impl Ast {
@@ -153,19 +146,12 @@ impl Ast {
         Ast {
             tokens,
             funcs: Vec::new(),
-            locals: None,
+            locals: Vec::new(),
         }
     }
 
-    fn find_lvar(&mut self, name: &str) -> Option<&mut Box<LVar>> {
-        let mut lvar = self.locals.as_mut();
-        while let Some(var) = lvar {
-            if var.name == name {
-                return Some(var);
-            }
-            lvar = var.next.as_mut();
-        }
-        None
+    fn find_lvar(&mut self, name: &str) -> Option<&mut LVar> {
+        self.locals.iter_mut().find(|lvar| lvar.name == name)
     }
 
     fn consume(&mut self, op: &str) -> bool {
@@ -212,18 +198,12 @@ impl Ast {
         Ok(val)
     }
 
-    fn new_lvar(&mut self, name: &str) -> Box<LVar> {
-        let offset = if let Some(ref locals) = self.locals {
-            locals.offset + 8
-        } else {
-            8
-        };
-        let lvar = Box::new(LVar {
-            next: self.locals.take(),
-            name: name.to_string(),
-            offset,
-        });
-        self.locals = Some(lvar.clone());
+    fn new_lvar(&mut self, name: &str) -> LVar {
+        // 新しいローカル変数のオフセットを計算
+        let offset = self.locals.first().map_or(8, |last| last.offset + 8);
+        let lvar = LVar::new(name, offset);
+        // ローカル変数リストの先頭に追加
+        self.locals.insert(0, lvar.clone());
         lvar
     }
 
@@ -357,19 +337,14 @@ impl Ast {
 
         // compound statement
         if self.consume("{") {
-            // 一時的に頭のダミーノードを作成
-            let mut head: Option<Box<Node>> =
-                Some(Box::new(Node::new(NodeKind::Block, None, None)));
-            // 現在のノードを指すポインタ
-            let mut cur: &mut Option<Box<Node>> = &mut head;
-            while !self.consume("}") {
-                cur.as_mut().unwrap().next = self.stmt();
-                cur = &mut cur.as_mut().unwrap().next;
-            }
-            // ブロックノードを作成
             let mut node = Some(Box::new(Node::new(NodeKind::Block, None, None)));
-            // ブロック内の文を設定
-            node.as_mut().unwrap().body = head.as_mut().unwrap().next.take();
+            while !self.consume("}") {
+                if let Some(stmt) = self.stmt() {
+                    node.as_mut().unwrap().body.push(stmt);
+                } else {
+                    panic!("ブロック内の文のパースに失敗しました");
+                }
+            }
             return node;
         }
 
@@ -538,7 +513,7 @@ impl Ast {
     }
 
     // inclusive_or_expr ::= exclusive_or_expr
-    //                     | inclusive_or_expr "|" exclusive_or_expr
+    //                       | inclusive_or_expr "|" exclusive_or_expr
     fn inclusive_or_expr(&mut self) -> Option<Box<Node>> {
         let mut node = self.exclusive_or_expr();
 
@@ -557,7 +532,7 @@ impl Ast {
     }
 
     // exclusive_or_expr ::= and_expr
-    //                     | exclusive_or_expr "^" and_expr
+    //                       | exclusive_or_expr "^" and_expr
     fn exclusive_or_expr(&mut self) -> Option<Box<Node>> {
         let mut node = self.and_expr();
 
@@ -617,7 +592,7 @@ impl Ast {
     }
 
     // relational_expr ::= shift_expr
-    //                   | relational_expr ("<" | "<=" | ">" | ">=") shift_expr
+    //                     | relational_expr ("<" | "<=" | ">" | ">=") shift_expr
     fn relational_expr(&mut self) -> Option<Box<Node>> {
         let mut node = self.shift_expr();
 
@@ -641,7 +616,7 @@ impl Ast {
     }
 
     // shift_expr ::= add_expr
-    //               | shift_expr ("<<" | ">>") add_expr
+    //                | shift_expr ("<<" | ">>") add_expr
     fn shift_expr(&mut self) -> Option<Box<Node>> {
         let mut node = self.add_expr();
 
@@ -659,7 +634,7 @@ impl Ast {
     }
 
     // add_expr ::= mul_expr
-    //             | add_expr ("+" | "-") mul_expr
+    //              | add_expr ("+" | "-") mul_expr
     fn add_expr(&mut self) -> Option<Box<Node>> {
         let mut node = self.mul_expr();
 
@@ -677,7 +652,7 @@ impl Ast {
     }
 
     // mul_expr ::= cast_expr
-    //            | mul_expr ("*" | "/" | "%") cast_expr
+    //              | mul_expr ("*" | "/" | "%") cast_expr
     fn mul_expr(&mut self) -> Option<Box<Node>> {
         let mut node = self.cast_expr();
 
@@ -703,7 +678,7 @@ impl Ast {
     }
 
     // unary_expr ::= postfix_expr
-    //             | ("+" | "-" | "!" | "~") cast_expr
+    //                | ("+" | "-" | "!" | "~") cast_expr
     fn unary_expr(&mut self) -> Option<Box<Node>> {
         if self.consume("+") {
             // unary plus
@@ -761,14 +736,21 @@ impl Ast {
                 if self.consume(")") {
                     // 引数なし
                 } else {
-                    let mut head: Option<Box<Node>> = self.assign_expr();
-                    let mut cur: &mut Option<Box<Node>> = &mut head;
-                    while self.consume(",") {
-                        cur.as_mut().unwrap().next = self.assign_expr();
-                        cur = &mut cur.as_mut().unwrap().next;
+                    // 引数あり
+                    loop {
+                        if let Some(arg) = self.assign_expr() {
+                            node.args.push(arg);
+                        } else {
+                            panic!("関数呼び出しの引数のパースに失敗しました");
+                        }
+
+                        if self.consume(",") {
+                            continue;
+                        } else {
+                            break;
+                        }
                     }
                     self.expect(")").unwrap();
-                    node.args = head;
                 }
 
                 return Some(Box::new(node));
