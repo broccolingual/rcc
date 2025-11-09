@@ -29,6 +29,7 @@ fn main() {
     println!(".intel_syntax noprefix");
     println!(".globl main");
     println!("main:");
+    println!("  .cfi_startproc");
 
     // 変数26個分の領域を確保
     println!("  push rbp");
@@ -43,6 +44,7 @@ fn main() {
     println!("  mov rsp, rbp");
     println!("  pop rbp");
     println!("  ret");
+    println!("  .cfi_endproc");
 
     // スタックを実行不可に設定
     println!(".section .note.GNU-stack,\"\",@progbits");

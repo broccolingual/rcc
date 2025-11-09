@@ -38,6 +38,7 @@ pub enum NodeKind {
     For,          // for
     Do,           // do
     Block,        // {}
+    Call,         // 関数呼び出し
     Label,        // ラベル
     Break,        // break
     Continue,     // continue
@@ -60,6 +61,8 @@ pub struct Node {
     pub inc: Option<Box<Node>>,  // for文の更新式
     pub body: Option<Box<Node>>, // ブロック内の文
     pub label_name: String,      // ラベル名
+    pub func_name: String,       // 関数名
+    pub args: Option<Box<Node>>, // 関数呼び出しの引数リスト
 }
 
 impl Node {
@@ -78,6 +81,8 @@ impl Node {
             inc: None,
             body: None,
             label_name: String::new(),
+            func_name: String::new(),
+            args: None,
         }
     }
 
@@ -96,6 +101,8 @@ impl Node {
             inc: None,
             body: None,
             label_name: String::new(),
+            func_name: String::new(),
+            args: None,
         }
     }
 }
@@ -670,6 +677,28 @@ impl Ast {
         }
         let token = self.consume_ident();
         if let Some(name) = token {
+            // 関数呼び出し
+            if self.consume("(") {
+                let mut node = Node::new(NodeKind::Call, None, None);
+                node.func_name = name;
+
+                // 引数リストをパース
+                if self.consume(")") {
+                    // 引数なし
+                } else {
+                    let mut head: Option<Box<Node>> = self.assign_expr();
+                    let mut cur: &mut Option<Box<Node>> = &mut head;
+                    while self.consume(",") {
+                        cur.as_mut().unwrap().next = self.assign_expr();
+                        cur = &mut cur.as_mut().unwrap().next;
+                    }
+                    self.expect(")").unwrap();
+                    node.args = head;
+                }
+
+                return Some(Box::new(node));
+            }
+
             // ローカル変数ノードを作成
             let mut node = Node::new(NodeKind::LVar, None, None);
             let lvar = self.find_lvar(&name);

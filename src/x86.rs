@@ -245,6 +245,45 @@ impl Generator {
                 println!("  jmp .Lcontinue{}", self.continue_seq);
                 return;
             }
+            NodeKind::Call => {
+                let mut arg_node = node.args.as_ref();
+                let mut arg_count = 0;
+
+                // 引数を評価してスタックに積む
+                while let Some(arg) = arg_node {
+                    self.gen_asm_from_expr(arg);
+                    arg_count += 1;
+                    arg_node = arg.next.as_ref();
+                }
+                if arg_count > 6 {
+                    unimplemented!("引数が6個を超える関数呼び出しは未実装です");
+                }
+
+                // 引数を逆順でレジスタに移動
+                let arg_regs = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
+                for i in (0..arg_count).rev() {
+                    println!("  pop {}", arg_regs[i]);
+                }
+
+                // 関数呼び出し
+                // アラインメントを保つためにrspを調整
+                let seq = self.label_seq;
+                self.label_seq += 1;
+                println!("  mov rax, rsp"); // 現在のrspをraxにコピー
+                println!("  and rax, 15"); // rspを16の倍数にする
+                println!("  jnz .Lcall{}", seq); // もし16の倍数でなければ調整
+                println!("  mov rax, 0"); // ダミーのrax設定
+                println!("  call {}", node.func_name); // 関数呼び出し
+                println!("  jmp .Lend{}", seq);
+                println!(".Lcall{}:", seq); // 16の倍数でない場合の処理
+                println!("  sub rsp, 8"); // スタックを8バイト下げる
+                println!("  mov rax, 0"); // ダミーのrax設定
+                println!("  call {}", node.func_name); // 関数呼び出し
+                println!("  add rsp, 8"); // スタックを元に戻す
+                println!(".Lend{}:", seq);
+                println!("  push rax"); // 戻り値をスタックに積む
+                return;
+            }
             _ => {}
         }
 
