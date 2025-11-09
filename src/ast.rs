@@ -47,6 +47,7 @@ pub enum NodeKind {
     Num,          // 整数
 }
 
+#[derive(Debug)]
 pub struct Node {
     pub kind: NodeKind,
     pub next: Option<Box<Node>>, // 次のノードへのポインタ
@@ -111,7 +112,7 @@ impl Node {
 pub struct LVar {
     next: Option<Box<LVar>>,
     name: String,
-    offset: i64,
+    pub offset: i64,
 }
 
 impl fmt::Debug for LVar {
@@ -125,9 +126,25 @@ impl fmt::Debug for LVar {
     }
 }
 
+pub struct Function {
+    pub name: String,
+    pub nodes: Vec<Box<Node>>,
+    pub args: Vec<Box<LVar>>,
+}
+
+impl Function {
+    pub fn new(name: String) -> Self {
+        Function {
+            name,
+            nodes: Vec::new(),
+            args: Vec::new(),
+        }
+    }
+}
+
 pub struct Ast {
     pub tokens: Vec<Token>,
-    pub code: Vec<Option<Box<Node>>>,
+    pub funcs: Vec<Box<Function>>,
     pub locals: Option<Box<LVar>>,
 }
 
@@ -135,7 +152,7 @@ impl Ast {
     pub fn new(tokens: Vec<Token>) -> Self {
         Ast {
             tokens,
-            code: Vec::new(),
+            funcs: Vec::new(),
             locals: None,
         }
     }
@@ -195,18 +212,71 @@ impl Ast {
         Ok(val)
     }
 
+    fn new_lvar(&mut self, name: &str) -> Box<LVar> {
+        let offset = if let Some(ref locals) = self.locals {
+            locals.offset + 8
+        } else {
+            8
+        };
+        let lvar = Box::new(LVar {
+            next: self.locals.take(),
+            name: name.to_string(),
+            offset,
+        });
+        self.locals = Some(lvar.clone());
+        lvar
+    }
+
     fn at_eof(&self) -> bool {
         self.tokens.is_empty() || self.tokens.first().unwrap().kind == TokenKind::EOF
     }
 
+    // program ::= function*
     pub fn program(&mut self) {
         while !self.at_eof() {
-            let node = self.stmt();
-            self.code.push(node);
+            if let Some(func) = self.function() {
+                self.funcs.push(func);
+            }
         }
     }
 
-    // stmt ::= "return" expr ";"
+    fn function(&mut self) -> Option<Box<Function>> {
+        // 関数宣言(形指定なし)
+        let func_name = self.consume_ident().unwrap();
+        let mut func = Function::new(func_name);
+        self.expect("(").unwrap();
+
+        // 引数のパース
+        while let Some(arg_name) = self.consume_ident() {
+            // 現状、引数の型情報は無視
+            let lvar = self.new_lvar(&arg_name);
+            func.args.push(lvar);
+
+            if !self.consume(",") {
+                break;
+            }
+        }
+
+        self.expect(")").unwrap();
+
+        if self.consume(";") {
+            // 関数プロトタイプ宣言
+            return None;
+        }
+
+        // 関数本体のパース
+        self.expect("{").unwrap();
+        while !self.consume("}") {
+            if let Some(stmt) = self.stmt() {
+                func.nodes.push(stmt);
+            } else {
+                panic!("関数の文のパースに失敗しました");
+            }
+        }
+        Some(Box::new(func))
+    }
+
+    // stmt ::= "return" expr? ";"
     //          | "if" "(" expr ")" stmt ("else" stmt)?
     //          | "while" "(" expr ")" stmt
     //          | "for" "(" expr? ";" expr? ";" expr? ")" stmt
@@ -219,6 +289,11 @@ impl Ast {
         let mut node: Option<Box<Node>>;
 
         if self.consume("return") {
+            if self.consume(";") {
+                node = Some(Box::new(Node::new(NodeKind::Return, None, None)));
+                return node;
+            }
+
             node = Some(Box::new(Node::new(NodeKind::Return, self.expr(), None)));
             self.expect(";").unwrap();
             return node;
@@ -705,19 +780,8 @@ impl Ast {
             if let Some(lvar) = lvar {
                 node.offset = lvar.offset; // 既存のローカル変数のオフセットを設定
             } else {
-                let offset = if let Some(ref locals) = self.locals {
-                    locals.offset + 8
-                } else {
-                    8
-                };
-                // 新しいローカル変数を追加
-                let new_lvar = LVar {
-                    next: self.locals.take(),
-                    name: name.clone(),
-                    offset,
-                };
-                node.offset = new_lvar.offset;
-                self.locals = Some(Box::new(new_lvar));
+                let new_lvar = self.new_lvar(&name);
+                node.offset = new_lvar.offset; // 新しいローカル変数のオフセットを設定
             }
             return Some(Box::new(node));
         }

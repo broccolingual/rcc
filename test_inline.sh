@@ -3,7 +3,7 @@ assert() {
   expected="$1"
   input="$2"
 
-  cargo run -q -- "$input" > ./bin/tmp.s
+  cargo run -q -- "main() { $input }" > ./bin/tmp.s
   cc -o ./bin/tmp ./bin/tmp.s
   ./bin/tmp
   actual="$?"
@@ -57,8 +57,7 @@ assert 1 '1 >= 1;'
 assert 0 '1 >= 2;'
 
 # local variables
-assert 3 'a = 3;'
-assert 3 'a = 3; a;'
+assert 3 'a = 3; return a;'
 assert 13 'a = 3; b = 5 * 2; a + b;'
 assert 13 't = 3; e = 5 * 2; r = t + e; r;'
 assert 13 'three = 3; ten = 5 * 2; result = three + ten; result;'

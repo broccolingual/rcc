@@ -25,26 +25,7 @@ fn main() {
 
     let mut generator = Generator::new();
 
-    // おまじない
-    println!(".intel_syntax noprefix");
-    println!(".globl main");
-    println!("main:");
-    println!("  .cfi_startproc");
-
-    // 変数26個分の領域を確保
-    println!("  push rbp");
-    println!("  mov rbp, rsp");
-    println!("  sub rsp, 208");
-
-    for node in ast.code.iter() {
-        generator.gen_asm_from_expr(node.as_ref().unwrap());
-        println!("  pop rax");
-    }
-
-    println!("  mov rsp, rbp");
-    println!("  pop rbp");
-    println!("  ret");
-    println!("  .cfi_endproc");
+    generator.gen_asm(&ast);
 
     // スタックを実行不可に設定
     println!(".section .note.GNU-stack,\"\",@progbits");

@@ -1,9 +1,10 @@
-use crate::ast::{Node, NodeKind};
+use crate::ast::{Ast, Node, NodeKind};
 
 pub struct Generator {
     label_seq: usize,
     break_seq: usize,
     continue_seq: usize,
+    func_name: String,
 }
 
 impl Generator {
@@ -12,6 +13,40 @@ impl Generator {
             label_seq: 1,
             break_seq: 0,
             continue_seq: 0,
+            func_name: String::new(),
+        }
+    }
+
+    pub fn gen_asm(&mut self, ast: &Ast) {
+        println!(".intel_syntax noprefix"); // おまじない
+
+        println!(".text");
+        for func in ast.funcs.iter() {
+            self.func_name = func.name.clone();
+            println!(".globl {}", self.func_name); // 関数をグローバルシンボルとして宣言
+            println!("{}:", self.func_name); // 関数ラベル
+
+            // 関数プロローグ
+            println!("  push rbp");
+            println!("  mov rbp, rsp");
+            println!("  sub rsp, 208"); // 変数26個分の領域を確保
+
+            // 引数を逆順でスタックに読み出し
+            let arg_regs = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
+            for (i, arg) in func.args.iter().enumerate().rev() {
+                println!("  mov [rbp-{}], {}", arg.offset, arg_regs[i]);
+            }
+
+            // 関数本体のコード生成
+            for node in func.nodes.iter() {
+                self.gen_asm_from_expr(node);
+            }
+
+            // 関数エピローグ
+            println!(".L.return.{}:", self.func_name);
+            println!("  mov rsp, rbp");
+            println!("  pop rbp");
+            println!("  ret");
         }
     }
 
@@ -26,14 +61,6 @@ impl Generator {
 
     pub fn gen_asm_from_expr(&mut self, node: &Node) {
         match node.kind {
-            NodeKind::Return => {
-                self.gen_asm_from_expr(node.lhs.as_ref().unwrap());
-                println!("  pop rax");
-                println!("  mov rsp, rbp");
-                println!("  pop rbp");
-                println!("  ret");
-                return;
-            }
             NodeKind::Num => {
                 println!("  push {}", node.val);
                 return;
@@ -284,6 +311,14 @@ impl Generator {
                 println!("  push rax"); // 戻り値をスタックに積む
                 return;
             }
+            NodeKind::Return => {
+                if node.lhs.is_some() {
+                    self.gen_asm_from_expr(node.lhs.as_ref().unwrap());
+                    println!("  pop rax");
+                }
+                println!("  jmp .L.return.{}", self.func_name);
+                return;
+            }
             _ => {}
         }
 
@@ -292,7 +327,7 @@ impl Generator {
         self.gen_asm_from_binary_op(node);
     }
 
-    fn gen_asm_from_binary_op(&mut self, node: &Node) {
+    fn gen_asm_from_binary_op(&self, node: &Node) {
         println!("  pop rdi");
         println!("  pop rax");
 
