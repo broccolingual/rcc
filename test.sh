@@ -29,6 +29,7 @@ assert 1 '3 & 5;' # 3 (011) & 5 (101) = 1 (001)
 assert 6 '3 ^ 5;' # 3 (011) ^ 5 (101) = 6 (110)
 assert 32 '1 << 5;' # 1 (0001) << 5 = 32 (100000)
 assert 2 '8 >> 2;' # 8 (1000) >> 2 = 2 (0010)
+assert 5 '~-5 + 1;' # ~-5 (..11111010) + 1 = 5 (00000101)
 
 # unary operators
 assert 10 '-10 + 20;'
@@ -105,6 +106,10 @@ assert 0 '0 || 0;'
 assert 0 'i = 0; if (i < 0 || i > 0) return 1; else return 0;'
 assert 1 'i = 3; if (i < 0 || i > 0) return 1; else return 0;'
 assert 1 'i = -2; if (i < 0 || i > 0) return 1; else return 0;'
+assert 0 '!1;'
+assert 1 '!0;'
+assert 1 'i = 0; if (!i) return 1; else return 0;'
+assert 0 'i = 3; if (!i) return 1; else return 0;'
 
 # ternary operator
 assert 3 'a = 3; b = 5; a < b ? a : b;'

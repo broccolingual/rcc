@@ -14,6 +14,8 @@ pub enum NodeKind {
     BitAnd,       // &
     BitXor,       // ^
     BitOr,        // |
+    BitNot,       // ~
+    LogicalNot,   // !
     LogicalAnd,   // &&
     LogicalOr,    // ||
     Eq,           // ==
@@ -415,7 +417,8 @@ impl Ast {
         node
     }
 
-    // logical_or_expr ::= logical_and_expr ("||" logical_and_expr)*
+    // logical_or_expr ::= logical_and_expr
+    //                     | logical_or_expr "||" logical_and_expr
     fn logical_or_expr(&mut self) -> Option<Box<Node>> {
         let mut node = self.logical_and_expr();
 
@@ -433,7 +436,8 @@ impl Ast {
         }
     }
 
-    // logical_and_expr ::= inclusive_or_expr ("&&" inclusive_or_expr)*
+    // logical_and_expr ::= inclusive_or_expr
+    //                      | logical_and_expr "&&" inclusive_or_expr
     fn logical_and_expr(&mut self) -> Option<Box<Node>> {
         let mut node = self.inclusive_or_expr();
 
@@ -451,7 +455,8 @@ impl Ast {
         }
     }
 
-    // inclusive_or_expr ::= exclusive_or_expr ("|" exclusive_or_expr)*
+    // inclusive_or_expr ::= exclusive_or_expr
+    //                     | inclusive_or_expr "|" exclusive_or_expr
     fn inclusive_or_expr(&mut self) -> Option<Box<Node>> {
         let mut node = self.exclusive_or_expr();
 
@@ -469,7 +474,8 @@ impl Ast {
         }
     }
 
-    // exclusive_or_expr ::= and_expr ("^" and_expr)*
+    // exclusive_or_expr ::= and_expr
+    //                     | exclusive_or_expr "^" and_expr
     fn exclusive_or_expr(&mut self) -> Option<Box<Node>> {
         let mut node = self.and_expr();
 
@@ -483,7 +489,8 @@ impl Ast {
         }
     }
 
-    // and_expr ::= equality_expr ("&" equality_expr)*
+    // and_expr ::= equality_expr
+    //              | and_expr "&" equality_expr
     fn and_expr(&mut self) -> Option<Box<Node>> {
         let mut node = self.equality_expr();
 
@@ -501,7 +508,8 @@ impl Ast {
         }
     }
 
-    // equality_expr ::= relational_expr (("==" | "!=") relational_expr)*
+    // equality_expr ::= relational_expr
+    //                   | equality_expr ("==" | "!=") relational_expr
     fn equality_expr(&mut self) -> Option<Box<Node>> {
         let mut node = self.relational_expr();
 
@@ -526,7 +534,8 @@ impl Ast {
         }
     }
 
-    // relational_expr ::= shift_expr (("<" | "<=" | ">" | ">=") shift_expr)*
+    // relational_expr ::= shift_expr
+    //                   | relational_expr ("<" | "<=" | ">" | ">=") shift_expr
     fn relational_expr(&mut self) -> Option<Box<Node>> {
         let mut node = self.shift_expr();
 
@@ -549,7 +558,8 @@ impl Ast {
         }
     }
 
-    // shift_expr ::= add_expr (("<<" | ">>") add_expr)*
+    // shift_expr ::= add_expr
+    //               | shift_expr ("<<" | ">>") add_expr
     fn shift_expr(&mut self) -> Option<Box<Node>> {
         let mut node = self.add_expr();
 
@@ -566,7 +576,8 @@ impl Ast {
         }
     }
 
-    // add_expr ::= mul_expr (("+" | "-") mul_expr)*
+    // add_expr ::= mul_expr
+    //             | add_expr ("+" | "-") mul_expr
     fn add_expr(&mut self) -> Option<Box<Node>> {
         let mut node = self.mul_expr();
 
@@ -583,7 +594,8 @@ impl Ast {
         }
     }
 
-    // mul_expr ::= cast_expr (("*" | "/" | "%") cast_expr)*
+    // mul_expr ::= cast_expr
+    //            | mul_expr ("*" | "/" | "%") cast_expr
     fn mul_expr(&mut self) -> Option<Box<Node>> {
         let mut node = self.cast_expr();
 
@@ -608,8 +620,8 @@ impl Ast {
         self.unary_expr()
     }
 
-    // unary_expr ::= ("+" | "-") cast_expr
-    //                | postfix_expr
+    // unary_expr ::= postfix_expr
+    //             | ("+" | "-" | "!" | "~") cast_expr
     fn unary_expr(&mut self) -> Option<Box<Node>> {
         if self.consume("+") {
             // unary plus
@@ -621,6 +633,22 @@ impl Ast {
                 NodeKind::Sub,
                 Some(Box::new(Node::new_num(0))),
                 self.cast_expr(),
+            )));
+        }
+        if self.consume("!") {
+            // logical not
+            return Some(Box::new(Node::new(
+                NodeKind::LogicalNot,
+                self.cast_expr(),
+                None,
+            )));
+        }
+        if self.consume("~") {
+            // bitwise not
+            return Some(Box::new(Node::new(
+                NodeKind::BitNot,
+                self.cast_expr(),
+                None,
             )));
         }
         self.postfix_expr()

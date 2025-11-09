@@ -79,6 +79,22 @@ impl Generator {
             | NodeKind::ShrAssign => {
                 unimplemented!("複合代入演算子は未実装です");
             }
+            NodeKind::LogicalNot => {
+                self.gen_asm_from_expr(node.lhs.as_ref().unwrap());
+                println!("  pop rax");
+                println!("  cmp rax, 0");
+                println!("  sete al");
+                println!("  movzb rax, al");
+                println!("  push rax");
+                return;
+            }
+            NodeKind::BitNot => {
+                self.gen_asm_from_expr(node.lhs.as_ref().unwrap());
+                println!("  pop rax");
+                println!("  not rax");
+                println!("  push rax");
+                return;
+            }
             NodeKind::LogicalAnd => {
                 let seq = self.label_seq;
                 self.label_seq += 1;
