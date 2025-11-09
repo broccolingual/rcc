@@ -1,4 +1,4 @@
-use crate::parser::{Token, TokenKind};
+use crate::parser::Token;
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum NodeKind {
@@ -127,7 +127,7 @@ impl LVar {
 
 pub struct Function {
     pub name: String,
-    pub nodes: Vec<Box<Node>>,
+    pub body: Vec<Box<Node>>,
     pub args: Vec<LVar>,
 }
 
@@ -135,7 +135,7 @@ impl Function {
     pub fn new(name: String) -> Self {
         Function {
             name,
-            nodes: Vec::new(),
+            body: Vec::new(),
             args: Vec::new(),
         }
     }
@@ -161,47 +161,45 @@ impl Ast {
     }
 
     fn consume(&mut self, op: &str) -> bool {
-        let current_token = self.tokens.first();
-        if current_token.is_none()
-            || current_token.unwrap().kind != TokenKind::Reserved
-            || current_token.unwrap().input != op
-        {
-            return false;
+        match self.tokens.first() {
+            Some(Token::Reserved(s)) if s == op => {
+                self.tokens.remove(0);
+                true
+            }
+            _ => false,
         }
-        self.tokens.remove(0);
-        true
     }
 
     fn consume_ident(&mut self) -> Option<String> {
-        let current_token = self.tokens.first();
-        if current_token.is_none() || current_token.unwrap().kind != TokenKind::Ident {
-            return None;
+        match self.tokens.first() {
+            Some(Token::Ident(name)) => {
+                let name_clone = name.clone();
+                self.tokens.remove(0);
+                Some(name_clone)
+            }
+            _ => None,
         }
-        let name = current_token.unwrap().input.clone();
-        self.tokens.remove(0);
-        Some(name)
     }
 
     fn expect(&mut self, op: &str) -> Result<(), &str> {
-        let current_token = self.tokens.first();
-        if current_token.is_none()
-            || current_token.unwrap().kind != TokenKind::Reserved
-            || current_token.unwrap().input != op
-        {
-            return Err("予期せぬトークンです");
+        match self.tokens.first() {
+            Some(Token::Reserved(s)) if s == op => {
+                self.tokens.remove(0);
+                Ok(())
+            }
+            _ => Err("期待されたトークンではありません"),
         }
-        self.tokens.remove(0);
-        Ok(())
     }
 
     fn expect_number(&mut self) -> Result<i64, &str> {
-        let current_token = self.tokens.first();
-        if current_token.is_none() || current_token.unwrap().kind != TokenKind::Num {
-            return Err("数値ではありません");
+        match self.tokens.first() {
+            Some(Token::Num(val)) => {
+                let val_clone = *val;
+                self.tokens.remove(0);
+                Ok(val_clone)
+            }
+            _ => Err("数値トークンではありません"),
         }
-        let val = current_token.unwrap().val;
-        self.tokens.remove(0);
-        Ok(val)
     }
 
     fn new_lvar(&mut self, name: &str) -> LVar {
@@ -214,7 +212,7 @@ impl Ast {
     }
 
     fn at_eof(&self) -> bool {
-        self.tokens.is_empty() || self.tokens.first().unwrap().kind == TokenKind::EOF
+        self.tokens.is_empty() || matches!(self.tokens.first(), Some(Token::EOF))
     }
 
     // program ::= function*
@@ -254,7 +252,7 @@ impl Ast {
         self.expect("{").unwrap();
         while !self.consume("}") {
             if let Some(stmt) = self.stmt() {
-                func.nodes.push(stmt);
+                func.body.push(stmt);
             } else {
                 panic!("関数の文のパースに失敗しました");
             }

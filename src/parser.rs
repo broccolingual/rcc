@@ -1,11 +1,9 @@
-use std::fmt;
-
-const RESERVED_TRIPLE_OP: [&str; 2] = ["<<=", ">>="];
-const RESERVED_DOUBLE_OP: [&str; 19] = [
-    "==", "!=", "<=", ">=", "*=", "/=", "%=", "+=", "-=", "&=", "^=", "|=", "<<", ">>", "&&", "||",
-    "++", "--", "->",
+const RESERVED_OPS: [&str; 45] = [
+    "+", "-", "*", "/", "%", "=", "(", ")", "<", ">", ";", "{", "}", "&", "~", "!", "^", "|", "[",
+    "]", ",", ".", "?", ":", "==", "!=", "<=", ">=", "*=", "/=", "%=", "+=", "-=", "&=", "^=",
+    "|=", "<<", ">>", "&&", "||", "++", "--", "->", "<<=", ">>=",
 ];
-const RESERVED_SINGLE_OP: &str = "+-*/%=()<>;{}&~!^|[],.?:";
+
 const RESERVED_WORDS: [&str; 32] = [
     "auto", "break", "case", "char", "const", "continue", "default", "do", "double", "else",
     "enum", "extern", "float", "for", "goto", "if", "int", "long", "register", "return", "short",
@@ -14,39 +12,11 @@ const RESERVED_WORDS: [&str; 32] = [
 ];
 
 #[derive(PartialEq, Eq, Clone, Debug)]
-pub enum TokenKind {
-    Reserved, // 記号
-    Ident,    // 識別子
-    Num,      // 整数トークン
-    EOF,      // 入力の終わりを表すトークン
-}
-
-#[derive(Clone)]
-pub struct Token {
-    pub kind: TokenKind,
-    pub val: i64,      // kindがNumの場合、その数値
-    pub input: String, // トークン文字列
-}
-
-impl Token {
-    fn new(kind: TokenKind, input: &str) -> Self {
-        Token {
-            kind,
-            val: 0,
-            input: input.to_string(),
-        }
-    }
-}
-
-impl fmt::Debug for Token {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.kind {
-            TokenKind::Reserved => write!(f, "Reserved('{}')", self.input),
-            TokenKind::Ident => write!(f, "Ident('{}')", self.input),
-            TokenKind::Num => write!(f, "Num({})", self.val),
-            TokenKind::EOF => write!(f, "EOF"),
-        }
-    }
+pub enum Token {
+    Reserved(String), // 記号
+    Ident(String),    // 識別子
+    Num(i64),         // 整数トークン
+    EOF,              // 入力の終わりを表すトークン
 }
 
 pub struct Tokenizer;
@@ -57,6 +27,10 @@ impl Tokenizer {
     }
 
     pub fn tokenize(&mut self, input: &str) -> Vec<Token> {
+        // 記号トークンを長い順にソート
+        let mut sorted_reserved_ops = RESERVED_OPS.to_vec();
+        sorted_reserved_ops.sort_by(|a, b| b.len().cmp(&a.len()));
+
         let mut tokens = Vec::new();
         let chars = input.chars().collect::<Vec<char>>();
         let mut pos = 0;
@@ -70,33 +44,21 @@ impl Tokenizer {
                 continue;
             }
 
-            // 3文字の記号トークン
-            if pos + 2 < chars.len() {
-                let three_char_op: String = chars[pos..pos + 3].iter().collect();
-                if RESERVED_TRIPLE_OP.contains(&three_char_op.as_str()) {
-                    let token = Token::new(TokenKind::Reserved, &three_char_op);
-                    tokens.push(token);
-                    pos += 3;
-                    continue;
+            // 記号トークン
+            let mut matched = false;
+            for op in &sorted_reserved_ops {
+                let op_len = op.len();
+                if pos + op_len <= chars.len() {
+                    let candidate: String = chars[pos..pos + op_len].iter().collect();
+                    if candidate == *op {
+                        tokens.push(Token::Reserved(op.to_string()));
+                        pos += op_len;
+                        matched = true;
+                        break;
+                    }
                 }
             }
-
-            // 2文字の記号トークン
-            if pos + 1 < chars.len() {
-                let two_char_op: String = chars[pos..pos + 2].iter().collect();
-                if RESERVED_DOUBLE_OP.contains(&two_char_op.as_str()) {
-                    let token = Token::new(TokenKind::Reserved, &two_char_op);
-                    tokens.push(token);
-                    pos += 2;
-                    continue;
-                }
-            }
-
-            // 単一文字の記号トークン
-            if RESERVED_SINGLE_OP.contains(c) {
-                let token = Token::new(TokenKind::Reserved, &c.to_string());
-                tokens.push(token);
-                pos += 1;
+            if matched {
                 continue;
             }
 
@@ -115,12 +77,7 @@ impl Tokenizer {
                     }
                 }
                 let val = num_str.parse::<i64>().unwrap();
-                let token = Token {
-                    kind: TokenKind::Num,
-                    val,
-                    input: num_str,
-                };
-                tokens.push(token);
+                tokens.push(Token::Num(val));
                 continue;
             }
 
@@ -130,7 +87,7 @@ impl Tokenizer {
                 pos += 1;
                 while pos < chars.len() {
                     let next_c = chars[pos];
-                    if next_c.is_ascii_alphanumeric() || next_c == '_' {
+                    if next_c.is_ascii_alphanumeric() || next_c.is_ascii_digit() || next_c == '_' {
                         ident.push(next_c);
                         pos += 1;
                     } else {
@@ -138,19 +95,18 @@ impl Tokenizer {
                     }
                 }
                 if RESERVED_WORDS.contains(&ident.as_str()) {
-                    let token = Token::new(TokenKind::Reserved, &ident);
-                    tokens.push(token);
+                    // 予約語はReservedトークンとして扱う
+                    tokens.push(Token::Reserved(ident));
                     continue;
                 } else {
-                    let token = Token::new(TokenKind::Ident, &ident);
-                    tokens.push(token);
+                    // それ以外は識別子トークン
+                    tokens.push(Token::Ident(ident));
                     continue;
                 }
             }
             panic!("不明な文字です: {}", c);
         }
-        let eof_token = Token::new(TokenKind::EOF, "");
-        tokens.push(eof_token);
+        tokens.push(Token::EOF);
         tokens
     }
 }

@@ -38,7 +38,7 @@ impl Generator {
             }
 
             // 関数本体のコード生成
-            for node in func.nodes.iter() {
+            for node in func.body.iter() {
                 self.gen_asm_from_expr(node);
             }
 
