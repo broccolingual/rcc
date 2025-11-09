@@ -20,6 +20,7 @@ pub enum NodeKind {
     Ne,           // !=
     Lt,           // <
     Le,           // <=
+    Ternary,      // ?:
     Assign,       // =
     AddAssign,    // +=
     SubAssign,    // -=
@@ -400,8 +401,18 @@ impl Ast {
     }
 
     // conditional_expr ::= logical_or_expr
+    //                      | logical_or_expr "?" expr ":" conditional_expr
     fn conditional_expr(&mut self) -> Option<Box<Node>> {
-        self.logical_or_expr()
+        let node = self.logical_or_expr();
+        if self.consume("?") {
+            let mut ternary_node = Node::new(NodeKind::Ternary, None, None);
+            ternary_node.cond = node;
+            ternary_node.then = self.expr();
+            self.expect(":").unwrap();
+            ternary_node.els = self.conditional_expr();
+            return Some(Box::new(ternary_node));
+        }
+        node
     }
 
     // logical_or_expr ::= logical_and_expr ("||" logical_and_expr)*

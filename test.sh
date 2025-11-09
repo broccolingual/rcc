@@ -106,6 +106,11 @@ assert 0 'i = 0; if (i < 0 || i > 0) return 1; else return 0;'
 assert 1 'i = 3; if (i < 0 || i > 0) return 1; else return 0;'
 assert 1 'i = -2; if (i < 0 || i > 0) return 1; else return 0;'
 
+# ternary operator
+assert 3 'a = 3; b = 5; a < b ? a : b;'
+assert 5 'a = 3; b = 5; a > b ? a : b;'
+assert 8 'a = 3; b = 5; c = 2; a + b > 7 ? a + b : b + c;'
+
 # block statement
 assert 8 '{ a = 3; b = 5; return a + b; }'
 assert 10 '{ a = 3; b = 5; { c = 2; return a + b + c; } }'

@@ -54,6 +54,20 @@ impl Generator {
                 println!("  push rdi");
                 return;
             }
+            NodeKind::Ternary => {
+                let seq = self.label_seq;
+                self.label_seq += 1;
+                self.gen_asm_from_expr(node.cond.as_ref().unwrap());
+                println!("  pop rax");
+                println!("  cmp rax, 0");
+                println!("  je .Lelse{}", seq);
+                self.gen_asm_from_expr(node.then.as_ref().unwrap());
+                println!("  jmp .Lend{}", seq);
+                println!(".Lelse{}:", seq);
+                self.gen_asm_from_expr(node.els.as_ref().unwrap());
+                println!(".Lend{}:", seq);
+                return;
+            }
             NodeKind::AddAssign
             | NodeKind::SubAssign
             | NodeKind::MulAssign

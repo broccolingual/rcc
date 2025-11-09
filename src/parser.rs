@@ -5,7 +5,7 @@ const RESERVED_DOUBLE_OP: [&str; 19] = [
     "==", "!=", "<=", ">=", "*=", "/=", "%=", "+=", "-=", "&=", "^=", "|=", "<<", ">>", "&&", "||",
     "++", "--", "->",
 ];
-const RESERVED_SINGLE_OP: &str = "+-*/%=()<>;{}&~!^|[],.";
+const RESERVED_SINGLE_OP: &str = "+-*/%=()<>;{}&~!^|[],.?:";
 const RESERVED_WORDS: [&str; 32] = [
     "auto", "break", "case", "char", "const", "continue", "default", "do", "double", "else",
     "enum", "extern", "float", "for", "goto", "if", "int", "long", "register", "return", "short",
