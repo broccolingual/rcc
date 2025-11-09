@@ -65,10 +65,47 @@ impl Generator {
             | NodeKind::ShrAssign => {
                 unimplemented!("複合代入演算子は未実装です");
             }
+            NodeKind::LogicalAnd => {
+                let seq = self.label_seq;
+                self.label_seq += 1;
+                self.gen_asm_from_expr(node.lhs.as_ref().unwrap());
+                println!("  pop rax");
+                println!("  cmp rax, 0");
+                println!("  je .Lfalse{}", seq);
+                self.gen_asm_from_expr(node.rhs.as_ref().unwrap());
+                println!("  pop rax");
+                println!("  cmp rax, 0");
+                println!("  je .Lfalse{}", seq);
+                println!("  push 1");
+                println!("  jmp .Lend{}", seq);
+                println!(".Lfalse{}:", seq);
+                println!("  push 0");
+                println!(".Lend{}:", seq);
+                return;
+            }
+            NodeKind::LogicalOr => {
+                let seq = self.label_seq;
+                self.label_seq += 1;
+                self.gen_asm_from_expr(node.lhs.as_ref().unwrap());
+                println!("  pop rax");
+                println!("  cmp rax, 0");
+                println!("  jne .Ltrue{}", seq);
+                self.gen_asm_from_expr(node.rhs.as_ref().unwrap());
+                println!("  pop rax");
+                println!("  cmp rax, 0");
+                println!("  jne .Ltrue{}", seq);
+                println!("  push 0");
+                println!("  jmp .Lend{}", seq);
+                println!(".Ltrue{}:", seq);
+                println!("  push 1");
+                println!(".Lend{}:", seq);
+                return;
+            }
             NodeKind::If => {
                 let seq = self.label_seq;
                 self.label_seq += 1;
                 if node.els.is_some() {
+                    // else節あり
                     self.gen_asm_from_expr(node.cond.as_ref().unwrap());
                     println!("  pop rax");
                     println!("  cmp rax, 0");
@@ -79,6 +116,7 @@ impl Generator {
                     self.gen_asm_from_expr(node.els.as_ref().unwrap());
                     println!(".Lend{}:", seq);
                 } else {
+                    // else節なし
                     self.gen_asm_from_expr(node.cond.as_ref().unwrap());
                     println!("  pop rax");
                     println!("  cmp rax, 0");

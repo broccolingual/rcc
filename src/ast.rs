@@ -14,6 +14,8 @@ pub enum NodeKind {
     BitAnd,       // &
     BitXor,       // ^
     BitOr,        // |
+    LogicalAnd,   // &&
+    LogicalOr,    // ||
     Eq,           // ==
     Ne,           // !=
     Lt,           // <
@@ -225,6 +227,7 @@ impl Ast {
             return node;
         }
 
+        // iteration statement
         if self.consume("while") {
             node = Some(Box::new(Node::new(NodeKind::While, None, None)));
             self.expect("(").unwrap();
@@ -234,7 +237,6 @@ impl Ast {
             return node;
         }
 
-        // iteration statement
         if self.consume("for") {
             node = Some(Box::new(Node::new(NodeKind::For, None, None)));
             self.expect("(").unwrap();
@@ -402,14 +404,40 @@ impl Ast {
         self.logical_or_expr()
     }
 
-    // logical_or_expr ::= logical_and_expr
+    // logical_or_expr ::= logical_and_expr ("||" logical_and_expr)*
     fn logical_or_expr(&mut self) -> Option<Box<Node>> {
-        self.logical_and_expr()
+        let mut node = self.logical_and_expr();
+
+        loop {
+            if self.consume("||") {
+                // logical or
+                node = Some(Box::new(Node::new(
+                    NodeKind::LogicalOr,
+                    node,
+                    self.logical_and_expr(),
+                )));
+            } else {
+                return node;
+            }
+        }
     }
 
-    // logical_and_expr ::= inclusive_or_expr
+    // logical_and_expr ::= inclusive_or_expr ("&&" inclusive_or_expr)*
     fn logical_and_expr(&mut self) -> Option<Box<Node>> {
-        self.inclusive_or_expr()
+        let mut node = self.inclusive_or_expr();
+
+        loop {
+            if self.consume("&&") {
+                // logical and
+                node = Some(Box::new(Node::new(
+                    NodeKind::LogicalAnd,
+                    node,
+                    self.inclusive_or_expr(),
+                )));
+            } else {
+                return node;
+            }
+        }
     }
 
     // inclusive_or_expr ::= exclusive_or_expr ("|" exclusive_or_expr)*
