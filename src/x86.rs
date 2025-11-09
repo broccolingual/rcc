@@ -54,9 +54,21 @@ impl Generator {
         if node.kind != NodeKind::LVar {
             panic!("代入の左辺値が変数ではありません");
         }
-        println!("  mov rax, rbp");
-        println!("  sub rax, {}", node.offset);
+        println!("  lea rax, [rbp-{}]", node.offset);
         println!("  push rax");
+    }
+
+    fn load(&self) {
+        println!("  pop rax");
+        println!("  mov rax, [rax]");
+        println!("  push rax");
+    }
+
+    fn store(&self) {
+        println!("  pop rdi");
+        println!("  pop rax");
+        println!("  mov [rax], rdi");
+        println!("  push rdi");
     }
 
     pub fn gen_asm_from_expr(&mut self, node: &Node) {
@@ -104,7 +116,13 @@ impl Generator {
             | NodeKind::BitXorAssign
             | NodeKind::ShlAssign
             | NodeKind::ShrAssign => {
-                unimplemented!("複合代入演算子は未実装です");
+                self.gen_asm_from_lval(node.lhs.as_ref().unwrap());
+                println!("  push [rsp]");
+                self.load();
+                self.gen_asm_from_expr(node.rhs.as_ref().unwrap());
+                self.gen_asm_from_binary_op(node);
+                self.store();
+                return;
             }
             NodeKind::LogicalNot => {
                 self.gen_asm_from_expr(node.lhs.as_ref().unwrap());

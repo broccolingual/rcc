@@ -62,6 +62,17 @@ assert 13 'a = 3; b = 5 * 2; a + b;'
 assert 13 't = 3; e = 5 * 2; r = t + e; r;'
 assert 13 'three = 3; ten = 5 * 2; result = three + ten; result;'
 
+# assignment operators
+assert 7 'a = 3; a += 4; return a;' # addition
+assert 2 'b = 5; b -= 3; return b;' # subtraction
+assert 15 'c = 3; c *= 5; return c;' # multiplication
+assert 4 'd = 20; d /= 5; return d;' # division
+assert 7 'f = 3; f |= 5; return f;' # bitwise OR
+assert 1 'g = 3; g &= 5; return g;' # bitwise AND
+assert 6 'h = 3; h ^= 5; return h;' # bitwise XOR
+assert 16 'i = 1; i <<= 4; return i;' # left shift
+assert 2 'j = 8; j >>= 2; return j;' # right shift
+
 # return statement
 assert 3 'return 3;'
 assert 8 'a = 3; return a + 5;'
