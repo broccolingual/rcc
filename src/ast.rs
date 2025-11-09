@@ -35,6 +35,8 @@ pub enum NodeKind {
     PreDec,       // --pre
     PostInc,      // post++
     PostDec,      // post--
+    Addr,         // &
+    Deref,        // *
     If,           // if
     While,        // while
     For,          // for
@@ -683,7 +685,7 @@ impl Ast {
 
     // unary_expr ::= postfix_expr
     //                | ("++" | "--") unary_expr
-    //                | ("+" | "-" | "!" | "~") cast_expr
+    //                | ("+" | "-" | "!" | "~" | "&" | "*") cast_expr
     fn unary_expr(&mut self) -> Option<Box<Node>> {
         if self.consume("++") {
             // pre-increment
@@ -728,6 +730,14 @@ impl Ast {
                 self.cast_expr(),
                 None,
             )));
+        }
+        if self.consume("&") {
+            // address-of
+            return Some(Box::new(Node::new(NodeKind::Addr, self.cast_expr(), None)));
+        }
+        if self.consume("*") {
+            // dereference
+            return Some(Box::new(Node::new(NodeKind::Deref, self.cast_expr(), None)));
         }
         self.postfix_expr()
     }

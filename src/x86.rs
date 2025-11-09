@@ -50,7 +50,7 @@ impl Generator {
         }
     }
 
-    pub fn gen_asm_from_lval(&self, node: &Node) {
+    pub fn gen_asm_lval(&self, node: &Node) {
         if node.kind != NodeKind::LVar {
             panic!("代入の左辺値が変数ではありません");
         }
@@ -94,14 +94,14 @@ impl Generator {
                 return;
             }
             NodeKind::LVar => {
-                self.gen_asm_from_lval(node);
+                self.gen_asm_lval(node);
                 println!("  pop rax");
                 println!("  mov rax, [rax]");
                 println!("  push rax");
                 return;
             }
             NodeKind::Assign => {
-                self.gen_asm_from_lval(node.lhs.as_ref().unwrap());
+                self.gen_asm_lval(node.lhs.as_ref().unwrap());
                 self.gen_asm_from_expr(node.rhs.as_ref().unwrap());
                 println!("  pop rdi");
                 println!("  pop rax");
@@ -124,7 +124,7 @@ impl Generator {
                 return;
             }
             NodeKind::PreInc => {
-                self.gen_asm_from_lval(node.lhs.as_ref().unwrap());
+                self.gen_asm_lval(node.lhs.as_ref().unwrap());
                 println!("  push [rsp]");
                 self.load();
                 self.inc();
@@ -132,7 +132,7 @@ impl Generator {
                 return;
             }
             NodeKind::PreDec => {
-                self.gen_asm_from_lval(node.lhs.as_ref().unwrap());
+                self.gen_asm_lval(node.lhs.as_ref().unwrap());
                 println!("  push [rsp]");
                 self.load();
                 self.dec();
@@ -140,7 +140,7 @@ impl Generator {
                 return;
             }
             NodeKind::PostInc => {
-                self.gen_asm_from_lval(node.lhs.as_ref().unwrap());
+                self.gen_asm_lval(node.lhs.as_ref().unwrap());
                 println!("  push [rsp]");
                 self.load();
                 self.inc();
@@ -149,7 +149,7 @@ impl Generator {
                 return;
             }
             NodeKind::PostDec => {
-                self.gen_asm_from_lval(node.lhs.as_ref().unwrap());
+                self.gen_asm_lval(node.lhs.as_ref().unwrap());
                 println!("  push [rsp]");
                 self.load();
                 self.dec();
@@ -166,7 +166,7 @@ impl Generator {
             | NodeKind::BitXorAssign
             | NodeKind::ShlAssign
             | NodeKind::ShrAssign => {
-                self.gen_asm_from_lval(node.lhs.as_ref().unwrap());
+                self.gen_asm_lval(node.lhs.as_ref().unwrap());
                 println!("  push [rsp]");
                 self.load();
                 self.gen_asm_from_expr(node.rhs.as_ref().unwrap());
@@ -188,6 +188,15 @@ impl Generator {
                 println!("  pop rax");
                 println!("  not rax");
                 println!("  push rax");
+                return;
+            }
+            NodeKind::Addr => {
+                self.gen_asm_lval(node.lhs.as_ref().unwrap());
+                return;
+            }
+            NodeKind::Deref => {
+                self.gen_asm_from_expr(node.lhs.as_ref().unwrap());
+                self.load();
                 return;
             }
             NodeKind::LogicalAnd => {

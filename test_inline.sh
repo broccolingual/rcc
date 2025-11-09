@@ -138,4 +138,8 @@ assert 8 '{ a = 3; b = 5; return a + b; }'
 assert 10 '{ a = 3; b = 5; { c = 2; return a + b + c; } }'
 assert 55 'sum = 0; { i = 1; while (i <= 10) { sum = sum + i; i = i + 1; } } return sum;'
 
+# pointer dereference and address-of
+assert 3 'a = 3; b = &a; return *b;'
+assert 3 'a = 3; b = 5; c = &b + 8; return *c;'
+
 echo OK
