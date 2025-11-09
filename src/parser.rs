@@ -57,38 +57,37 @@ impl Tokenizer {
     }
 
     pub fn tokenize(&mut self, input: &str) -> Vec<Token> {
-        let mut c_iter = input.chars().peekable();
         let mut tokens = Vec::new();
+        let chars = input.chars().collect::<Vec<char>>();
+        let mut pos = 0;
 
-        while let Some(c) = c_iter.next() {
+        while pos < chars.len() {
+            let c = chars[pos];
+
             // 空白文字をスキップ
             if c.is_whitespace() {
+                pos += 1;
                 continue;
             }
 
             // 3文字の記号トークン
-            {
-                // Clone the iterator for lookahead so we don't hold conflicting borrows on c_iter.
-                let mut lookahead = c_iter.clone();
-                if let (Some(next_c1), Some(next_c2)) = (lookahead.next(), lookahead.next()) {
-                    let three_char_op = format!("{}{}{}", c, next_c1, next_c2);
-                    if RESERVED_TRIPLE_OP.contains(&three_char_op.as_str()) {
-                        let token = Token::new(TokenKind::Reserved, &three_char_op);
-                        tokens.push(token);
-                        c_iter.next(); // 次の文字を消費
-                        c_iter.next(); // 次の次の文字を消費
-                        continue;
-                    }
+            if pos + 2 < chars.len() {
+                let three_char_op: String = chars[pos..pos + 3].iter().collect();
+                if RESERVED_TRIPLE_OP.contains(&three_char_op.as_str()) {
+                    let token = Token::new(TokenKind::Reserved, &three_char_op);
+                    tokens.push(token);
+                    pos += 3;
+                    continue;
                 }
             }
 
             // 2文字の記号トークン
-            if let Some(&next_c) = c_iter.peek() {
-                let two_char_op = format!("{}{}", c, next_c);
+            if pos + 1 < chars.len() {
+                let two_char_op: String = chars[pos..pos + 2].iter().collect();
                 if RESERVED_DOUBLE_OP.contains(&two_char_op.as_str()) {
                     let token = Token::new(TokenKind::Reserved, &two_char_op);
                     tokens.push(token);
-                    c_iter.next(); // 次の文字を消費
+                    pos += 2;
                     continue;
                 }
             }
@@ -97,16 +96,20 @@ impl Tokenizer {
             if RESERVED_SINGLE_OP.contains(c) {
                 let token = Token::new(TokenKind::Reserved, &c.to_string());
                 tokens.push(token);
+                pos += 1;
                 continue;
             }
 
+            // 数字トークン
             if c.is_digit(10) {
                 let mut num_str = String::new();
                 num_str.push(c);
-                while let Some(&next_c) = c_iter.peek() {
+                pos += 1;
+                while pos < chars.len() {
+                    let next_c = chars[pos];
                     if next_c.is_digit(10) {
                         num_str.push(next_c);
-                        c_iter.next();
+                        pos += 1;
                     } else {
                         break;
                     }
@@ -124,10 +127,12 @@ impl Tokenizer {
             // 識別子トークン（ローカル変数: 複数文字対応）
             if c.is_ascii_alphabetic() {
                 let mut ident = c.to_string();
-                while let Some(&next_c) = c_iter.peek() {
+                pos += 1;
+                while pos < chars.len() {
+                    let next_c = chars[pos];
                     if next_c.is_ascii_alphanumeric() || next_c == '_' {
                         ident.push(next_c);
-                        c_iter.next();
+                        pos += 1;
                     } else {
                         break;
                     }
