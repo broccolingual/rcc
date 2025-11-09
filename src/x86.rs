@@ -2,11 +2,17 @@ use crate::ast::{Node, NodeKind};
 
 pub struct Generator {
     label_seq: usize,
+    break_seq: usize,
+    continue_seq: usize,
 }
 
 impl Generator {
     pub fn new() -> Self {
-        Generator { label_seq: 0 }
+        Generator {
+            label_seq: 1,
+            break_seq: 0,
+            continue_seq: 0,
+        }
     }
 
     pub fn gen_asm_from_lval(&self, node: &Node) {
@@ -48,6 +54,17 @@ impl Generator {
                 println!("  push rdi");
                 return;
             }
+            NodeKind::AddAssign
+            | NodeKind::SubAssign
+            | NodeKind::MulAssign
+            | NodeKind::DivAssign
+            | NodeKind::BitAndAssign
+            | NodeKind::BitOrAssign
+            | NodeKind::BitXorAssign
+            | NodeKind::ShlAssign
+            | NodeKind::ShrAssign => {
+                unimplemented!("複合代入演算子は未実装です");
+            }
             NodeKind::If => {
                 let seq = self.label_seq;
                 self.label_seq += 1;
@@ -74,19 +91,32 @@ impl Generator {
             NodeKind::While => {
                 let seq = self.label_seq;
                 self.label_seq += 1;
-                println!(".Lbegin{}:", seq);
+                let current_break_seq = self.break_seq;
+                let current_continue_seq = self.continue_seq;
+                self.break_seq = seq;
+                self.continue_seq = seq;
+
+                println!(".Lcontinue{}:", seq);
                 self.gen_asm_from_expr(node.cond.as_ref().unwrap());
                 println!("  pop rax");
                 println!("  cmp rax, 0");
-                println!("  je .Lend{}", seq);
+                println!("  je .Lbreak{}", seq);
                 self.gen_asm_from_expr(node.then.as_ref().unwrap());
-                println!("  jmp .Lbegin{}", seq);
-                println!(".Lend{}:", seq);
+                println!("  jmp .Lcontinue{}", seq);
+                println!(".Lbreak{}:", seq);
+
+                self.break_seq = current_break_seq;
+                self.continue_seq = current_continue_seq;
                 return;
             }
             NodeKind::For => {
                 let seq = self.label_seq;
                 self.label_seq += 1;
+                let current_break_seq = self.break_seq;
+                let current_continue_seq = self.continue_seq;
+                self.break_seq = seq;
+                self.continue_seq = seq;
+
                 if let Some(init) = node.init.as_ref() {
                     self.gen_asm_from_expr(init);
                 }
@@ -95,25 +125,39 @@ impl Generator {
                     self.gen_asm_from_expr(cond);
                     println!("  pop rax");
                     println!("  cmp rax, 0");
-                    println!("  je .Lend{}", seq);
+                    println!("  je .Lbreak{}", seq);
                 }
                 self.gen_asm_from_expr(node.then.as_ref().unwrap());
+                println!(".Lcontinue{}:", seq);
                 if let Some(inc) = node.inc.as_ref() {
                     self.gen_asm_from_expr(inc);
                 }
                 println!("  jmp .Lbegin{}", seq);
-                println!(".Lend{}:", seq);
+                println!(".Lbreak{}:", seq);
+
+                self.break_seq = current_break_seq;
+                self.continue_seq = current_continue_seq;
                 return;
             }
             NodeKind::Do => {
                 let seq = self.label_seq;
                 self.label_seq += 1;
+                let current_break_seq = self.break_seq;
+                let current_continue_seq = self.continue_seq;
+                self.break_seq = seq;
+                self.continue_seq = seq;
+
                 println!(".Lbegin{}:", seq);
                 self.gen_asm_from_expr(node.then.as_ref().unwrap());
+                println!(".Lcontinue{}:", seq);
                 self.gen_asm_from_expr(node.cond.as_ref().unwrap());
                 println!("  pop rax");
                 println!("  cmp rax, 0");
                 println!("  jne .Lbegin{}", seq);
+                println!(".Lbreak{}:", seq);
+
+                self.break_seq = current_break_seq;
+                self.continue_seq = current_continue_seq;
                 return;
             }
             NodeKind::Block => {
@@ -123,6 +167,14 @@ impl Generator {
                     println!("  pop rax"); // ブロック内の各文の結果を捨てる
                     cur = n.next.as_ref();
                 }
+                return;
+            }
+            NodeKind::Break => {
+                println!("  jmp .Lbreak{}", self.break_seq);
+                return;
+            }
+            NodeKind::Continue => {
+                println!("  jmp .Lcontinue{}", self.continue_seq);
                 return;
             }
             _ => {}
@@ -138,10 +190,10 @@ impl Generator {
         println!("  pop rax");
 
         match node.kind {
-            NodeKind::Add => println!("  add rax, rdi"),
-            NodeKind::Sub => println!("  sub rax, rdi"),
-            NodeKind::Mul => println!("  imul rax, rdi"),
-            NodeKind::Div => {
+            NodeKind::Add | NodeKind::AddAssign => println!("  add rax, rdi"),
+            NodeKind::Sub | NodeKind::SubAssign => println!("  sub rax, rdi"),
+            NodeKind::Mul | NodeKind::MulAssign => println!("  imul rax, rdi"),
+            NodeKind::Div | NodeKind::DivAssign => {
                 println!("  cqo");
                 println!("  idiv rdi");
             }
@@ -150,20 +202,20 @@ impl Generator {
                 println!("  idiv rdi");
                 println!("  mov rax, rdx");
             }
-            NodeKind::BitAnd => {
+            NodeKind::BitAnd | NodeKind::BitAndAssign => {
                 println!("  and rax, rdi");
             }
-            NodeKind::BitOr => {
+            NodeKind::BitOr | NodeKind::BitOrAssign => {
                 println!("  or rax, rdi");
             }
-            NodeKind::BitXor => {
+            NodeKind::BitXor | NodeKind::BitXorAssign => {
                 println!("  xor rax, rdi");
             }
-            NodeKind::Shl => {
+            NodeKind::Shl | NodeKind::ShlAssign => {
                 println!("  mov cl, dil");
                 println!("  shl rax, cl");
             }
-            NodeKind::Shr => {
+            NodeKind::Shr | NodeKind::ShrAssign => {
                 println!("  mov cl, dil");
                 println!("  shr rax, cl");
             }

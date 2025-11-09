@@ -4,29 +4,41 @@ use crate::parser::{Token, TokenKind};
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum NodeKind {
-    Add,    // +
-    Sub,    // -
-    Mul,    // *
-    Div,    // /
-    Rem,    // %
-    Shl,    // <<
-    Shr,    // >>
-    BitAnd, // &
-    BitXor, // ^
-    BitOr,  // |
-    Eq,     // ==
-    Ne,     // !=
-    Lt,     // <
-    Le,     // <=
-    Assign, // =
-    If,     // if
-    While,  // while
-    For,    // for
-    Do,     // do
-    Block,  // {}
-    LVar,   // ローカル変数
-    Return, // return
-    Num,    // 整数
+    Add,          // +
+    Sub,          // -
+    Mul,          // *
+    Div,          // /
+    Rem,          // %
+    Shl,          // <<
+    Shr,          // >>
+    BitAnd,       // &
+    BitXor,       // ^
+    BitOr,        // |
+    Eq,           // ==
+    Ne,           // !=
+    Lt,           // <
+    Le,           // <=
+    Assign,       // =
+    AddAssign,    // +=
+    SubAssign,    // -=
+    MulAssign,    // *=
+    DivAssign,    // /=
+    ShlAssign,    // <<=
+    ShrAssign,    // >>=
+    BitAndAssign, // &=
+    BitOrAssign,  // |=
+    BitXorAssign, // ^=
+    If,           // if
+    While,        // while
+    For,          // for
+    Do,           // do
+    Block,        // {}
+    Label,        // ラベル
+    Break,        // break
+    Continue,     // continue
+    LVar,         // ローカル変数
+    Return,       // return
+    Num,          // 整数
 }
 
 pub struct Node {
@@ -42,6 +54,7 @@ pub struct Node {
     pub init: Option<Box<Node>>, // for文の初期化式
     pub inc: Option<Box<Node>>,  // for文の更新式
     pub body: Option<Box<Node>>, // ブロック内の文
+    pub label_name: String,      // ラベル名
 }
 
 impl Node {
@@ -59,6 +72,7 @@ impl Node {
             init: None,
             inc: None,
             body: None,
+            label_name: String::new(),
         }
     }
 
@@ -76,6 +90,7 @@ impl Node {
             init: None,
             inc: None,
             body: None,
+            label_name: String::new(),
         }
     }
 }
@@ -185,6 +200,8 @@ impl Ast {
     //          | "for" "(" expr? ";" expr? ";" expr? ")" stmt
     //          | "do" stmt "while" "(" expr ")" ";"
     //          | "{" stmt* "}"
+    //          | "break" ";"
+    //          | "continue" ";"
     //          | expr_stmt
     fn stmt(&mut self) -> Option<Box<Node>> {
         let mut node: Option<Box<Node>>;
@@ -269,6 +286,16 @@ impl Ast {
             return node;
         }
 
+        if self.consume("break") {
+            self.expect(";").unwrap();
+            return Some(Box::new(Node::new(NodeKind::Break, None, None)));
+        }
+
+        if self.consume("continue") {
+            self.expect(";").unwrap();
+            return Some(Box::new(Node::new(NodeKind::Continue, None, None)));
+        }
+
         self.expr_stmt()
     }
 
@@ -284,13 +311,85 @@ impl Ast {
         self.assign_expr()
     }
 
-    // assign_expr ::= conditional_expr ("=" assign_expr)?
+    // assign_expr ::= conditional_expr (("=" | "+=" | "-=" | "*=" | "/=" | "<<=" | ">>=" | "&=" | "|=" | "^=") assign_expr)?
     fn assign_expr(&mut self) -> Option<Box<Node>> {
         let mut node = self.conditional_expr();
 
         if self.consume("=") {
             node = Some(Box::new(Node::new(
                 NodeKind::Assign,
+                node,
+                self.assign_expr(),
+            )));
+        }
+
+        if self.consume("+=") {
+            node = Some(Box::new(Node::new(
+                NodeKind::AddAssign,
+                node,
+                self.assign_expr(),
+            )));
+        }
+
+        if self.consume("-=") {
+            node = Some(Box::new(Node::new(
+                NodeKind::SubAssign,
+                node,
+                self.assign_expr(),
+            )));
+        }
+
+        if self.consume("*=") {
+            node = Some(Box::new(Node::new(
+                NodeKind::MulAssign,
+                node,
+                self.assign_expr(),
+            )));
+        }
+
+        if self.consume("/=") {
+            node = Some(Box::new(Node::new(
+                NodeKind::DivAssign,
+                node,
+                self.assign_expr(),
+            )));
+        }
+
+        if self.consume("<<=") {
+            node = Some(Box::new(Node::new(
+                NodeKind::ShlAssign,
+                node,
+                self.assign_expr(),
+            )));
+        }
+
+        if self.consume(">>=") {
+            node = Some(Box::new(Node::new(
+                NodeKind::ShrAssign,
+                node,
+                self.assign_expr(),
+            )));
+        }
+
+        if self.consume("&=") {
+            node = Some(Box::new(Node::new(
+                NodeKind::BitAndAssign,
+                node,
+                self.assign_expr(),
+            )));
+        }
+
+        if self.consume("|=") {
+            node = Some(Box::new(Node::new(
+                NodeKind::BitOrAssign,
+                node,
+                self.assign_expr(),
+            )));
+        }
+
+        if self.consume("^=") {
+            node = Some(Box::new(Node::new(
+                NodeKind::BitXorAssign,
                 node,
                 self.assign_expr(),
             )));

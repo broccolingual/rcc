@@ -1,5 +1,6 @@
 use std::fmt;
 
+const RESERVED_TRIPLE_OP: [&str; 2] = ["<<=", ">>="];
 const RESERVED_DOUBLE_OP: [&str; 19] = [
     "==", "!=", "<=", ">=", "*=", "/=", "%=", "+=", "-=", "&=", "^=", "|=", "<<", ">>", "&&", "||",
     "++", "--", "->",
@@ -63,6 +64,22 @@ impl Tokenizer {
             // 空白文字をスキップ
             if c.is_whitespace() {
                 continue;
+            }
+
+            // 3文字の記号トークン
+            {
+                // Clone the iterator for lookahead so we don't hold conflicting borrows on c_iter.
+                let mut lookahead = c_iter.clone();
+                if let (Some(next_c1), Some(next_c2)) = (lookahead.next(), lookahead.next()) {
+                    let three_char_op = format!("{}{}{}", c, next_c1, next_c2);
+                    if RESERVED_TRIPLE_OP.contains(&three_char_op.as_str()) {
+                        let token = Token::new(TokenKind::Reserved, &three_char_op);
+                        tokens.push(token);
+                        c_iter.next(); // 次の文字を消費
+                        c_iter.next(); // 次の次の文字を消費
+                        continue;
+                    }
+                }
             }
 
             // 2文字の記号トークン
