@@ -31,6 +31,10 @@ pub enum NodeKind {
     BitAndAssign, // &=
     BitOrAssign,  // |=
     BitXorAssign, // ^=
+    PreInc,       // ++pre
+    PreDec,       // --pre
+    PostInc,      // post++
+    PostDec,      // post--
     If,           // if
     While,        // while
     For,          // for
@@ -678,8 +682,25 @@ impl Ast {
     }
 
     // unary_expr ::= postfix_expr
+    //                | ("++" | "--") unary_expr
     //                | ("+" | "-" | "!" | "~") cast_expr
     fn unary_expr(&mut self) -> Option<Box<Node>> {
+        if self.consume("++") {
+            // pre-increment
+            return Some(Box::new(Node::new(
+                NodeKind::PreInc,
+                self.unary_expr(),
+                None,
+            )));
+        }
+        if self.consume("--") {
+            // pre-decrement
+            return Some(Box::new(Node::new(
+                NodeKind::PreDec,
+                self.unary_expr(),
+                None,
+            )));
+        }
         if self.consume("+") {
             // unary plus
             return self.cast_expr();
@@ -712,8 +733,21 @@ impl Ast {
     }
 
     // postfix_expr ::= primary_expr
+    //                  | postfix_expr ("++" | "--")
     fn postfix_expr(&mut self) -> Option<Box<Node>> {
-        self.primary_expr()
+        let mut node = self.primary_expr();
+
+        loop {
+            if self.consume("++") {
+                // post-increment
+                node = Some(Box::new(Node::new(NodeKind::PostInc, node, None)));
+            } else if self.consume("--") {
+                // post-decrement
+                node = Some(Box::new(Node::new(NodeKind::PostDec, node, None)));
+            } else {
+                return node;
+            }
+        }
     }
 
     // primary_expr ::= "(" expr ")"

@@ -73,6 +73,13 @@ assert 6 'h = 3; h ^= 5; return h;' # bitwise XOR
 assert 16 'i = 1; i <<= 4; return i;' # left shift
 assert 2 'j = 8; j >>= 2; return j;' # right shift
 
+# pre/post increment/decrement operators
+assert 6 'a = 5; return ++a;' # pre-increment
+assert 5 'a = 5; return a++;' # post-increment
+assert 4 'b = 5; return --b;' # pre-decrement
+assert 5 'b = 5; return b--;' # post-decrement
+assert 9 'a = 3; b = 5; c = ++a + b++; return c;' # mixed usage
+
 # return statement
 assert 3 'return 3;'
 assert 8 'a = 3; return a + 5;'

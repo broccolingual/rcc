@@ -58,17 +58,33 @@ impl Generator {
         println!("  push rax");
     }
 
+    // スタックトップのアドレスから値を読み出してスタックに積む
     fn load(&self) {
         println!("  pop rax");
         println!("  mov rax, [rax]");
         println!("  push rax");
     }
 
+    // スタックトップの値をアドレスに格納する
     fn store(&self) {
         println!("  pop rdi");
         println!("  pop rax");
         println!("  mov [rax], rdi");
         println!("  push rdi");
+    }
+
+    // int を 1 加算
+    fn inc(&self) {
+        println!("  pop rax");
+        println!("  add rax, 1");
+        println!("  push rax");
+    }
+
+    // int を 1 減算
+    fn dec(&self) {
+        println!("  pop rax");
+        println!("  sub rax, 1");
+        println!("  push rax");
     }
 
     pub fn gen_asm_from_expr(&mut self, node: &Node) {
@@ -105,6 +121,40 @@ impl Generator {
                 println!(".Lelse{}:", seq);
                 self.gen_asm_from_expr(node.els.as_ref().unwrap());
                 println!(".Lend{}:", seq);
+                return;
+            }
+            NodeKind::PreInc => {
+                self.gen_asm_from_lval(node.lhs.as_ref().unwrap());
+                println!("  push [rsp]");
+                self.load();
+                self.inc();
+                self.store();
+                return;
+            }
+            NodeKind::PreDec => {
+                self.gen_asm_from_lval(node.lhs.as_ref().unwrap());
+                println!("  push [rsp]");
+                self.load();
+                self.dec();
+                self.store();
+                return;
+            }
+            NodeKind::PostInc => {
+                self.gen_asm_from_lval(node.lhs.as_ref().unwrap());
+                println!("  push [rsp]");
+                self.load();
+                self.inc();
+                self.store();
+                self.dec();
+                return;
+            }
+            NodeKind::PostDec => {
+                self.gen_asm_from_lval(node.lhs.as_ref().unwrap());
+                println!("  push [rsp]");
+                self.load();
+                self.dec();
+                self.store();
+                self.inc();
                 return;
             }
             NodeKind::AddAssign
