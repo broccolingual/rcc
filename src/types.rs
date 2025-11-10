@@ -1,4 +1,6 @@
-#[derive(Clone)]
+use core::fmt;
+
+#[derive(Clone, Debug)]
 pub enum TypeKind {
     Int,
     Ptr,
@@ -8,6 +10,23 @@ pub enum TypeKind {
 pub struct Type {
     pub kind: TypeKind,
     pub ptr_to: Option<Box<Type>>,
+}
+
+impl fmt::Debug for Type {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.kind {
+            TypeKind::Ptr => {
+                let mut cur = self;
+                let mut depth = 0;
+                while let Some(ref to) = cur.ptr_to {
+                    depth += 1;
+                    cur = to;
+                }
+                write!(f, "{}{:?}", "*".repeat(depth), cur.kind)
+            }
+            _ => write!(f, "{:?}", self.kind),
+        }
+    }
 }
 
 impl Type {

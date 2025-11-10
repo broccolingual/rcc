@@ -51,7 +51,11 @@ impl Generator {
         }
     }
 
-    pub fn gen_asm_lval(&self, node: &Node) {
+    pub fn gen_asm_lval(&mut self, node: &Node) {
+        if node.kind == NodeKind::Deref {
+            self.gen_asm_from_expr(node.lhs.as_ref().unwrap());
+            return;
+        }
         if node.kind != NodeKind::LVar {
             panic!("代入の左辺値が変数ではありません");
         }

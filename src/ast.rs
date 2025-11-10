@@ -8,7 +8,7 @@ use crate::types::Type;
 pub struct LVar {
     name: String,
     pub offset: i64,
-    pub ty: Option<Box<Type>>,
+    pub ty: Box<Type>,
 }
 
 impl LVar {
@@ -16,7 +16,7 @@ impl LVar {
         LVar {
             name: name.to_string(),
             offset,
-            ty: Some(Box::new(ty)),
+            ty: Box::new(ty),
         }
     }
 }
@@ -25,8 +25,8 @@ impl fmt::Debug for LVar {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "LVar {{ name: '{}', offset: {} }}",
-            self.name, self.offset
+            "LVar {{ name: '{}', type: {:?}, offset: {} }}",
+            self.name, self.ty, self.offset
         )
     }
 }
@@ -147,13 +147,10 @@ impl Ast {
         }
     }
 
-    fn new_lvar(&mut self, name: &str) -> LVar {
+    fn new_lvar(&mut self, name: &str, ty: Box<Type>) -> LVar {
         // 新しいローカル変数のオフセットを計算
         let offset = self.locals.first().map_or(8, |last| last.offset + 8);
-        let lvar = LVar::new(name, offset, Type::new_int());
-        // ローカル変数リストの先頭に追加
-        self.locals.insert(0, lvar.clone());
-        lvar
+        LVar::new(name, offset, ty.as_ref().clone())
     }
 
     fn at_eof(&self) -> bool {
@@ -186,10 +183,14 @@ impl Ast {
             }
 
             // 変数名を取得
-            let var_name = self.consume_ident().unwrap();
+            let var_name = self.consume_ident();
+            if var_name.is_none() {
+                panic!("変数名のパースに失敗しました");
+            }
             let mut node_var = Node::from(NodeKind::LVar);
-            let lvar = self.new_lvar(&var_name);
+            let lvar = self.new_lvar(&var_name.unwrap(), Box::new(ty));
             node_var.offset = lvar.offset;
+            self.locals.insert(0, lvar.clone()); // ローカル変数リストの先頭に追加
             return Some((Box::new(node_var), lvar));
         }
         None
