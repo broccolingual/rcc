@@ -30,14 +30,23 @@ int foo(int x) {
 int main() {
     return foo(2);
 }'
-assert 7 '
+assert 12 '
 int add(int x, int y) {
-    return x + y;
+    return x + y * 2;
 }
 int main() {
     int a;
     a = 5;
     return add(2, a);
 }'
+assert 3 '
+int main() {
+    int x;
+    int *y;
+    y = &x;
+    *y = 3;
+    return x;
+}
+'
 
 echo OK

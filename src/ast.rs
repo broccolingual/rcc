@@ -2,18 +2,21 @@ use core::fmt;
 
 use crate::node::{Node, NodeKind};
 use crate::token::Token;
+use crate::types::Type;
 
 #[derive(Clone)]
 pub struct LVar {
     name: String,
     pub offset: i64,
+    pub ty: Option<Box<Type>>,
 }
 
 impl LVar {
-    pub fn new(name: &str, offset: i64) -> Self {
+    pub fn new(name: &str, offset: i64, ty: Type) -> Self {
         LVar {
             name: name.to_string(),
             offset,
+            ty: Some(Box::new(ty)),
         }
     }
 }
@@ -67,7 +70,7 @@ impl Ast {
             funcs: Vec::new(),
             locals: Vec::new(),
         };
-        ast.program();
+        ast.translation_unit();
         ast
     }
 
@@ -147,7 +150,7 @@ impl Ast {
     fn new_lvar(&mut self, name: &str) -> LVar {
         // 新しいローカル変数のオフセットを計算
         let offset = self.locals.first().map_or(8, |last| last.offset + 8);
-        let lvar = LVar::new(name, offset);
+        let lvar = LVar::new(name, offset, Type::new_int());
         // ローカル変数リストの先頭に追加
         self.locals.insert(0, lvar.clone());
         lvar
@@ -157,40 +160,64 @@ impl Ast {
         self.tokens.is_empty() || matches!(self.tokens.first(), Some(Token::EOF))
     }
 
-    // program ::= function*
-    fn program(&mut self) {
+    // translation_unit ::= external_declaration*
+    fn translation_unit(&mut self) {
         while !self.at_eof() {
-            if let Some(func) = self.function() {
+            if let Some(func) = self.external_declaration() {
                 self.funcs.push(func);
             }
         }
     }
 
-    // function ::= type ident "(" (type ident ("," type ident)*)? ")" "{" stmt* "}"
-    fn function(&mut self) -> Option<Box<Function>> {
-        // 関数宣言
-        let type_token = self.consume_type();
-        if type_token.is_none() {
-            panic!("関数の型情報のパースに失敗しました");
+    // external_declaration ::= function_definition
+    fn external_declaration(&mut self) -> Option<Box<Function>> {
+        self.function_definition()
+    }
+
+    // define_variable ::= type "*"* ident
+    fn define_variable(&mut self) -> Option<(Box<Node>, LVar)> {
+        if let Some(_) = self.consume_type() {
+            // ポインタのアスタリスクを処理
+            let mut ty = Type::new_int();
+            while self.consume_symbol("*") {
+                let mut new_ty = Type::new_ptr(&ty);
+                new_ty.ptr_to = Some(Box::new(ty.clone()));
+                ty = new_ty;
+            }
+
+            // 変数名を取得
+            let var_name = self.consume_ident().unwrap();
+            let mut node_var = Node::from(NodeKind::LVar);
+            let lvar = self.new_lvar(&var_name);
+            node_var.offset = lvar.offset;
+            return Some((Box::new(node_var), lvar));
         }
-        let func_name = self.consume_ident().unwrap();
+        None
+    }
+
+    // function_definition ::= define_variable "(" (define_variable ("," define_variable)*)? ")" compound_stmt
+    fn function_definition(&mut self) -> Option<Box<Function>> {
+        // 関数名と戻り値の型のパース
+        let func_name;
+        if let Some((_, lvar)) = self.define_variable() {
+            func_name = lvar.name;
+        } else {
+            panic!("関数名と戻り値の型のパースに失敗しました");
+        }
         let mut func = Function::new(func_name);
         self.expect_symbol("(").unwrap();
 
         // 引数のパース（型情報もパース）
         loop {
-            let type_token = self.consume_type();
-            if type_token.is_none() {
+            if let Some((_, lvar)) = self.define_variable() {
+                func.args.push(lvar);
+            } else {
                 break;
             }
-            let arg_name = self.consume_ident().unwrap();
-            let lvar = self.new_lvar(&arg_name);
-            func.args.push(lvar);
             if !self.consume_symbol(",") {
                 break;
             }
         }
-
         self.expect_symbol(")").unwrap();
 
         if self.consume_symbol(";") {
@@ -199,141 +226,182 @@ impl Ast {
         }
 
         // 関数本体のパース
-        self.expect_symbol("{").unwrap();
-        while !self.consume_symbol("}") {
-            if let Some(stmt) = self.stmt() {
-                func.body.push(stmt);
-            } else {
-                panic!("関数の文のパースに失敗しました");
-            }
+        if let Some(body_node) = self.compound_stmt() {
+            func.body = body_node.body;
+        } else {
+            panic!("関数本体のパースに失敗しました");
         }
         Some(Box::new(func))
     }
 
-    // stmt ::= "return" expr? ";"
-    //          | type ident ";"
-    //          | "if" "(" expr ")" stmt ("else" stmt)?
-    //          | "while" "(" expr ")" stmt
-    //          | "for" "(" expr? ";" expr? ";" expr? ")" stmt
-    //          | "do" stmt "while" "(" expr ")" ";"
-    //          | "{" stmt* "}"
-    //          | "break" ";"
-    //          | "continue" ";"
-    //          | expr_stmt
-    fn stmt(&mut self) -> Option<Box<Node>> {
-        let mut node: Option<Box<Node>>;
-
-        if self.consume_reserved("return") {
-            if self.consume_symbol(";") {
-                node = Some(Box::new(Node::from(NodeKind::Return)));
-                return node;
-            }
-
-            node = Some(Box::new(Node::new_unary(NodeKind::Return, self.expr())));
-            self.expect_symbol(";").unwrap();
-            return node;
-        }
-
+    fn declaration(&mut self) -> Option<Box<Node>> {
         // variable declaration
-        if let Some(_) = self.consume_type() {
-            let var_name = self.consume_ident().unwrap();
+        if let Some((var_node, _)) = self.define_variable() {
             self.expect_symbol(";").unwrap();
-
-            let mut node_var = Node::from(NodeKind::LVar);
-            let lvar = self.new_lvar(&var_name);
-            node_var.offset = lvar.offset;
-            return Some(Box::new(node_var));
+            return Some(var_node);
         }
+        None
+    }
 
-        // selection statement
-        if self.consume_reserved("if") {
-            node = Some(Box::new(Node::from(NodeKind::If)));
-            self.expect_symbol("(").unwrap();
-            node.as_mut().unwrap().cond = self.expr();
-            self.expect_symbol(")").unwrap();
-            node.as_mut().unwrap().then = self.stmt();
-            if self.consume_reserved("else") {
-                node.as_mut().unwrap().els = self.stmt();
-            }
-            return node;
-        }
+    // TODO: ラベル付き文, case文, default文の実装
+    fn labeled_stmt(&mut self) -> Option<Box<Node>> {
+        None
+    }
 
-        // iteration statement
-        if self.consume_reserved("while") {
-            node = Some(Box::new(Node::from(NodeKind::While)));
-            self.expect_symbol("(").unwrap();
-            node.as_mut().unwrap().cond = self.expr();
-            self.expect_symbol(")").unwrap();
-            node.as_mut().unwrap().then = self.stmt();
-            return node;
-        }
-
-        if self.consume_reserved("for") {
-            node = Some(Box::new(Node::from(NodeKind::For)));
-            self.expect_symbol("(").unwrap();
-            // 初期化式
-            if !self.consume_symbol(";") {
-                node.as_mut().unwrap().init = self.expr();
-                self.expect_symbol(";").unwrap();
-            }
-            // 条件式
-            if !self.consume_symbol(";") {
-                node.as_mut().unwrap().cond = self.expr();
-                self.expect_symbol(";").unwrap();
-            }
-            // 更新式
-            if !self.consume_symbol(")") {
-                node.as_mut().unwrap().inc = self.expr();
-                self.expect_symbol(")").unwrap();
-            }
-            node.as_mut().unwrap().then = self.stmt();
-            return node;
-        }
-
-        if self.consume_reserved("do") {
-            node = Some(Box::new(Node::from(NodeKind::Do)));
-            node.as_mut().unwrap().then = self.stmt();
-            self.expect_reserved("while").unwrap();
-            self.expect_symbol("(").unwrap();
-            node.as_mut().unwrap().cond = self.expr();
-            self.expect_symbol(")").unwrap();
-            self.expect_symbol(";").unwrap();
-            return node;
-        }
-
-        // compound statement
+    // compound_stmt ::= "{" declaration* stmt* "}"
+    fn compound_stmt(&mut self) -> Option<Box<Node>> {
         if self.consume_symbol("{") {
-            let mut node = Some(Box::new(Node::from(NodeKind::Block)));
+            let mut node = Node::from(NodeKind::Block);
             while !self.consume_symbol("}") {
-                if let Some(stmt) = self.stmt() {
-                    node.as_mut().unwrap().body.push(stmt);
+                if let Some(decl) = self.declaration() {
+                    node.body.push(decl);
+                } else if let Some(stmt) = self.stmt() {
+                    node.body.push(stmt);
                 } else {
                     panic!("ブロック内の文のパースに失敗しました");
                 }
             }
-            return node;
+            return Some(Box::new(node));
+        }
+        None
+    }
+
+    // TODO: switch文の実装
+    // selection_stmt ::= "if" "(" expr ")" stmt ("else" stmt)?
+    fn selection_stmt(&mut self) -> Option<Box<Node>> {
+        if self.consume_reserved("if") {
+            let mut node = Node::from(NodeKind::If);
+            self.expect_symbol("(").unwrap();
+            node.cond = self.expr();
+            self.expect_symbol(")").unwrap();
+            node.then = self.stmt();
+            if self.consume_reserved("else") {
+                node.els = self.stmt();
+            }
+            return Some(Box::new(node));
+        }
+        None
+    }
+
+    // iteration_stmt ::= "while" "(" expr ")" stmt
+    //                    | "do" stmt "while" "(" expr ")" ";"
+    //                    | "for" "(" expr? ";" expr? ";" expr? ")" stmt
+    fn iteration_stmt(&mut self) -> Option<Box<Node>> {
+        if self.consume_reserved("while") {
+            let mut node = Node::from(NodeKind::While);
+            self.expect_symbol("(").unwrap();
+            node.cond = self.expr();
+            self.expect_symbol(")").unwrap();
+            node.then = self.stmt();
+            return Some(Box::new(node));
         }
 
-        // break statement
-        if self.consume_reserved("break") {
+        if self.consume_reserved("do") {
+            let mut node = Node::from(NodeKind::Do);
+            node.then = self.stmt();
+            self.expect_reserved("while").unwrap();
+            self.expect_symbol("(").unwrap();
+            node.cond = self.expr();
+            self.expect_symbol(")").unwrap();
             self.expect_symbol(";").unwrap();
-            return Some(Box::new(Node::from(NodeKind::Break)));
+            return Some(Box::new(node));
         }
 
-        // continue statement
+        if self.consume_reserved("for") {
+            let mut node = Node::from(NodeKind::For);
+            self.expect_symbol("(").unwrap();
+            // 初期化式
+            if !self.consume_symbol(";") {
+                node.init = self.expr();
+                self.expect_symbol(";").unwrap();
+            }
+            // 条件式
+            if !self.consume_symbol(";") {
+                node.cond = self.expr();
+                self.expect_symbol(";").unwrap();
+            }
+            // 更新式
+            if !self.consume_symbol(")") {
+                node.inc = self.expr();
+                self.expect_symbol(")").unwrap();
+            }
+            node.then = self.stmt();
+            return Some(Box::new(node));
+        }
+        None
+    }
+
+    // TODO: goto文の実装
+    // jump_stmt ::= "continue" ";"
+    //             | "break" ";"
+    //             | "return" expr? ";"
+    fn jump_stmt(&mut self) -> Option<Box<Node>> {
         if self.consume_reserved("continue") {
             self.expect_symbol(";").unwrap();
             return Some(Box::new(Node::from(NodeKind::Continue)));
         }
 
+        if self.consume_reserved("break") {
+            self.expect_symbol(";").unwrap();
+            return Some(Box::new(Node::from(NodeKind::Break)));
+        }
+
+        if self.consume_reserved("return") {
+            if self.consume_symbol(";") {
+                return Some(Box::new(Node::from(NodeKind::Return)));
+            }
+
+            let node = Node::new_unary(NodeKind::Return, self.expr());
+            self.expect_symbol(";").unwrap();
+            return Some(Box::new(node));
+        }
+        None
+    }
+
+    // stmt ::= labeled_stmt
+    //          | expr_stmt
+    //          | compound_stmt
+    //          | selection_stmt
+    //          | iteration_stmt
+    //          | jump_stmt
+    fn stmt(&mut self) -> Option<Box<Node>> {
+        // labeled statement
+        if let Some(node) = self.labeled_stmt() {
+            return Some(node);
+        }
+
+        // selection statement
+        if let Some(node) = self.selection_stmt() {
+            return Some(node);
+        }
+
+        // iteration statement
+        if let Some(node) = self.iteration_stmt() {
+            return Some(node);
+        }
+
+        // compound statement
+        if let Some(node) = self.compound_stmt() {
+            return Some(node);
+        }
+
+        // jump statement
+        if let Some(node) = self.jump_stmt() {
+            return Some(node);
+        }
+
         self.expr_stmt()
     }
 
-    // expr_stmt ::= expr ";"
+    // expr_stmt ::= expr? ";"
     fn expr_stmt(&mut self) -> Option<Box<Node>> {
-        let node = self.expr();
-        self.expect_symbol(";").unwrap();
-        node
+        if self.consume_symbol(";") {
+            return Some(Box::new(Node::from(NodeKind::Nop)));
+        } else {
+            let expr_node = self.expr();
+            self.expect_symbol(";").unwrap();
+            return expr_node;
+        };
     }
 
     // expr ::= assign_expr

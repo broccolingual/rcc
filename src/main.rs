@@ -5,6 +5,7 @@ pub mod node;
 pub mod parser;
 pub mod token;
 pub mod x86;
+pub mod types;
 
 use crate::ast::Ast;
 use crate::parser::Tokenizer;

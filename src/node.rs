@@ -48,6 +48,7 @@ pub enum NodeKind {
     LVar,         // ローカル変数
     Return,       // return
     Num,          // 整数
+    Nop,          // 空命令
 }
 
 impl NodeKind {

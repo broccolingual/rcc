@@ -90,6 +90,9 @@ impl Generator {
 
     pub fn gen_asm_from_expr(&mut self, node: &Node) {
         match node.kind {
+            NodeKind::Nop => {
+                return;
+            }
             NodeKind::Num => {
                 println!("  push {}", node.val);
                 return;
