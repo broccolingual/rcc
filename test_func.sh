@@ -19,8 +19,25 @@ assert() {
   fi
 }
 
-assert 47 'main() { return 5 + 6 * 7; }'
-assert 3 'foo(x) { return x + 1; } main() { return foo(2); }'
-assert 7 'add(x, y) { return x + y; } main() { a = 5; return add(2, a); }'
+assert 47 '
+int main() {
+    return 5 + 6 * 7;
+}'
+assert 3 '
+int foo(int x) {
+    return x + 1;
+}
+int main() {
+    return foo(2);
+}'
+assert 7 '
+int add(int x, int y) {
+    return x + y;
+}
+int main() {
+    int a;
+    a = 5;
+    return add(2, a);
+}'
 
 echo OK

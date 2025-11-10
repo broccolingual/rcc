@@ -6,7 +6,7 @@ assert() {
   expected="$1"
   input="$2"
 
-  ./target/debug/c-compiler "main() { $input }" > ./bin/tmp.s
+  ./target/debug/c-compiler "int main() { $input }" > ./bin/tmp.s
   cc -o ./bin/tmp ./bin/tmp.s
   ./bin/tmp
   actual="$?"
@@ -60,90 +60,90 @@ assert 1 '1 >= 1;'
 assert 0 '1 >= 2;'
 
 # local variables
-assert 3 'a = 3; return a;'
-assert 13 'a = 3; b = 5 * 2; a + b;'
-assert 13 't = 3; e = 5 * 2; r = t + e; r;'
-assert 13 'three = 3; ten = 5 * 2; result = three + ten; result;'
+assert 3 'int a; a = 3; return a;'
+assert 13 'int a; int b; a = 3; b = 5 * 2; a + b;'
+assert 13 'int t; int e; int r; t = 3; e = 5 * 2; r = t + e; r;'
+assert 13 'int three; int ten; int result; three = 3; ten = 5 * 2; result = three + ten; result;'
 
 # assignment operators
-assert 7 'a = 3; a += 4; return a;' # addition
-assert 2 'b = 5; b -= 3; return b;' # subtraction
-assert 15 'c = 3; c *= 5; return c;' # multiplication
-assert 4 'd = 20; d /= 5; return d;' # division
-assert 3 'e = 3; e %= 4; return e;' # remainder
-assert 7 'f = 3; f |= 5; return f;' # bitwise OR
-assert 1 'g = 3; g &= 5; return g;' # bitwise AND
-assert 6 'h = 3; h ^= 5; return h;' # bitwise XOR
-assert 16 'i = 1; i <<= 4; return i;' # left shift
-assert 2 'j = 8; j >>= 2; return j;' # right shift
+assert 7 'int a; a = 3; a += 4; return a;' # addition
+assert 2 'int b; b = 5; b -= 3; return b;' # subtraction
+assert 15 'int c; c = 3; c *= 5; return c;' # multiplication
+assert 4 'int d; d = 20; d /= 5; return d;' # division
+assert 3 'int e; e = 3; e %= 4; return e;' # remainder
+assert 7 'int f; f = 3; f |= 5; return f;' # bitwise OR
+assert 1 'int g; g = 3; g &= 5; return g;' # bitwise AND
+assert 6 'int h; h = 3; h ^= 5; return h;' # bitwise XOR
+assert 16 'int i; i = 1; i <<= 4; return i;' # left shift
+assert 2 'int j; j = 8; j >>= 2; return j;' # right shift
 
 # pre/post increment/decrement operators
-assert 6 'a = 5; return ++a;' # pre-increment
-assert 5 'a = 5; return a++;' # post-increment
-assert 4 'b = 5; return --b;' # pre-decrement
-assert 5 'b = 5; return b--;' # post-decrement
-assert 9 'a = 3; b = 5; c = ++a + b++; return c;' # mixed usage
+assert 6 'int a; a = 5; return ++a;' # pre-increment
+assert 5 'int a; a = 5; return a++;' # post-increment
+assert 4 'int b; b = 5; return --b;' # pre-decrement
+assert 5 'int b; b = 5; return b--;' # post-decrement
+assert 9 'int a; int b; int c; a = 3; b = 5; c = ++a + b++; return c;' # mixed usage
 
 # return statement
 assert 3 'return 3;'
-assert 8 'a = 3; return a + 5;'
+assert 8 'int a; a = 3; return a + 5;'
 assert 8 'return 8; 5;'
 
 # if statement
-assert 3 'a = 1; if (a % 2 == 1) return 3; else return 4;'
-assert 7 'a = 4; if (a % 2 == 1) return 3; else return a + 3;'
-assert 4 'a = 4; if (a % 2 == 1) return 3; return 4;'
-assert 2 'a = 1; if (a > 5) return 5; else if (a < 2) return 2; else return 3;'
+assert 3 'int a; a = 1; if (a % 2 == 1) return 3; else return 4;'
+assert 7 'int a; a = 4; if (a % 2 == 1) return 3; else return a + 3;'
+assert 4 'int a; a = 4; if (a % 2 == 1) return 3; return 4;'
+assert 2 'int a; a = 1; if (a > 5) return 5; else if (a < 2) return 2; else return 3;'
 
 # while statement
-assert 5 'i = 0; while (i < 5) i = i + 1; return i;'
+assert 5 'int i; i = 0; while (i < 5) i = i + 1; return i;'
 
 # break/continue in while statements
-assert 3 'i = 0; while (1) { i = i + 1; if (i == 3) break; } return i;'
-assert 25 'i = 0; sum = 0; while (i < 10) { i = i + 1; if (i % 2 == 0) continue; sum = sum + i; } return sum;'
+assert 3 'int i; i = 0; while (1) { i = i + 1; if (i == 3) break; } return i;'
+assert 25 'int i; int sum; i = 0; sum = 0; while (i < 10) { i = i + 1; if (i % 2 == 0) continue; sum = sum + i; } return sum;'
 
 # for statement
-assert 55 'sum = 0; for (i = 1; i <= 10; i = i + 1) sum = sum + i; return sum;'
+assert 55 'int sum; int i; sum = 0; for (i = 1; i <= 10; i = i + 1) sum = sum + i; return sum;'
 
 # continue/break in for statement
-assert 15 'sum = 0; for (i = 1; i <= 10; i = i + 1) { if (i > 5) break; sum = sum + i; } return sum;'
-assert 25 'sum = 0; for (i = 1; i <= 10; i = i + 1) { if (i % 2 == 0) continue; sum = sum + i; } return sum;'
+assert 15 'int sum; int i; sum = 0; for (i = 1; i <= 10; i = i + 1) { if (i > 5) break; sum = sum + i; } return sum;'
+assert 25 'int sum; int i; sum = 0; for (i = 1; i <= 10; i = i + 1) { if (i % 2 == 0) continue; sum = sum + i; } return sum;'
 
 # do while statement
-assert 5 'i = 0; do i = i + 1; while (i < 5); return i;'
+assert 5 'int i; i = 0; do i = i + 1; while (i < 5); return i;'
 
 # continue/break in do while statement
-assert 3 'i = 0; do { i = i + 1; if (i == 3) break; } while (1); return i;'
-assert 25 'i = 0; sum = 0; do { i = i + 1; if (i % 2 == 0) continue; sum = sum + i; } while (i < 10); return sum;'
+assert 3 'int i; i = 0; do { i = i + 1; if (i == 3) break; } while (1); return i;'
+assert 25 'int i; int sum; i = 0; sum = 0; do { i = i + 1; if (i % 2 == 0) continue; sum = sum + i; } while (i < 10); return sum;'
 
 # logical operators
 assert 1 '1 && 1;'
 assert 0 '1 && 0;'
-assert 1 'i = 3; if (i > 0 && i < 5) return 1; else return 0;'
-assert 0 'i = 0; if (i > 0 && i < 5) return 1; else return 0;'
-assert 0 'i = 5; if (i > 0 && i < 5) return 1; else return 0;'
+assert 1 'int i; i = 3; if (i > 0 && i < 5) return 1; else return 0;'
+assert 0 'int i; i = 0; if (i > 0 && i < 5) return 1; else return 0;'
+assert 0 'int i; i = 5; if (i > 0 && i < 5) return 1; else return 0;'
 assert 1 '1 || 0;'
 assert 0 '0 || 0;'
-assert 0 'i = 0; if (i < 0 || i > 0) return 1; else return 0;'
-assert 1 'i = 3; if (i < 0 || i > 0) return 1; else return 0;'
-assert 1 'i = -2; if (i < 0 || i > 0) return 1; else return 0;'
+assert 0 'int i; i = 0; if (i < 0 || i > 0) return 1; else return 0;'
+assert 1 'int i; i = 3; if (i < 0 || i > 0) return 1; else return 0;'
+assert 1 'int i; i = -2; if (i < 0 || i > 0) return 1; else return 0;'
 assert 0 '!1;'
 assert 1 '!0;'
-assert 1 'i = 0; if (!i) return 1; else return 0;'
-assert 0 'i = 3; if (!i) return 1; else return 0;'
+assert 1 'int i; i = 0; if (!i) return 1; else return 0;'
+assert 0 'int i; i = 3; if (!i) return 1; else return 0;'
 
 # ternary operator
-assert 3 'a = 3; b = 5; a < b ? a : b;'
-assert 5 'a = 3; b = 5; a > b ? a : b;'
-assert 8 'a = 3; b = 5; c = 2; a + b > 7 ? a + b : b + c;'
+assert 3 'int a; int b; a = 3; b = 5; a < b ? a : b;'
+assert 5 'int a; int b; a = 3; b = 5; a > b ? a : b;'
+assert 8 'int a; int b; int c; a = 3; b = 5; c = 2; a + b > 7 ? a + b : b + c;'
 
 # block statement
-assert 8 '{ a = 3; b = 5; return a + b; }'
-assert 10 '{ a = 3; b = 5; { c = 2; return a + b + c; } }'
-assert 55 'sum = 0; { i = 1; while (i <= 10) { sum = sum + i; i = i + 1; } } return sum;'
+assert 8 '{ int a; int b; a = 3; b = 5; return a + b; }'
+assert 10 '{ int a; int b; int c; a = 3; b = 5; c = 2; return a + b + c; }'
+assert 55 'int sum; int i; sum = 0; for (i = 1; i <= 10; i = i + 1) sum = sum + i; return sum;'
 
 # pointer dereference and address-of
-assert 3 'a = 3; b = &a; return *b;'
-assert 3 'a = 3; b = 5; c = &b + 8; return *c;'
+assert 3 'int a; int b; a = 3; b = &a; return *b;'
+assert 3 'int a; int b; int c; a = 3; b = 5; c = &b + 8; return *c;'
 
 echo OK

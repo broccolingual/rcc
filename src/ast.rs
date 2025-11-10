@@ -104,6 +104,17 @@ impl Ast {
         }
     }
 
+    fn consume_type(&mut self) -> Option<Token> {
+        match self.tokens.first() {
+            Some(Token::Type(ty)) => {
+                let ty_clone = ty.clone();
+                self.tokens.remove(0);
+                Some(Token::Type(ty_clone))
+            }
+            _ => None,
+        }
+    }
+
     fn expect(&mut self, token: &Token) -> Result<(), &str> {
         match self.tokens.first() {
             Some(t) if t == token => {
@@ -155,22 +166,31 @@ impl Ast {
         }
     }
 
+    // function ::= type ident "(" (type ident ("," type ident)*)? ")" "{" stmt* "}"
     fn function(&mut self) -> Option<Box<Function>> {
-        // 関数宣言(形指定なし)
+        // 関数宣言
+        let type_token = self.consume_type();
+        if type_token.is_none() {
+            panic!("関数の型情報のパースに失敗しました");
+        }
         let func_name = self.consume_ident().unwrap();
         let mut func = Function::new(func_name);
         self.expect_symbol("(").unwrap();
 
-        // 引数のパース
-        while let Some(arg_name) = self.consume_ident() {
-            // 現状、引数の型情報は無視
+        // 引数のパース（型情報もパース）
+        loop {
+            let type_token = self.consume_type();
+            if type_token.is_none() {
+                break;
+            }
+            let arg_name = self.consume_ident().unwrap();
             let lvar = self.new_lvar(&arg_name);
             func.args.push(lvar);
-
             if !self.consume_symbol(",") {
                 break;
             }
         }
+
         self.expect_symbol(")").unwrap();
 
         if self.consume_symbol(";") {
@@ -191,6 +211,7 @@ impl Ast {
     }
 
     // stmt ::= "return" expr? ";"
+    //          | type ident ";"
     //          | "if" "(" expr ")" stmt ("else" stmt)?
     //          | "while" "(" expr ")" stmt
     //          | "for" "(" expr? ";" expr? ";" expr? ")" stmt
@@ -211,6 +232,17 @@ impl Ast {
             node = Some(Box::new(Node::new_unary(NodeKind::Return, self.expr())));
             self.expect_symbol(";").unwrap();
             return node;
+        }
+
+        // variable declaration
+        if let Some(_) = self.consume_type() {
+            let var_name = self.consume_ident().unwrap();
+            self.expect_symbol(";").unwrap();
+
+            let mut node_var = Node::from(NodeKind::LVar);
+            let lvar = self.new_lvar(&var_name);
+            node_var.offset = lvar.offset;
+            return Some(Box::new(node_var));
         }
 
         // selection statement
@@ -650,8 +682,7 @@ impl Ast {
             if let Some(lvar) = lvar {
                 node.offset = lvar.offset; // 既存のローカル変数のオフセットを設定
             } else {
-                let new_lvar = self.new_lvar(&name);
-                node.offset = new_lvar.offset; // 新しいローカル変数のオフセットを設定
+                panic!("未定義の変数です: {}", name);
             }
             return Some(Box::new(node));
         }
