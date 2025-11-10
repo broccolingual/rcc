@@ -70,6 +70,7 @@ assert 7 'a = 3; a += 4; return a;' # addition
 assert 2 'b = 5; b -= 3; return b;' # subtraction
 assert 15 'c = 3; c *= 5; return c;' # multiplication
 assert 4 'd = 20; d /= 5; return d;' # division
+assert 3 'e = 3; e %= 4; return e;' # remainder
 assert 7 'f = 3; f |= 5; return f;' # bitwise OR
 assert 1 'g = 3; g &= 5; return g;' # bitwise AND
 assert 6 'h = 3; h ^= 5; return h;' # bitwise XOR

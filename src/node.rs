@@ -24,6 +24,7 @@ pub enum NodeKind {
     SubAssign,    // -=
     MulAssign,    // *=
     DivAssign,    // /=
+    RemAssign,    // %=
     ShlAssign,    // <<=
     ShrAssign,    // >>=
     BitAndAssign, // &=
@@ -47,6 +48,33 @@ pub enum NodeKind {
     LVar,         // ローカル変数
     Return,       // return
     Num,          // 整数
+}
+
+impl NodeKind {
+    pub fn from_str(sym: &str) -> Option<Self> {
+        match sym {
+            // assignment operators
+            "=" => Some(NodeKind::Assign),
+            "*=" => Some(NodeKind::MulAssign),
+            "/=" => Some(NodeKind::DivAssign),
+            "%=" => Some(NodeKind::RemAssign),
+            "+=" => Some(NodeKind::AddAssign),
+            "-=" => Some(NodeKind::SubAssign),
+            "<<=" => Some(NodeKind::ShlAssign),
+            ">>=" => Some(NodeKind::ShrAssign),
+            "&=" => Some(NodeKind::BitAndAssign),
+            "^=" => Some(NodeKind::BitXorAssign),
+            "|=" => Some(NodeKind::BitOrAssign),
+            // unary operators
+            "&" => Some(NodeKind::Addr),
+            "*" => Some(NodeKind::Deref),
+            "+" => Some(NodeKind::Add),
+            "-" => Some(NodeKind::Sub),
+            "~" => Some(NodeKind::BitNot),
+            "!" => Some(NodeKind::LogicalNot),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug)]

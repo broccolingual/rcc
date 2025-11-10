@@ -162,6 +162,7 @@ impl Generator {
             | NodeKind::SubAssign
             | NodeKind::MulAssign
             | NodeKind::DivAssign
+            | NodeKind::RemAssign
             | NodeKind::BitAndAssign
             | NodeKind::BitOrAssign
             | NodeKind::BitXorAssign
@@ -413,7 +414,7 @@ impl Generator {
                 println!("  cqo");
                 println!("  idiv rdi");
             }
-            NodeKind::Rem => {
+            NodeKind::Rem | NodeKind::RemAssign => {
                 println!("  cqo");
                 println!("  idiv rdi");
                 println!("  mov rax, rdx");

@@ -147,7 +147,6 @@ impl Ast {
                 break;
             }
         }
-
         self.expect_symbol(")").unwrap();
 
         if self.consume_symbol(";") {
@@ -286,88 +285,18 @@ impl Ast {
         self.assign_expr()
     }
 
-    // assign_expr ::= conditional_expr (("=" | "+=" | "-=" | "*=" | "/=" | "<<=" | ">>=" | "&=" | "|=" | "^=") assign_expr)?
+    // assign_expr ::= conditional_expr (("=" | "*=" | "/=" | "%=" | "+=" | "-=" | "<<=" | ">>=" | "&=" | "^=" | "|=") assign_expr)?
     fn assign_expr(&mut self) -> Option<Box<Node>> {
         let mut node = self.conditional_expr();
-
-        if self.consume_symbol("=") {
-            node = Some(Box::new(Node::new(
-                NodeKind::Assign,
-                node,
-                self.assign_expr(),
-            )));
-        }
-
-        if self.consume_symbol("+=") {
-            node = Some(Box::new(Node::new(
-                NodeKind::AddAssign,
-                node,
-                self.assign_expr(),
-            )));
-        }
-
-        if self.consume_symbol("-=") {
-            node = Some(Box::new(Node::new(
-                NodeKind::SubAssign,
-                node,
-                self.assign_expr(),
-            )));
-        }
-
-        if self.consume_symbol("*=") {
-            node = Some(Box::new(Node::new(
-                NodeKind::MulAssign,
-                node,
-                self.assign_expr(),
-            )));
-        }
-
-        if self.consume_symbol("/=") {
-            node = Some(Box::new(Node::new(
-                NodeKind::DivAssign,
-                node,
-                self.assign_expr(),
-            )));
-        }
-
-        if self.consume_symbol("<<=") {
-            node = Some(Box::new(Node::new(
-                NodeKind::ShlAssign,
-                node,
-                self.assign_expr(),
-            )));
-        }
-
-        if self.consume_symbol(">>=") {
-            node = Some(Box::new(Node::new(
-                NodeKind::ShrAssign,
-                node,
-                self.assign_expr(),
-            )));
-        }
-
-        if self.consume_symbol("&=") {
-            node = Some(Box::new(Node::new(
-                NodeKind::BitAndAssign,
-                node,
-                self.assign_expr(),
-            )));
-        }
-
-        if self.consume_symbol("|=") {
-            node = Some(Box::new(Node::new(
-                NodeKind::BitOrAssign,
-                node,
-                self.assign_expr(),
-            )));
-        }
-
-        if self.consume_symbol("^=") {
-            node = Some(Box::new(Node::new(
-                NodeKind::BitXorAssign,
-                node,
-                self.assign_expr(),
-            )));
+        let assignment_ops = [
+            "=", "*=", "/=", "%=", "+=", "-=", "<<=", ">>=", "&=", "^=", "|=",
+        ];
+        for op in &assignment_ops {
+            if self.consume_symbol(op) {
+                let kind = NodeKind::from_str(op).unwrap();
+                node = Some(Box::new(Node::new(kind, node, self.assign_expr())));
+                break;
+            }
         }
         node
     }
@@ -592,7 +521,7 @@ impl Ast {
 
     // unary_expr ::= postfix_expr
     //                | ("++" | "--") unary_expr
-    //                | ("+" | "-" | "!" | "~" | "&" | "*") cast_expr
+    //                | ( "&" | "*" | "+" | "-" | "~" | "!") cast_expr
     fn unary_expr(&mut self) -> Option<Box<Node>> {
         if self.consume_symbol("++") {
             // pre-increment
@@ -608,6 +537,7 @@ impl Ast {
                 self.unary_expr(),
             )));
         }
+
         if self.consume_symbol("+") {
             // unary plus
             return self.cast_expr();
@@ -620,28 +550,15 @@ impl Ast {
                 self.cast_expr(),
             )));
         }
-        if self.consume_symbol("!") {
-            // logical not
-            return Some(Box::new(Node::new_unary(
-                NodeKind::LogicalNot,
-                self.cast_expr(),
-            )));
+
+        let unary_ops = ["&", "*", "~", "!"];
+        for op in &unary_ops {
+            if self.consume_symbol(op) {
+                let kind = NodeKind::from_str(op).unwrap();
+                return Some(Box::new(Node::new_unary(kind, self.cast_expr())));
+            }
         }
-        if self.consume_symbol("~") {
-            // bitwise not
-            return Some(Box::new(Node::new_unary(
-                NodeKind::BitNot,
-                self.cast_expr(),
-            )));
-        }
-        if self.consume_symbol("&") {
-            // address-of
-            return Some(Box::new(Node::new_unary(NodeKind::Addr, self.cast_expr())));
-        }
-        if self.consume_symbol("*") {
-            // dereference
-            return Some(Box::new(Node::new_unary(NodeKind::Deref, self.cast_expr())));
-        }
+
         self.postfix_expr()
     }
 
