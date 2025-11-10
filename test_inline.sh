@@ -116,6 +116,9 @@ assert 5 'int i; i = 0; do i = i + 1; while (i < 5); return i;'
 assert 3 'int i; i = 0; do { i = i + 1; if (i == 3) break; } while (1); return i;'
 assert 25 'int i; int sum; i = 0; sum = 0; do { i = i + 1; if (i % 2 == 0) continue; sum = sum + i; } while (i < 10); return sum;'
 
+# goto and labeled statements
+assert 5 'int a; a = 0; goto skip; a = 10; skip: a = a + 5; return a;'
+
 # logical operators
 assert 1 '1 && 1;'
 assert 0 '1 && 0;'

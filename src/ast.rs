@@ -171,7 +171,7 @@ impl Ast {
 
     // external_declaration ::= function_definition
     fn external_declaration(&mut self) -> Option<Box<Function>> {
-        self.function_definition()
+        self.func_def()
     }
 
     // define_variable ::= type "*"* ident
@@ -195,8 +195,8 @@ impl Ast {
         None
     }
 
-    // function_definition ::= define_variable "(" (define_variable ("," define_variable)*)? ")" compound_stmt
-    fn function_definition(&mut self) -> Option<Box<Function>> {
+    // func_def ::= define_variable "(" (define_variable ("," define_variable)*)? ")" compound_stmt
+    fn func_def(&mut self) -> Option<Box<Function>> {
         // 関数名と戻り値の型のパース
         let func_name;
         if let Some((_, lvar)) = self.define_variable() {
@@ -243,8 +243,18 @@ impl Ast {
         None
     }
 
-    // TODO: ラベル付き文, case文, default文の実装
+    // TODO: case文, default文の実装
     fn labeled_stmt(&mut self) -> Option<Box<Node>> {
+        if let Some(label_name) = self.consume_ident() {
+            if self.consume_symbol(":") {
+                let mut node = Node::new_unary(NodeKind::Label, self.stmt());
+                node.label_name = label_name;
+                return Some(Box::new(node));
+            } else {
+                // ラベル名ではなかった場合、トークンを元に戻す
+                self.tokens.insert(0, Token::Ident(label_name));
+            }
+        }
         None
     }
 
@@ -331,11 +341,18 @@ impl Ast {
         None
     }
 
-    // TODO: goto文の実装
-    // jump_stmt ::= "continue" ";"
-    //             | "break" ";"
-    //             | "return" expr? ";"
+    // jump_stmt ::= "goto" ident ";"
+    //               | "continue" ";"
+    //               | "break" ";"
+    //               | "return" expr? ";"
     fn jump_stmt(&mut self) -> Option<Box<Node>> {
+        if self.consume_reserved("goto") {
+            let mut node = Node::from(NodeKind::Goto);
+            node.label_name = self.consume_ident().unwrap();
+            self.expect_symbol(";").unwrap();
+            return Some(Box::new(node));
+        }
+
         if self.consume_reserved("continue") {
             self.expect_symbol(";").unwrap();
             return Some(Box::new(Node::from(NodeKind::Continue)));

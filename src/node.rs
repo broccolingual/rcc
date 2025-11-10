@@ -43,6 +43,7 @@ pub enum NodeKind {
     Block,        // {}
     Call,         // 関数呼び出し
     Label,        // ラベル
+    Goto,         // goto
     Break,        // break
     Continue,     // continue
     LVar,         // ローカル変数
@@ -78,7 +79,7 @@ impl NodeKind {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Node {
     pub kind: NodeKind,
     pub lhs: Option<Box<Node>>,

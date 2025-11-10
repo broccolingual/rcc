@@ -352,6 +352,15 @@ impl Generator {
                 println!("  jmp .L.continue.{}", self.continue_seq);
                 return;
             }
+            NodeKind::Goto => {
+                println!("  jmp .L.label.{}.{}", self.func_name, node.label_name);
+                return;
+            }
+            NodeKind::Label => {
+                println!(".L.label.{}.{}:", self.func_name, node.label_name);
+                self.gen_asm_from_expr(node.lhs.as_ref().unwrap());
+                return;
+            }
             NodeKind::Call => {
                 let arg_count = node.args.len();
 
