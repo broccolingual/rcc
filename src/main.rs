@@ -17,13 +17,18 @@ fn main() {
         return;
     }
 
-    let mut tokenizer = Tokenizer::new();
-    let tokens = tokenizer.tokenize(&args[1]);
-    // println!("{:#?}", tokens);
+    let tokenizer = Tokenizer::new(&args[1]);
+    let ast = Ast::new(tokenizer.tokens.clone());
 
-    let mut ast = Ast::new(tokens);
-    ast.program();
-    // println!("{:#?}", ast.locals);
+    let debug = false;
+    if debug {
+        println!("=== Tokens ===");
+        println!("{:#?}", tokenizer.tokens);
+        println!("=== Functions ===");
+        println!("{:#?}", ast.funcs);
+        println!("=== Local Variables ===");
+        println!("{:#?}", ast.locals);
+    }
 
     let mut generator = Generator::new();
 

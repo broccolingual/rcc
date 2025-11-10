@@ -1,14 +1,18 @@
 use crate::token::Token;
 use crate::token::{RESERVED_SYMBOLS, RESERVED_TYPES, RESERVED_WORDS};
 
-pub struct Tokenizer;
+pub struct Tokenizer {
+    pub tokens: Vec<Token>,
+}
 
 impl Tokenizer {
-    pub fn new() -> Self {
-        Tokenizer
+    pub fn new(input: &str) -> Self {
+        let mut tokenizer = Tokenizer { tokens: Vec::new() };
+        tokenizer.tokenize(input);
+        tokenizer
     }
 
-    pub fn tokenize(&mut self, input: &str) -> Vec<Token> {
+    pub fn tokenize(&mut self, input: &str) {
         // 演算子トークンを長い順にソート
         let mut sorted_reserved_symbols = RESERVED_SYMBOLS.to_vec();
         sorted_reserved_symbols.sort_by(|a, b| b.len().cmp(&a.len()));
@@ -103,6 +107,6 @@ impl Tokenizer {
             panic!("不明な文字です: {}", c);
         }
         tokens.push(Token::EOF);
-        tokens
+        self.tokens = tokens;
     }
 }

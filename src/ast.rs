@@ -1,7 +1,9 @@
+use core::fmt;
+
 use crate::node::{Node, NodeKind};
 use crate::token::Token;
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct LVar {
     name: String,
     pub offset: i64,
@@ -13,6 +15,16 @@ impl LVar {
             name: name.to_string(),
             offset,
         }
+    }
+}
+
+impl fmt::Debug for LVar {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "LVar {{ name: '{}', offset: {} }}",
+            self.name, self.offset
+        )
     }
 }
 
@@ -32,19 +44,31 @@ impl Function {
     }
 }
 
+impl fmt::Debug for Function {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Function {{ name: '{}', args: {:?} }}",
+            self.name, self.args
+        )
+    }
+}
+
 pub struct Ast {
-    pub tokens: Vec<Token>,
+    tokens: Vec<Token>,
     pub funcs: Vec<Box<Function>>,
     pub locals: Vec<LVar>,
 }
 
 impl Ast {
     pub fn new(tokens: Vec<Token>) -> Self {
-        Ast {
+        let mut ast = Ast {
             tokens,
             funcs: Vec::new(),
             locals: Vec::new(),
-        }
+        };
+        ast.program();
+        ast
     }
 
     fn find_lvar(&mut self, name: &str) -> Option<&mut LVar> {
@@ -123,7 +147,7 @@ impl Ast {
     }
 
     // program ::= function*
-    pub fn program(&mut self) {
+    fn program(&mut self) {
         while !self.at_eof() {
             if let Some(func) = self.function() {
                 self.funcs.push(func);
