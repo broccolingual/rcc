@@ -51,14 +51,22 @@ impl Ast {
         self.locals.iter_mut().find(|lvar| lvar.name == name)
     }
 
-    fn consume(&mut self, op: &str) -> bool {
+    fn consume(&mut self, token: &Token) -> bool {
         match self.tokens.first() {
-            Some(Token::Reserved(s)) if s == op => {
+            Some(t) if t == token => {
                 self.tokens.remove(0);
                 true
             }
             _ => false,
         }
+    }
+
+    fn consume_symbol(&mut self, sym: &str) -> bool {
+        self.consume(&Token::Symbol(sym.to_string()))
+    }
+
+    fn consume_reserved(&mut self, word: &str) -> bool {
+        self.consume(&Token::Reserved(word.to_string()))
     }
 
     fn consume_ident(&mut self) -> Option<String> {
@@ -72,14 +80,22 @@ impl Ast {
         }
     }
 
-    fn expect(&mut self, op: &str) -> Result<(), &str> {
+    fn expect(&mut self, token: &Token) -> Result<(), &str> {
         match self.tokens.first() {
-            Some(Token::Reserved(s)) if s == op => {
+            Some(t) if t == token => {
                 self.tokens.remove(0);
                 Ok(())
             }
             _ => Err("期待されたトークンではありません"),
         }
+    }
+
+    fn expect_symbol(&mut self, sym: &str) -> Result<(), &str> {
+        self.expect(&Token::Symbol(sym.to_string()))
+    }
+
+    fn expect_reserved(&mut self, word: &str) -> Result<(), &str> {
+        self.expect(&Token::Reserved(word.to_string()))
     }
 
     fn expect_number(&mut self) -> Result<i64, &str> {
@@ -119,7 +135,7 @@ impl Ast {
         // 関数宣言(形指定なし)
         let func_name = self.consume_ident().unwrap();
         let mut func = Function::new(func_name);
-        self.expect("(").unwrap();
+        self.expect_symbol("(").unwrap();
 
         // 引数のパース
         while let Some(arg_name) = self.consume_ident() {
@@ -127,21 +143,21 @@ impl Ast {
             let lvar = self.new_lvar(&arg_name);
             func.args.push(lvar);
 
-            if !self.consume(",") {
+            if !self.consume_symbol(",") {
                 break;
             }
         }
 
-        self.expect(")").unwrap();
+        self.expect_symbol(")").unwrap();
 
-        if self.consume(";") {
+        if self.consume_symbol(";") {
             // 関数プロトタイプ宣言
             return None;
         }
 
         // 関数本体のパース
-        self.expect("{").unwrap();
-        while !self.consume("}") {
+        self.expect_symbol("{").unwrap();
+        while !self.consume_symbol("}") {
             if let Some(stmt) = self.stmt() {
                 func.body.push(stmt);
             } else {
@@ -163,77 +179,77 @@ impl Ast {
     fn stmt(&mut self) -> Option<Box<Node>> {
         let mut node: Option<Box<Node>>;
 
-        if self.consume("return") {
-            if self.consume(";") {
-                node = Some(Box::new(Node::new(NodeKind::Return, None, None)));
+        if self.consume_reserved("return") {
+            if self.consume_symbol(";") {
+                node = Some(Box::new(Node::from(NodeKind::Return)));
                 return node;
             }
 
-            node = Some(Box::new(Node::new(NodeKind::Return, self.expr(), None)));
-            self.expect(";").unwrap();
+            node = Some(Box::new(Node::new_unary(NodeKind::Return, self.expr())));
+            self.expect_symbol(";").unwrap();
             return node;
         }
 
         // selection statement
-        if self.consume("if") {
-            node = Some(Box::new(Node::new(NodeKind::If, None, None)));
-            self.expect("(").unwrap();
+        if self.consume_reserved("if") {
+            node = Some(Box::new(Node::from(NodeKind::If)));
+            self.expect_symbol("(").unwrap();
             node.as_mut().unwrap().cond = self.expr();
-            self.expect(")").unwrap();
+            self.expect_symbol(")").unwrap();
             node.as_mut().unwrap().then = self.stmt();
-            if self.consume("else") {
+            if self.consume_reserved("else") {
                 node.as_mut().unwrap().els = self.stmt();
             }
             return node;
         }
 
         // iteration statement
-        if self.consume("while") {
-            node = Some(Box::new(Node::new(NodeKind::While, None, None)));
-            self.expect("(").unwrap();
+        if self.consume_reserved("while") {
+            node = Some(Box::new(Node::from(NodeKind::While)));
+            self.expect_symbol("(").unwrap();
             node.as_mut().unwrap().cond = self.expr();
-            self.expect(")").unwrap();
+            self.expect_symbol(")").unwrap();
             node.as_mut().unwrap().then = self.stmt();
             return node;
         }
 
-        if self.consume("for") {
-            node = Some(Box::new(Node::new(NodeKind::For, None, None)));
-            self.expect("(").unwrap();
+        if self.consume_reserved("for") {
+            node = Some(Box::new(Node::from(NodeKind::For)));
+            self.expect_symbol("(").unwrap();
             // 初期化式
-            if !self.consume(";") {
+            if !self.consume_symbol(";") {
                 node.as_mut().unwrap().init = self.expr();
-                self.expect(";").unwrap();
+                self.expect_symbol(";").unwrap();
             }
             // 条件式
-            if !self.consume(";") {
+            if !self.consume_symbol(";") {
                 node.as_mut().unwrap().cond = self.expr();
-                self.expect(";").unwrap();
+                self.expect_symbol(";").unwrap();
             }
             // 更新式
-            if !self.consume(")") {
+            if !self.consume_symbol(")") {
                 node.as_mut().unwrap().inc = self.expr();
-                self.expect(")").unwrap();
+                self.expect_symbol(")").unwrap();
             }
             node.as_mut().unwrap().then = self.stmt();
             return node;
         }
 
-        if self.consume("do") {
-            node = Some(Box::new(Node::new(NodeKind::Do, None, None)));
+        if self.consume_reserved("do") {
+            node = Some(Box::new(Node::from(NodeKind::Do)));
             node.as_mut().unwrap().then = self.stmt();
-            self.expect("while").unwrap();
-            self.expect("(").unwrap();
+            self.expect_reserved("while").unwrap();
+            self.expect_symbol("(").unwrap();
             node.as_mut().unwrap().cond = self.expr();
-            self.expect(")").unwrap();
-            self.expect(";").unwrap();
+            self.expect_symbol(")").unwrap();
+            self.expect_symbol(";").unwrap();
             return node;
         }
 
         // compound statement
-        if self.consume("{") {
-            let mut node = Some(Box::new(Node::new(NodeKind::Block, None, None)));
-            while !self.consume("}") {
+        if self.consume_symbol("{") {
+            let mut node = Some(Box::new(Node::from(NodeKind::Block)));
+            while !self.consume_symbol("}") {
                 if let Some(stmt) = self.stmt() {
                     node.as_mut().unwrap().body.push(stmt);
                 } else {
@@ -243,14 +259,16 @@ impl Ast {
             return node;
         }
 
-        if self.consume("break") {
-            self.expect(";").unwrap();
-            return Some(Box::new(Node::new(NodeKind::Break, None, None)));
+        // break statement
+        if self.consume_reserved("break") {
+            self.expect_symbol(";").unwrap();
+            return Some(Box::new(Node::from(NodeKind::Break)));
         }
 
-        if self.consume("continue") {
-            self.expect(";").unwrap();
-            return Some(Box::new(Node::new(NodeKind::Continue, None, None)));
+        // continue statement
+        if self.consume_reserved("continue") {
+            self.expect_symbol(";").unwrap();
+            return Some(Box::new(Node::from(NodeKind::Continue)));
         }
 
         self.expr_stmt()
@@ -259,7 +277,7 @@ impl Ast {
     // expr_stmt ::= expr ";"
     fn expr_stmt(&mut self) -> Option<Box<Node>> {
         let node = self.expr();
-        self.expect(";").unwrap();
+        self.expect_symbol(";").unwrap();
         node
     }
 
@@ -272,7 +290,7 @@ impl Ast {
     fn assign_expr(&mut self) -> Option<Box<Node>> {
         let mut node = self.conditional_expr();
 
-        if self.consume("=") {
+        if self.consume_symbol("=") {
             node = Some(Box::new(Node::new(
                 NodeKind::Assign,
                 node,
@@ -280,7 +298,7 @@ impl Ast {
             )));
         }
 
-        if self.consume("+=") {
+        if self.consume_symbol("+=") {
             node = Some(Box::new(Node::new(
                 NodeKind::AddAssign,
                 node,
@@ -288,7 +306,7 @@ impl Ast {
             )));
         }
 
-        if self.consume("-=") {
+        if self.consume_symbol("-=") {
             node = Some(Box::new(Node::new(
                 NodeKind::SubAssign,
                 node,
@@ -296,7 +314,7 @@ impl Ast {
             )));
         }
 
-        if self.consume("*=") {
+        if self.consume_symbol("*=") {
             node = Some(Box::new(Node::new(
                 NodeKind::MulAssign,
                 node,
@@ -304,7 +322,7 @@ impl Ast {
             )));
         }
 
-        if self.consume("/=") {
+        if self.consume_symbol("/=") {
             node = Some(Box::new(Node::new(
                 NodeKind::DivAssign,
                 node,
@@ -312,7 +330,7 @@ impl Ast {
             )));
         }
 
-        if self.consume("<<=") {
+        if self.consume_symbol("<<=") {
             node = Some(Box::new(Node::new(
                 NodeKind::ShlAssign,
                 node,
@@ -320,7 +338,7 @@ impl Ast {
             )));
         }
 
-        if self.consume(">>=") {
+        if self.consume_symbol(">>=") {
             node = Some(Box::new(Node::new(
                 NodeKind::ShrAssign,
                 node,
@@ -328,7 +346,7 @@ impl Ast {
             )));
         }
 
-        if self.consume("&=") {
+        if self.consume_symbol("&=") {
             node = Some(Box::new(Node::new(
                 NodeKind::BitAndAssign,
                 node,
@@ -336,7 +354,7 @@ impl Ast {
             )));
         }
 
-        if self.consume("|=") {
+        if self.consume_symbol("|=") {
             node = Some(Box::new(Node::new(
                 NodeKind::BitOrAssign,
                 node,
@@ -344,7 +362,7 @@ impl Ast {
             )));
         }
 
-        if self.consume("^=") {
+        if self.consume_symbol("^=") {
             node = Some(Box::new(Node::new(
                 NodeKind::BitXorAssign,
                 node,
@@ -358,11 +376,11 @@ impl Ast {
     //                      | logical_or_expr "?" expr ":" conditional_expr
     fn conditional_expr(&mut self) -> Option<Box<Node>> {
         let node = self.logical_or_expr();
-        if self.consume("?") {
-            let mut ternary_node = Node::new(NodeKind::Ternary, None, None);
+        if self.consume_symbol("?") {
+            let mut ternary_node = Node::from(NodeKind::Ternary);
             ternary_node.cond = node;
             ternary_node.then = self.expr();
-            self.expect(":").unwrap();
+            self.expect_symbol(":").unwrap();
             ternary_node.els = self.conditional_expr();
             return Some(Box::new(ternary_node));
         }
@@ -375,7 +393,7 @@ impl Ast {
         let mut node = self.logical_and_expr();
 
         loop {
-            if self.consume("||") {
+            if self.consume_symbol("||") {
                 // logical or
                 node = Some(Box::new(Node::new(
                     NodeKind::LogicalOr,
@@ -394,7 +412,7 @@ impl Ast {
         let mut node = self.inclusive_or_expr();
 
         loop {
-            if self.consume("&&") {
+            if self.consume_symbol("&&") {
                 // logical and
                 node = Some(Box::new(Node::new(
                     NodeKind::LogicalAnd,
@@ -413,7 +431,7 @@ impl Ast {
         let mut node = self.exclusive_or_expr();
 
         loop {
-            if self.consume("|") {
+            if self.consume_symbol("|") {
                 // bitwise or
                 node = Some(Box::new(Node::new(
                     NodeKind::BitOr,
@@ -432,7 +450,7 @@ impl Ast {
         let mut node = self.and_expr();
 
         loop {
-            if self.consume("^") {
+            if self.consume_symbol("^") {
                 // bitwise xor
                 node = Some(Box::new(Node::new(NodeKind::BitXor, node, self.and_expr())));
             } else {
@@ -447,7 +465,7 @@ impl Ast {
         let mut node = self.equality_expr();
 
         loop {
-            if self.consume("&") {
+            if self.consume_symbol("&") {
                 //bitwise and
                 node = Some(Box::new(Node::new(
                     NodeKind::BitAnd,
@@ -466,14 +484,14 @@ impl Ast {
         let mut node = self.relational_expr();
 
         loop {
-            if self.consume("==") {
+            if self.consume_symbol("==") {
                 // equal
                 node = Some(Box::new(Node::new(
                     NodeKind::Eq,
                     node,
                     self.relational_expr(),
                 )));
-            } else if self.consume("!=") {
+            } else if self.consume_symbol("!=") {
                 // not equal
                 node = Some(Box::new(Node::new(
                     NodeKind::Ne,
@@ -492,16 +510,16 @@ impl Ast {
         let mut node = self.shift_expr();
 
         loop {
-            if self.consume("<") {
+            if self.consume_symbol("<") {
                 // less than
                 node = Some(Box::new(Node::new(NodeKind::Lt, node, self.shift_expr())));
-            } else if self.consume("<=") {
+            } else if self.consume_symbol("<=") {
                 // less than or equal
                 node = Some(Box::new(Node::new(NodeKind::Le, node, self.shift_expr())));
-            } else if self.consume(">") {
+            } else if self.consume_symbol(">") {
                 // greater than
                 node = Some(Box::new(Node::new(NodeKind::Lt, self.shift_expr(), node)));
-            } else if self.consume(">=") {
+            } else if self.consume_symbol(">=") {
                 // greater than or equal
                 node = Some(Box::new(Node::new(NodeKind::Le, self.shift_expr(), node)));
             } else {
@@ -516,10 +534,10 @@ impl Ast {
         let mut node = self.add_expr();
 
         loop {
-            if self.consume("<<") {
+            if self.consume_symbol("<<") {
                 // left shift
                 node = Some(Box::new(Node::new(NodeKind::Shl, node, self.add_expr())));
-            } else if self.consume(">>") {
+            } else if self.consume_symbol(">>") {
                 // right shift
                 node = Some(Box::new(Node::new(NodeKind::Shr, node, self.add_expr())));
             } else {
@@ -534,10 +552,10 @@ impl Ast {
         let mut node = self.mul_expr();
 
         loop {
-            if self.consume("+") {
+            if self.consume_symbol("+") {
                 // addition
                 node = Some(Box::new(Node::new(NodeKind::Add, node, self.mul_expr())));
-            } else if self.consume("-") {
+            } else if self.consume_symbol("-") {
                 // subtraction
                 node = Some(Box::new(Node::new(NodeKind::Sub, node, self.mul_expr())));
             } else {
@@ -552,13 +570,13 @@ impl Ast {
         let mut node = self.cast_expr();
 
         loop {
-            if self.consume("*") {
+            if self.consume_symbol("*") {
                 // multiplication
                 node = Some(Box::new(Node::new(NodeKind::Mul, node, self.cast_expr())));
-            } else if self.consume("/") {
+            } else if self.consume_symbol("/") {
                 // division
                 node = Some(Box::new(Node::new(NodeKind::Div, node, self.cast_expr())));
-            } else if self.consume("%") {
+            } else if self.consume_symbol("%") {
                 // remainder
                 node = Some(Box::new(Node::new(NodeKind::Rem, node, self.cast_expr())));
             } else {
@@ -576,27 +594,25 @@ impl Ast {
     //                | ("++" | "--") unary_expr
     //                | ("+" | "-" | "!" | "~" | "&" | "*") cast_expr
     fn unary_expr(&mut self) -> Option<Box<Node>> {
-        if self.consume("++") {
+        if self.consume_symbol("++") {
             // pre-increment
-            return Some(Box::new(Node::new(
+            return Some(Box::new(Node::new_unary(
                 NodeKind::PreInc,
                 self.unary_expr(),
-                None,
             )));
         }
-        if self.consume("--") {
+        if self.consume_symbol("--") {
             // pre-decrement
-            return Some(Box::new(Node::new(
+            return Some(Box::new(Node::new_unary(
                 NodeKind::PreDec,
                 self.unary_expr(),
-                None,
             )));
         }
-        if self.consume("+") {
+        if self.consume_symbol("+") {
             // unary plus
             return self.cast_expr();
         }
-        if self.consume("-") {
+        if self.consume_symbol("-") {
             // unary minus
             return Some(Box::new(Node::new(
                 NodeKind::Sub,
@@ -604,29 +620,27 @@ impl Ast {
                 self.cast_expr(),
             )));
         }
-        if self.consume("!") {
+        if self.consume_symbol("!") {
             // logical not
-            return Some(Box::new(Node::new(
+            return Some(Box::new(Node::new_unary(
                 NodeKind::LogicalNot,
                 self.cast_expr(),
-                None,
             )));
         }
-        if self.consume("~") {
+        if self.consume_symbol("~") {
             // bitwise not
-            return Some(Box::new(Node::new(
+            return Some(Box::new(Node::new_unary(
                 NodeKind::BitNot,
                 self.cast_expr(),
-                None,
             )));
         }
-        if self.consume("&") {
+        if self.consume_symbol("&") {
             // address-of
-            return Some(Box::new(Node::new(NodeKind::Addr, self.cast_expr(), None)));
+            return Some(Box::new(Node::new_unary(NodeKind::Addr, self.cast_expr())));
         }
-        if self.consume("*") {
+        if self.consume_symbol("*") {
             // dereference
-            return Some(Box::new(Node::new(NodeKind::Deref, self.cast_expr(), None)));
+            return Some(Box::new(Node::new_unary(NodeKind::Deref, self.cast_expr())));
         }
         self.postfix_expr()
     }
@@ -637,12 +651,12 @@ impl Ast {
         let mut node = self.primary_expr();
 
         loop {
-            if self.consume("++") {
+            if self.consume_symbol("++") {
                 // post-increment
-                node = Some(Box::new(Node::new(NodeKind::PostInc, node, None)));
-            } else if self.consume("--") {
+                node = Some(Box::new(Node::new_unary(NodeKind::PostInc, node)));
+            } else if self.consume_symbol("--") {
                 // post-decrement
-                node = Some(Box::new(Node::new(NodeKind::PostDec, node, None)));
+                node = Some(Box::new(Node::new_unary(NodeKind::PostDec, node)));
             } else {
                 return node;
             }
@@ -653,20 +667,20 @@ impl Ast {
     //                  | ident
     //                  | num
     fn primary_expr(&mut self) -> Option<Box<Node>> {
-        if self.consume("(") {
+        if self.consume_symbol("(") {
             let node = self.expr();
-            self.expect(")").unwrap();
+            self.expect_symbol(")").unwrap();
             return node;
         }
         let token = self.consume_ident();
         if let Some(name) = token {
             // 関数呼び出し
-            if self.consume("(") {
-                let mut node = Node::new(NodeKind::Call, None, None);
+            if self.consume_symbol("(") {
+                let mut node = Node::from(NodeKind::Call);
                 node.func_name = name;
 
                 // 引数リストをパース
-                if self.consume(")") {
+                if self.consume_symbol(")") {
                     // 引数なし
                 } else {
                     // 引数あり
@@ -677,20 +691,20 @@ impl Ast {
                             panic!("関数呼び出しの引数のパースに失敗しました");
                         }
 
-                        if self.consume(",") {
+                        if self.consume_symbol(",") {
                             continue;
                         } else {
                             break;
                         }
                     }
-                    self.expect(")").unwrap();
+                    self.expect_symbol(")").unwrap();
                 }
 
                 return Some(Box::new(node));
             }
 
             // ローカル変数ノードを作成
-            let mut node = Node::new(NodeKind::LVar, None, None);
+            let mut node = Node::from(NodeKind::LVar);
             let lvar = self.find_lvar(&name);
             if let Some(lvar) = lvar {
                 node.offset = lvar.offset; // 既存のローカル変数のオフセットを設定

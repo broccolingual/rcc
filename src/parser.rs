@@ -1,5 +1,5 @@
 use crate::token::Token;
-use crate::token::{RESERVED_OPS, RESERVED_WORDS};
+use crate::token::{RESERVED_SYMBOLS, RESERVED_TYPES, RESERVED_WORDS};
 
 pub struct Tokenizer;
 
@@ -9,9 +9,9 @@ impl Tokenizer {
     }
 
     pub fn tokenize(&mut self, input: &str) -> Vec<Token> {
-        // 記号トークンを長い順にソート
-        let mut sorted_reserved_ops = RESERVED_OPS.to_vec();
-        sorted_reserved_ops.sort_by(|a, b| b.len().cmp(&a.len()));
+        // 演算子トークンを長い順にソート
+        let mut sorted_reserved_symbols = RESERVED_SYMBOLS.to_vec();
+        sorted_reserved_symbols.sort_by(|a, b| b.len().cmp(&a.len()));
 
         let mut tokens = Vec::new();
         let chars = input.chars().collect::<Vec<char>>();
@@ -26,15 +26,25 @@ impl Tokenizer {
                 continue;
             }
 
-            // 記号トークン
+            // コメント行をスキップ
+            if c == '/' && pos + 1 < chars.len() && chars[pos + 1] == '/' {
+                while pos < chars.len() && chars[pos] != '\n' {
+                    pos += 1;
+                    println!("Skipping comment character: {}", chars[pos - 1]);
+                }
+                pos += 1;
+                continue;
+            }
+
+            // 演算子トークン
             let mut matched = false;
-            for op in &sorted_reserved_ops {
-                let op_len = op.len();
-                if pos + op_len <= chars.len() {
-                    let candidate: String = chars[pos..pos + op_len].iter().collect();
-                    if candidate == *op {
-                        tokens.push(Token::Reserved(op.to_string()));
-                        pos += op_len;
+            for symbol in &sorted_reserved_symbols {
+                let symbol_len = symbol.len();
+                if pos + symbol_len <= chars.len() {
+                    let candidate: String = chars[pos..pos + symbol_len].iter().collect();
+                    if candidate == *symbol {
+                        tokens.push(Token::Symbol(symbol.to_string()));
+                        pos += symbol_len;
                         matched = true;
                         break;
                     }
@@ -76,7 +86,11 @@ impl Tokenizer {
                         break;
                     }
                 }
-                if RESERVED_WORDS.contains(&ident.as_str()) {
+                if RESERVED_TYPES.contains(&ident.as_str()) {
+                    // 型はTypeトークンとして扱う
+                    tokens.push(Token::Type(ident));
+                    continue;
+                } else if RESERVED_WORDS.contains(&ident.as_str()) {
                     // 予約語はReservedトークンとして扱う
                     tokens.push(Token::Reserved(ident));
                     continue;

@@ -116,12 +116,12 @@ impl Generator {
                 self.gen_asm_from_expr(node.cond.as_ref().unwrap());
                 println!("  pop rax");
                 println!("  cmp rax, 0");
-                println!("  je .Lelse{}", seq);
+                println!("  je .L.else.{}", seq);
                 self.gen_asm_from_expr(node.then.as_ref().unwrap());
-                println!("  jmp .Lend{}", seq);
-                println!(".Lelse{}:", seq);
+                println!("  jmp .L.end.{}", seq);
+                println!(".L.else.{}:", seq);
                 self.gen_asm_from_expr(node.els.as_ref().unwrap());
-                println!(".Lend{}:", seq);
+                println!(".L.end.{}:", seq);
                 return;
             }
             NodeKind::PreInc => {
@@ -206,16 +206,16 @@ impl Generator {
                 self.gen_asm_from_expr(node.lhs.as_ref().unwrap());
                 println!("  pop rax");
                 println!("  cmp rax, 0");
-                println!("  je .Lfalse{}", seq);
+                println!("  je .L.false.{}", seq);
                 self.gen_asm_from_expr(node.rhs.as_ref().unwrap());
                 println!("  pop rax");
                 println!("  cmp rax, 0");
-                println!("  je .Lfalse{}", seq);
+                println!("  je .L.false.{}", seq);
                 println!("  push 1");
-                println!("  jmp .Lend{}", seq);
-                println!(".Lfalse{}:", seq);
+                println!("  jmp .L.end.{}", seq);
+                println!(".L.false.{}:", seq);
                 println!("  push 0");
-                println!(".Lend{}:", seq);
+                println!(".L.end.{}:", seq);
                 return;
             }
             NodeKind::LogicalOr => {
@@ -224,16 +224,16 @@ impl Generator {
                 self.gen_asm_from_expr(node.lhs.as_ref().unwrap());
                 println!("  pop rax");
                 println!("  cmp rax, 0");
-                println!("  jne .Ltrue{}", seq);
+                println!("  jne .L.true.{}", seq);
                 self.gen_asm_from_expr(node.rhs.as_ref().unwrap());
                 println!("  pop rax");
                 println!("  cmp rax, 0");
-                println!("  jne .Ltrue{}", seq);
+                println!("  jne .L.true.{}", seq);
                 println!("  push 0");
-                println!("  jmp .Lend{}", seq);
-                println!(".Ltrue{}:", seq);
+                println!("  jmp .L.end.{}", seq);
+                println!(".L.true.{}:", seq);
                 println!("  push 1");
-                println!(".Lend{}:", seq);
+                println!(".L.end.{}:", seq);
                 return;
             }
             NodeKind::If => {
@@ -244,20 +244,20 @@ impl Generator {
                     self.gen_asm_from_expr(node.cond.as_ref().unwrap());
                     println!("  pop rax");
                     println!("  cmp rax, 0");
-                    println!("  je .Lelse{}", seq);
+                    println!("  je .L.else.{}", seq);
                     self.gen_asm_from_expr(node.then.as_ref().unwrap());
-                    println!("  jmp .Lend{}", seq);
-                    println!(".Lelse{}:", seq);
+                    println!("  jmp .L.end.{}", seq);
+                    println!(".L.else.{}:", seq);
                     self.gen_asm_from_expr(node.els.as_ref().unwrap());
-                    println!(".Lend{}:", seq);
+                    println!(".L.end.{}:", seq);
                 } else {
                     // else節なし
                     self.gen_asm_from_expr(node.cond.as_ref().unwrap());
                     println!("  pop rax");
                     println!("  cmp rax, 0");
-                    println!("  je .Lend{}", seq);
+                    println!("  je .L.end.{}", seq);
                     self.gen_asm_from_expr(node.then.as_ref().unwrap());
-                    println!(".Lend{}:", seq);
+                    println!(".L.end.{}:", seq);
                 }
                 return;
             }
@@ -269,14 +269,14 @@ impl Generator {
                 self.break_seq = seq;
                 self.continue_seq = seq;
 
-                println!(".Lcontinue{}:", seq);
+                println!(".L.continue.{}:", seq);
                 self.gen_asm_from_expr(node.cond.as_ref().unwrap());
                 println!("  pop rax");
                 println!("  cmp rax, 0");
-                println!("  je .Lbreak{}", seq);
+                println!("  je .L.break.{}", seq);
                 self.gen_asm_from_expr(node.then.as_ref().unwrap());
-                println!("  jmp .Lcontinue{}", seq);
-                println!(".Lbreak{}:", seq);
+                println!("  jmp .L.continue.{}", seq);
+                println!(".L.break.{}:", seq);
 
                 self.break_seq = current_break_seq;
                 self.continue_seq = current_continue_seq;
@@ -293,20 +293,20 @@ impl Generator {
                 if let Some(init) = node.init.as_ref() {
                     self.gen_asm_from_expr(init);
                 }
-                println!(".Lbegin{}:", seq);
+                println!(".L.begin.{}:", seq);
                 if let Some(cond) = node.cond.as_ref() {
                     self.gen_asm_from_expr(cond);
                     println!("  pop rax");
                     println!("  cmp rax, 0");
-                    println!("  je .Lbreak{}", seq);
+                    println!("  je .L.break.{}", seq);
                 }
                 self.gen_asm_from_expr(node.then.as_ref().unwrap());
-                println!(".Lcontinue{}:", seq);
+                println!(".L.continue.{}:", seq);
                 if let Some(inc) = node.inc.as_ref() {
                     self.gen_asm_from_expr(inc);
                 }
-                println!("  jmp .Lbegin{}", seq);
-                println!(".Lbreak{}:", seq);
+                println!("  jmp .L.begin.{}", seq);
+                println!(".L.break.{}:", seq);
 
                 self.break_seq = current_break_seq;
                 self.continue_seq = current_continue_seq;
@@ -320,14 +320,14 @@ impl Generator {
                 self.break_seq = seq;
                 self.continue_seq = seq;
 
-                println!(".Lbegin{}:", seq);
+                println!(".L.begin.{}:", seq);
                 self.gen_asm_from_expr(node.then.as_ref().unwrap());
-                println!(".Lcontinue{}:", seq);
+                println!(".L.continue.{}:", seq);
                 self.gen_asm_from_expr(node.cond.as_ref().unwrap());
                 println!("  pop rax");
                 println!("  cmp rax, 0");
-                println!("  jne .Lbegin{}", seq);
-                println!(".Lbreak{}:", seq);
+                println!("  jne .L.begin.{}", seq);
+                println!(".L.break.{}:", seq);
 
                 self.break_seq = current_break_seq;
                 self.continue_seq = current_continue_seq;
@@ -341,11 +341,11 @@ impl Generator {
                 return;
             }
             NodeKind::Break => {
-                println!("  jmp .Lbreak{}", self.break_seq);
+                println!("  jmp .L.break.{}", self.break_seq);
                 return;
             }
             NodeKind::Continue => {
-                println!("  jmp .Lcontinue{}", self.continue_seq);
+                println!("  jmp .L.continue.{}", self.continue_seq);
                 return;
             }
             NodeKind::Call => {
@@ -372,16 +372,16 @@ impl Generator {
                 self.label_seq += 1;
                 println!("  mov rax, rsp"); // 現在のrspをraxにコピー
                 println!("  and rax, 15"); // rspを16の倍数にする
-                println!("  jnz .Lcall{}", seq); // もし16の倍数でなければ調整
+                println!("  jnz .L.call.{}", seq); // もし16の倍数でなければ調整
                 println!("  mov rax, 0"); // ダミーのrax設定
                 println!("  call {}", node.func_name); // 関数呼び出し
-                println!("  jmp .Lend{}", seq);
-                println!(".Lcall{}:", seq); // 16の倍数でない場合の処理
+                println!("  jmp .L.end.{}", seq);
+                println!(".L.call.{}:", seq); // 16の倍数でない場合の処理
                 println!("  sub rsp, 8"); // スタックを8バイト下げる
                 println!("  mov rax, 0"); // ダミーのrax設定
                 println!("  call {}", node.func_name); // 関数呼び出し
                 println!("  add rsp, 8"); // スタックを元に戻す
-                println!(".Lend{}:", seq);
+                println!(".L.end.{}:", seq);
                 println!("  push rax"); // 戻り値をスタックに積む
                 return;
             }

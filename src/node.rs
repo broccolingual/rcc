@@ -52,7 +52,6 @@ pub enum NodeKind {
 #[derive(Debug)]
 pub struct Node {
     pub kind: NodeKind,
-    // pub next: Option<Box<Node>>, // 次のノードへのポインタ
     pub lhs: Option<Box<Node>>,
     pub rhs: Option<Box<Node>>,
     pub val: i64,                // kindがNumのときに使う
@@ -88,22 +87,17 @@ impl Node {
         }
     }
 
+    pub fn from(kind: NodeKind) -> Self {
+        Node::new(kind, None, None)
+    }
+
+    pub fn new_unary(kind: NodeKind, op: Option<Box<Node>>) -> Self {
+        Node::new(kind, op, None)
+    }
+
     pub fn new_num(val: i64) -> Self {
-        Node {
-            kind: NodeKind::Num,
-            lhs: None,
-            rhs: None,
-            val,
-            offset: 0,
-            cond: None,
-            then: None,
-            els: None,
-            init: None,
-            inc: None,
-            body: Vec::new(),
-            label_name: String::new(),
-            func_name: String::new(),
-            args: Vec::new(),
-        }
+        let mut node = Node::new(NodeKind::Num, None, None);
+        node.val = val;
+        node
     }
 }

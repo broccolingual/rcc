@@ -1,9 +1,12 @@
 #!/bin/bash
+
+cargo build
+
 assert() {
   expected="$1"
   input="$2"
 
-  cargo run -q -- "main() { $input }" > ./bin/tmp.s
+  ./target/debug/c-compiler "main() { $input }" > ./bin/tmp.s
   cc -o ./bin/tmp ./bin/tmp.s
   ./bin/tmp
   actual="$?"
