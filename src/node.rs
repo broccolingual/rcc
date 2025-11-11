@@ -132,6 +132,7 @@ impl Node {
     pub fn new_num(val: i64) -> Self {
         let mut node = Node::new(NodeKind::Num, None, None);
         node.val = val;
+        node.ty = Some(Box::new(Type::new_int()));
         node
     }
 }

@@ -628,42 +628,34 @@ impl Ast {
         loop {
             if self.consume_symbol("+") {
                 // addition
+                let mut rhs = self.mul_expr();
                 if let Some(ty) = &node.as_ref().unwrap().ty {
                     if ty.is_ptr() {
                         // ポインタ加算の場合、スケーリングを考慮
                         let size = ty.ptr_to.as_ref().unwrap().size_of();
-                        node = Some(Box::new(Node::new(
-                            NodeKind::Add,
-                            node,
-                            Some(Box::new(Node::new(
-                                NodeKind::Mul,
-                                self.mul_expr(),
-                                Some(Box::new(Node::new_num(size))),
-                            ))),
+                        rhs = Some(Box::new(Node::new(
+                            NodeKind::Mul,
+                            rhs,
+                            Some(Box::new(Node::new_num(size))),
                         )));
-                        continue;
                     }
                 }
-                node = Some(Box::new(Node::new(NodeKind::Add, node, self.mul_expr())));
+                node = Some(Box::new(Node::new(NodeKind::Add, node, rhs)));
             } else if self.consume_symbol("-") {
                 // subtraction
+                let mut rhs = self.mul_expr();
                 if let Some(ty) = &node.as_ref().unwrap().ty {
                     if ty.is_ptr() {
                         // ポインタ減算の場合、スケーリングを考慮
                         let size = ty.ptr_to.as_ref().unwrap().size_of();
-                        node = Some(Box::new(Node::new(
-                            NodeKind::Sub,
-                            node,
-                            Some(Box::new(Node::new(
-                                NodeKind::Mul,
-                                self.mul_expr(),
-                                Some(Box::new(Node::new_num(size))),
-                            ))),
+                        rhs = Some(Box::new(Node::new(
+                            NodeKind::Mul,
+                            rhs,
+                            Some(Box::new(Node::new_num(size))),
                         )));
-                        continue;
                     }
                 }
-                node = Some(Box::new(Node::new(NodeKind::Sub, node, self.mul_expr())));
+                node = Some(Box::new(Node::new(NodeKind::Sub, node, rhs)));
             } else {
                 return node;
             }
@@ -699,6 +691,7 @@ impl Ast {
     // unary_expr ::= postfix_expr
     //                | ("++" | "--") unary_expr
     //                | ( "&" | "*" | "+" | "-" | "~" | "!") cast_expr
+    //                | sizeof unary_expr
     fn unary_expr(&mut self) -> Option<Box<Node>> {
         if self.consume_symbol("++") {
             // pre-increment
@@ -733,6 +726,16 @@ impl Ast {
             if self.consume_symbol(op) {
                 let kind = NodeKind::from_str(op).unwrap();
                 return Some(Box::new(Node::new_unary(kind, self.cast_expr())));
+            }
+        }
+
+        if self.consume_reserved("sizeof") {
+            let node = self.unary_expr();
+            if let Some(ty) = &node.as_ref().unwrap().ty {
+                let size = ty.size_of();
+                return Some(Box::new(Node::new_num(size)));
+            } else {
+                panic!("sizeofのパースに失敗しました");
             }
         }
 

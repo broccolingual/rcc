@@ -149,4 +149,10 @@ assert 55 'int sum; int i; sum = 0; for (i = 1; i <= 10; i = i + 1) sum = sum + 
 assert 3 'int a; int b; a = 3; b = &a; return *b;'
 assert 3 'int a; int b; int c; a = 3; b = 5; c = &b + 8; return *c;'
 
+# sizeof operator
+assert 4 'int x; return sizeof(x);'
+assert 8 'int *p; return sizeof(p);'
+# TODO: 木を辿って型を判定する必要アリ
+# assert 4 'int x; return sizeof(x + 3);'
+
 echo OK
