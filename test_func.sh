@@ -2,12 +2,14 @@
 
 cargo build
 
+cc -c ./bin/func.c -o ./bin/func.o
+
 assert() {
   expected="$1"
   input="$2"
 
   ./target/debug/c-compiler "$input" > ./bin/tmp.s
-  cc -o ./bin/tmp ./bin/tmp.s
+  cc -o ./bin/tmp ./bin/tmp.s ./bin/func.o
   ./bin/tmp
   actual="$?"
 
@@ -19,16 +21,16 @@ assert() {
   fi
 }
 
-assert 47 '
+assert 3 '
 int main() {
-    return 5 + 6 * 7;
+    return foo();
 }'
 assert 3 '
-int foo(int x) {
+int hoge(int x) {
     return x + 1;
 }
 int main() {
-    return foo(2);
+    return hoge(2);
 }'
 assert 12 '
 int add(int x, int y) {
@@ -46,7 +48,16 @@ int main() {
     y = &x;
     *y = 3;
     return x;
-}
-'
+}'
+assert 8 '
+int main() {
+    int *p;
+    alloc4(&p, 1, 2, 4, 8);
+    int *q;
+    q = p + 2;
+    *q;  // → 4
+    q = p + 3;
+    return *q;
+}'
 
 echo OK

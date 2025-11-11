@@ -1,6 +1,6 @@
 use core::fmt;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TypeKind {
     Int,
     Ptr,
@@ -41,6 +41,17 @@ impl Type {
         Type {
             kind: TypeKind::Ptr,
             ptr_to: Some(Box::new(to.clone())),
+        }
+    }
+
+    pub fn is_ptr(&self) -> bool {
+        matches!(self.kind, TypeKind::Ptr)
+    }
+
+    pub fn size_of(&self) -> i64 {
+        match self.kind {
+            TypeKind::Int => 4,
+            TypeKind::Ptr => 8,
         }
     }
 }

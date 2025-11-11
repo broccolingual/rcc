@@ -1,3 +1,5 @@
+use crate::types::Type;
+
 #[derive(PartialEq, Eq, Clone, Hash, Debug)]
 pub enum NodeKind {
     Add,          // +
@@ -95,6 +97,7 @@ pub struct Node {
     pub label_name: String,      // ラベル名
     pub func_name: String,       // 関数名
     pub args: Vec<Box<Node>>,    // 関数呼び出しの引数リスト
+    pub ty: Option<Box<Type>>,   // ノードの型情報（kindがLVarのときに使う）
 }
 
 impl Node {
@@ -114,6 +117,7 @@ impl Node {
             label_name: String::new(),
             func_name: String::new(),
             args: Vec::new(),
+            ty: None,
         }
     }
 

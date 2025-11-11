@@ -166,7 +166,7 @@ impl Ast {
         }
     }
 
-    // external_declaration ::= function_definition
+    // external_declaration ::= func_def
     fn external_declaration(&mut self) -> Option<Box<Function>> {
         self.func_def()
     }
@@ -189,7 +189,8 @@ impl Ast {
             }
             let mut node_var = Node::from(NodeKind::LVar);
             let lvar = self.new_lvar(&var_name.unwrap(), Box::new(ty));
-            node_var.offset = lvar.offset;
+            node_var.offset = lvar.offset; // 新しいローカル変数のオフセットを設定
+            node_var.ty = Some(Box::new(*lvar.ty.clone())); // 変数の型情報を設定
             self.locals.insert(0, lvar.clone()); // ローカル変数リストの先頭に追加
             return Some((Box::new(node_var), lvar));
         }
@@ -355,13 +356,15 @@ impl Ast {
         }
 
         if self.consume_reserved("continue") {
+            let node = Node::from(NodeKind::Continue);
             self.expect_symbol(";").unwrap();
-            return Some(Box::new(Node::from(NodeKind::Continue)));
+            return Some(Box::new(node));
         }
 
         if self.consume_reserved("break") {
+            let node = Node::from(NodeKind::Break);
             self.expect_symbol(";").unwrap();
-            return Some(Box::new(Node::from(NodeKind::Break)));
+            return Some(Box::new(node));
         }
 
         if self.consume_reserved("return") {
@@ -625,9 +628,41 @@ impl Ast {
         loop {
             if self.consume_symbol("+") {
                 // addition
+                if let Some(ty) = &node.as_ref().unwrap().ty {
+                    if ty.is_ptr() {
+                        // ポインタ加算の場合、スケーリングを考慮
+                        let size = ty.ptr_to.as_ref().unwrap().size_of();
+                        node = Some(Box::new(Node::new(
+                            NodeKind::Add,
+                            node,
+                            Some(Box::new(Node::new(
+                                NodeKind::Mul,
+                                self.mul_expr(),
+                                Some(Box::new(Node::new_num(size))),
+                            ))),
+                        )));
+                        continue;
+                    }
+                }
                 node = Some(Box::new(Node::new(NodeKind::Add, node, self.mul_expr())));
             } else if self.consume_symbol("-") {
                 // subtraction
+                if let Some(ty) = &node.as_ref().unwrap().ty {
+                    if ty.is_ptr() {
+                        // ポインタ減算の場合、スケーリングを考慮
+                        let size = ty.ptr_to.as_ref().unwrap().size_of();
+                        node = Some(Box::new(Node::new(
+                            NodeKind::Sub,
+                            node,
+                            Some(Box::new(Node::new(
+                                NodeKind::Mul,
+                                self.mul_expr(),
+                                Some(Box::new(Node::new_num(size))),
+                            ))),
+                        )));
+                        continue;
+                    }
+                }
                 node = Some(Box::new(Node::new(NodeKind::Sub, node, self.mul_expr())));
             } else {
                 return node;
@@ -767,6 +802,7 @@ impl Ast {
             let lvar = self.find_lvar(&name);
             if let Some(lvar) = lvar {
                 node.offset = lvar.offset; // 既存のローカル変数のオフセットを設定
+                node.ty = Some(Box::new(*lvar.ty.clone())); // 変数の型情報を設定
             } else {
                 panic!("未定義の変数です: {}", name);
             }

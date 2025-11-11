@@ -34,7 +34,6 @@ impl Tokenizer {
             if c == '/' && pos + 1 < chars.len() && chars[pos + 1] == '/' {
                 while pos < chars.len() && chars[pos] != '\n' {
                     pos += 1;
-                    println!("Skipping comment character: {}", chars[pos - 1]);
                 }
                 pos += 1;
                 continue;
