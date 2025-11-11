@@ -36,8 +36,6 @@ fn main() {
         println!("{:#?}", tokens);
         println!("=== Functions ===");
         println!("{:#?}", ast.funcs);
-        println!("=== Local Variables ===");
-        println!("{:#?}", ast.locals);
     }
 
     let mut generator = Generator::new();

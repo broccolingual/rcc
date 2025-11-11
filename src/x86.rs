@@ -33,11 +33,13 @@ impl Generator {
             // 関数プロローグ
             self.builder.add_row("push rbp", true);
             self.builder.add_row("mov rbp, rsp", true);
+
+            // 関数のローカル変数に対応するスタック領域を確保
             self.builder.add_row("sub rsp, 208", true); // 変数26個分の領域を確保
 
             // 引数を逆順でスタックに読み出し
             let arg_regs = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
-            for (i, arg) in func.args.iter().enumerate().rev() {
+            for (i, arg) in func.locals.iter().rev().enumerate() {
                 self.builder.add_row(
                     &format!("  mov [rbp-{}], {}", arg.offset, arg_regs[i]),
                     true,
@@ -400,9 +402,9 @@ impl Generator {
                     self.gen_asm_from_expr(arg);
                 }
 
-                // 引数を逆順でレジスタに移動
+                // 引数をレジスタに移動
                 let arg_regs = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
-                for i in (0..arg_count).rev() {
+                for i in 0..arg_count {
                     self.builder.add_row(&format!("pop {}", arg_regs[i]), true);
                 }
 

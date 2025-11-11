@@ -67,11 +67,8 @@ int main() {
     alloc4(&p, 1, 2, 4, 8);
     int *q;
     q = p + 2;
-    *q;  // → 4
+    *q;
     q = p + 3;
-    /*
-        ブロックコメントのテスト
-    */
     return *q;
 }'
 assert 0 '

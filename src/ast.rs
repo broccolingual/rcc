@@ -34,16 +34,22 @@ impl fmt::Debug for LVar {
 pub struct Function {
     pub name: String,
     pub body: Vec<Box<Node>>,
-    pub args: Vec<LVar>,
+    pub locals: Vec<LVar>,
 }
 
 impl Function {
-    pub fn new(name: String) -> Self {
+    pub fn new() -> Self {
         Function {
-            name,
+            name: String::new(),
             body: Vec::new(),
-            args: Vec::new(),
+            locals: Vec::new(),
         }
+    }
+}
+
+impl Function {
+    fn find_lvar(&mut self, name: &str) -> Option<&mut LVar> {
+        self.locals.iter_mut().find(|lvar| lvar.name == name)
     }
 }
 
@@ -51,8 +57,8 @@ impl fmt::Debug for Function {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "Function {{ name: '{}', args: {:?} }}",
-            self.name, self.args
+            "Function {{ name: '{}', locals: {:?} }}",
+            self.name, self.locals
         )
     }
 }
@@ -60,7 +66,7 @@ impl fmt::Debug for Function {
 pub struct Ast {
     tokens: Vec<Token>,
     pub funcs: Vec<Box<Function>>,
-    pub locals: Vec<LVar>,
+    current_func: Option<Box<Function>>,
 }
 
 impl Ast {
@@ -68,12 +74,8 @@ impl Ast {
         Ast {
             tokens: tokens.to_vec(),
             funcs: Vec::new(),
-            locals: Vec::new(),
+            current_func: None,
         }
-    }
-
-    fn find_lvar(&mut self, name: &str) -> Option<&mut LVar> {
-        self.locals.iter_mut().find(|lvar| lvar.name == name)
     }
 
     fn consume(&mut self, token: &Token) -> bool {
@@ -173,7 +175,7 @@ impl Ast {
 
     // direct_declarator ::= ident
     //                       | ident "[" number "]"
-    fn direct_declarator(&mut self, ty: Type) -> Option<Box<Node>> {
+    fn direct_declarator(&mut self, ty: Type, is_lvar: bool) -> Option<Box<Node>> {
         if let Some(var_name) = self.consume_ident() {
             let offset;
             let new_ty;
@@ -183,13 +185,25 @@ impl Ast {
                 self.expect_symbol("]").unwrap();
                 let array_ty = Type::new_array(&ty, array_size);
                 new_ty = array_ty;
-                offset = self.locals.first().map_or(8 * array_size as i64, |last| {
-                    last.offset + 8 * array_size as i64
-                });
+                offset = self
+                    .current_func
+                    .as_mut()
+                    .unwrap()
+                    .locals
+                    .first()
+                    .map_or(8 * array_size as i64, |last| {
+                        last.offset + 8 * array_size as i64
+                    });
             } else {
                 // 通常の変数型の場合
                 new_ty = ty;
-                offset = self.locals.first().map_or(8, |last| last.offset + 8);
+                offset = self
+                    .current_func
+                    .as_mut()
+                    .unwrap()
+                    .locals
+                    .first()
+                    .map_or(8, |last| last.offset + 8);
             }
 
             // ローカル変数ノードを作成
@@ -197,7 +211,13 @@ impl Ast {
             node_var.name = var_name.clone(); // 変数名を設定
             node_var.offset = offset; // 新しいローカル変数のオフセットを設定
             node_var.ty = Some(Box::new(new_ty.clone())); // 変数の型情報を設定
-            self.locals.insert(0, LVar::new(&var_name, offset, new_ty)); // ローカル変数リストの先頭に追加
+            if is_lvar {
+                self.current_func
+                    .as_mut()
+                    .unwrap()
+                    .locals
+                    .insert(0, LVar::new(&var_name, offset, new_ty)); // ローカル変数リストの先頭に追加
+            }
             return Some(Box::new(node_var));
         } else {
             panic!("識別子のパースに失敗しました");
@@ -205,7 +225,7 @@ impl Ast {
     }
 
     // declarator ::= pointer? direct_declarator
-    fn declarator(&mut self) -> Option<Box<Node>> {
+    fn declarator(&mut self, is_lvar: bool) -> Option<Box<Node>> {
         if let Some(tok) = self.consume_type() {
             // ポインタを処理
             if tok != Token::Type(TypeKind::Int) {
@@ -214,7 +234,7 @@ impl Ast {
             let ty = self.pointer(Type::new_int());
 
             // 変数名を取得
-            if let Some(node_var) = self.direct_declarator(ty) {
+            if let Some(node_var) = self.direct_declarator(ty, is_lvar) {
                 return Some(node_var);
             } else {
                 panic!("変数名のパースに失敗しました");
@@ -225,26 +245,19 @@ impl Ast {
 
     // func_def ::= declarator "(" (declarator ("," declarator)*)? ")" compound_stmt
     fn func_def(&mut self) -> Option<Box<Function>> {
+        self.current_func = Some(Box::new(Function::new()));
+
         // 関数名と戻り値の型のパース
-        let func_name;
-        if let Some(var_node) = self.declarator() {
-            func_name = var_node.name;
+        if let Some(var_node) = self.declarator(false) {
+            self.current_func.as_mut().unwrap().name = var_node.name;
         } else {
             panic!("関数名と戻り値の型のパースに失敗しました");
         }
-        let mut func = Function::new(func_name);
 
         // 引数のパース（型情報もパース）
         self.expect_symbol("(").unwrap();
         loop {
-            if let Some(var_node) = self.declarator() {
-                let lvar = LVar::new(
-                    &var_node.name,
-                    var_node.offset,
-                    (*var_node.ty.unwrap()).clone(),
-                );
-                func.args.push(lvar);
-            } else {
+            if self.declarator(true).is_none() {
                 break;
             }
             if !self.consume_symbol(",") {
@@ -260,17 +273,17 @@ impl Ast {
 
         // 関数本体のパース
         if let Some(body_node) = self.compound_stmt() {
-            func.body = body_node.body;
+            self.current_func.as_mut().unwrap().body = body_node.body;
         } else {
             panic!("関数本体のパースに失敗しました");
         }
-        Some(Box::new(func))
+        Some(self.current_func.take().unwrap())
     }
 
     // declaration ::= declarator ";"
     fn declaration(&mut self) -> Option<Box<Node>> {
         // variable declaration
-        if let Some(var_node) = self.declarator() {
+        if let Some(var_node) = self.declarator(true) {
             self.expect_symbol(";").unwrap();
             return Some(var_node);
         }
@@ -816,7 +829,7 @@ impl Ast {
                     // 引数あり
                     loop {
                         if let Some(arg) = self.assign_expr() {
-                            node.args.push(arg);
+                            node.args.insert(0, arg);
                         } else {
                             panic!("関数呼び出しの引数のパースに失敗しました");
                         }
@@ -835,7 +848,7 @@ impl Ast {
 
             // ローカル変数ノードを作成
             let mut node = Node::from(NodeKind::LVar);
-            let lvar = self.find_lvar(&name);
+            let lvar = self.current_func.as_mut().unwrap().find_lvar(&name);
             if let Some(lvar) = lvar {
                 node.name = name; // 変数名を設定
                 node.offset = lvar.offset; // 既存のローカル変数のオフセットを設定
