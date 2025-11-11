@@ -42,7 +42,8 @@ impl Generator {
             // 関数のローカル変数に対応するスタック領域を確保
             // ローカル変数の最大オフセットに基づいてスタック領域を計算
             let max_offset = func.locals.first().map_or(0, |arg| arg.offset);
-            let stack_size = ((max_offset + 15) / 16) * 16; // 16バイトアラインメント
+            let mut stack_size = ((max_offset + 15) / 16) * 16; // 16バイトアラインメント
+            stack_size += 16; // TODO: スタックリークが発生しているっぽいため余分に確保
             self.builder
                 .add_row(&format!("sub rsp, {}", stack_size), true);
 
@@ -422,12 +423,12 @@ impl Generator {
                 self.label_seq += 1;
                 self.builder.add_row("mov rax, rsp", true); // 現在のrspをraxにコピー
                 self.builder.add_row("and rax, 15", true); // rspを16
-                self.builder.add_row(&format!("jnz .L.call.{}", seq), true); // もし16の倍数でなければ調整
+                self.builder.add_row(&format!("jnz .L.align.{}", seq), true); // もし16の倍数でなければ調整
                 self.builder.add_row("mov rax, 0", true); // ダミーのrax設定
                 self.builder
                     .add_row(&format!("call {}", node.func_name), true); // 関数呼び出し
                 self.builder.add_row(&format!("jmp .L.end.{}", seq), true);
-                self.builder.add_row(&format!(".L.call.{}:", seq), false); // 16の倍数でない場合の処理
+                self.builder.add_row(&format!(".L.align.{}:", seq), false); // 16の倍数でない場合の処理
                 self.builder.add_row("sub rsp, 8", true); // スタックを8バイト下げる
                 self.builder.add_row("mov rax, 0", true); // ダミーのrax設定
                 self.builder

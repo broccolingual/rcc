@@ -71,6 +71,13 @@ int main() {
     q = p + 3;
     return *q;
 }'
+assert 6 '
+int add(int a, int b, int c) {
+    return a + b + c;
+}
+int main() {
+    return add(1, 2, 3);
+}'
 assert 0 '
 int main() {
     int a[3];

@@ -51,5 +51,26 @@ impl AsmBuilder {
                 i -= 1; // 連続している場合を考慮してインデックスを調整
             }
         }
+
+        // lea rax, [rbp-X]
+        // mov rax, [rax] を
+        // mov rax, [rbp-X] に最適化する
+        let mut i = 0;
+        while i + 1 < self.rows.len() {
+            if self.rows[i].elements.len() == 3
+                && self.rows[i].elements[0] == "lea"
+                && self.rows[i].elements[1] == "rax,"
+                && self.rows[i + 1].elements.len() == 3
+                && self.rows[i + 1].elements[0] == "mov"
+                && self.rows[i + 1].elements[1] == "rax,"
+                && self.rows[i + 1].elements[2] == "[rax]"
+            {
+                let address = self.rows[i].elements[2].clone();
+                self.rows[i + 1].elements[2] = address;
+                self.rows.remove(i);
+            } else {
+                i += 1;
+            }
+        }
     }
 }
