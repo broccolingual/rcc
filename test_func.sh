@@ -42,6 +42,18 @@ int main() {
     return add(2, a);
 }'
 assert 3 '
+int add(int x, int y) {
+    return x + y;
+}
+
+int main() {
+    int a;
+    int b;
+    b = 1;
+    a = b;
+    return add(2, a);
+}'
+assert 3 '
 int main() {
     int x;
     int *y;

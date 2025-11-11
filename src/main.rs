@@ -1,5 +1,6 @@
 use std::env;
 
+pub mod asm_builder;
 pub mod ast;
 pub mod node;
 pub mod parser;
@@ -40,9 +41,7 @@ fn main() {
     }
 
     let mut generator = Generator::new();
-
     generator.gen_asm(&ast);
-
-    // スタックを実行不可に設定
-    println!(".section .note.GNU-stack,\"\",@progbits");
+    let code = generator.builder.build();
+    println!("{}", code);
 }

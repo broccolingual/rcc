@@ -1,3 +1,4 @@
+use crate::asm_builder::AsmBuilder;
 use crate::ast::Ast;
 use crate::node::{Node, NodeKind};
 
@@ -6,6 +7,7 @@ pub struct Generator {
     break_seq: usize,
     continue_seq: usize,
     func_name: String,
+    pub builder: AsmBuilder,
 }
 
 impl Generator {
@@ -15,27 +17,31 @@ impl Generator {
             break_seq: 0,
             continue_seq: 0,
             func_name: String::new(),
+            builder: AsmBuilder::new(),
         }
     }
 
     pub fn gen_asm(&mut self, ast: &Ast) {
-        println!(".intel_syntax noprefix"); // おまじない
-
-        println!(".text");
+        self.builder.add_row(&".intel_syntax noprefix", false);
+        self.builder.add_row(&".text", false);
         for func in ast.funcs.iter() {
             self.func_name = func.name.clone();
-            println!(".globl {}", self.func_name); // 関数をグローバルシンボルとして宣言
-            println!("{}:", self.func_name); // 関数ラベル
+            self.builder
+                .add_row(&format!(".globl {}", self.func_name), false);
+            self.builder.add_row(&format!("{}:", self.func_name), false);
 
             // 関数プロローグ
-            println!("  push rbp");
-            println!("  mov rbp, rsp");
-            println!("  sub rsp, 208"); // 変数26個分の領域を確保
+            self.builder.add_row("push rbp", true);
+            self.builder.add_row("mov rbp, rsp", true);
+            self.builder.add_row("sub rsp, 208", true); // 変数26個分の領域を確保
 
             // 引数を逆順でスタックに読み出し
             let arg_regs = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
             for (i, arg) in func.args.iter().enumerate().rev() {
-                println!("  mov [rbp-{}], {}", arg.offset, arg_regs[i]);
+                self.builder.add_row(
+                    &format!("  mov [rbp-{}], {}", arg.offset, arg_regs[i]),
+                    true,
+                );
             }
 
             // 関数本体のコード生成
@@ -44,11 +50,15 @@ impl Generator {
             }
 
             // 関数エピローグ
-            println!(".L.return.{}:", self.func_name);
-            println!("  mov rsp, rbp");
-            println!("  pop rbp");
-            println!("  ret");
+            self.builder
+                .add_row(&format!(".L.return.{}:", self.func_name), false);
+            self.builder.add_row("mov rsp, rbp", true);
+            self.builder.add_row("pop rbp", true);
+            self.builder.add_row("ret", true);
         }
+        // スタックを実行不可に設定
+        self.builder
+            .add_row(&".section .note.GNU-stack,\"\",@progbits", false);
     }
 
     pub fn gen_asm_lval(&mut self, node: &Node) {
@@ -59,37 +69,38 @@ impl Generator {
         if node.kind != NodeKind::LVar {
             panic!("代入の左辺値が変数ではありません");
         }
-        println!("  lea rax, [rbp-{}]", node.offset);
-        println!("  push rax");
+        self.builder
+            .add_row(&format!("lea rax, [rbp-{}]", node.offset), true);
+        self.builder.add_row("push rax", true);
     }
 
     // スタックトップのアドレスから値を読み出してスタックに積む
-    fn load(&self) {
-        println!("  pop rax");
-        println!("  mov rax, [rax]");
-        println!("  push rax");
+    fn load(&mut self) {
+        self.builder.add_row("pop rax", true);
+        self.builder.add_row("mov rax, [rax]", true);
+        self.builder.add_row("push rax", true);
     }
 
     // スタックトップの値をアドレスに格納する
-    fn store(&self) {
-        println!("  pop rdi");
-        println!("  pop rax");
-        println!("  mov [rax], rdi");
-        println!("  push rdi");
+    fn store(&mut self) {
+        self.builder.add_row("pop rdi", true);
+        self.builder.add_row("pop rax", true);
+        self.builder.add_row("mov [rax], rdi", true);
+        self.builder.add_row("push rdi", true);
     }
 
     // int を 1 加算
-    fn inc(&self) {
-        println!("  pop rax");
-        println!("  add rax, 1");
-        println!("  push rax");
+    fn inc(&mut self) {
+        self.builder.add_row("pop rax", true);
+        self.builder.add_row("add rax, 1", true);
+        self.builder.add_row("push rax", true);
     }
 
     // int を 1 減算
-    fn dec(&self) {
-        println!("  pop rax");
-        println!("  sub rax, 1");
-        println!("  push rax");
+    fn dec(&mut self) {
+        self.builder.add_row("pop rax", true);
+        self.builder.add_row("sub rax, 1", true);
+        self.builder.add_row("push rax", true);
     }
 
     pub fn gen_asm_from_expr(&mut self, node: &Node) {
@@ -98,42 +109,42 @@ impl Generator {
                 return;
             }
             NodeKind::Num => {
-                println!("  push {}", node.val);
+                self.builder.add_row(&format!("push {}", node.val), true);
                 return;
             }
             NodeKind::LVar => {
                 self.gen_asm_lval(node);
-                println!("  pop rax");
-                println!("  mov rax, [rax]");
-                println!("  push rax");
+                self.builder.add_row("pop rax", true);
+                self.builder.add_row("mov rax, [rax]", true);
+                self.builder.add_row("push rax", true);
                 return;
             }
             NodeKind::Assign => {
                 self.gen_asm_lval(node.lhs.as_ref().unwrap());
                 self.gen_asm_from_expr(node.rhs.as_ref().unwrap());
-                println!("  pop rdi");
-                println!("  pop rax");
-                println!("  mov [rax], rdi");
-                println!("  push rdi");
+                self.builder.add_row("pop rdi", true);
+                self.builder.add_row("pop rax", true);
+                self.builder.add_row("mov [rax], rdi", true);
+                self.builder.add_row("push rdi", true);
                 return;
             }
             NodeKind::Ternary => {
                 let seq = self.label_seq;
                 self.label_seq += 1;
                 self.gen_asm_from_expr(node.cond.as_ref().unwrap());
-                println!("  pop rax");
-                println!("  cmp rax, 0");
-                println!("  je .L.else.{}", seq);
+                self.builder.add_row("pop rax", true);
+                self.builder.add_row("cmp rax, 0", true);
+                self.builder.add_row(&format!("je .L.else.{}", seq), true);
                 self.gen_asm_from_expr(node.then.as_ref().unwrap());
-                println!("  jmp .L.end.{}", seq);
-                println!(".L.else.{}:", seq);
+                self.builder.add_row(&format!("jmp .L.end.{}", seq), true);
+                self.builder.add_row(&format!(".L.else.{}:", seq), false);
                 self.gen_asm_from_expr(node.els.as_ref().unwrap());
-                println!(".L.end.{}:", seq);
+                self.builder.add_row(&format!(".L.end.{}:", seq), false);
                 return;
             }
             NodeKind::PreInc => {
                 self.gen_asm_lval(node.lhs.as_ref().unwrap());
-                println!("  push [rsp]");
+                self.builder.add_row("push [rsp]", true);
                 self.load();
                 self.inc();
                 self.store();
@@ -141,7 +152,7 @@ impl Generator {
             }
             NodeKind::PreDec => {
                 self.gen_asm_lval(node.lhs.as_ref().unwrap());
-                println!("  push [rsp]");
+                self.builder.add_row("push [rsp]", true);
                 self.load();
                 self.dec();
                 self.store();
@@ -149,7 +160,7 @@ impl Generator {
             }
             NodeKind::PostInc => {
                 self.gen_asm_lval(node.lhs.as_ref().unwrap());
-                println!("  push [rsp]");
+                self.builder.add_row("push [rsp]", true);
                 self.load();
                 self.inc();
                 self.store();
@@ -158,7 +169,7 @@ impl Generator {
             }
             NodeKind::PostDec => {
                 self.gen_asm_lval(node.lhs.as_ref().unwrap());
-                println!("  push [rsp]");
+                self.builder.add_row("push [rsp]", true);
                 self.load();
                 self.dec();
                 self.store();
@@ -176,7 +187,7 @@ impl Generator {
             | NodeKind::ShlAssign
             | NodeKind::ShrAssign => {
                 self.gen_asm_lval(node.lhs.as_ref().unwrap());
-                println!("  push [rsp]");
+                self.builder.add_row("push [rsp]", true);
                 self.load();
                 self.gen_asm_from_expr(node.rhs.as_ref().unwrap());
                 self.gen_asm_from_binary_op(node);
@@ -185,18 +196,18 @@ impl Generator {
             }
             NodeKind::LogicalNot => {
                 self.gen_asm_from_expr(node.lhs.as_ref().unwrap());
-                println!("  pop rax");
-                println!("  cmp rax, 0");
-                println!("  sete al");
-                println!("  movzb rax, al");
-                println!("  push rax");
+                self.builder.add_row("pop rax", true);
+                self.builder.add_row("cmp rax, 0", true);
+                self.builder.add_row("sete al", true);
+                self.builder.add_row("movzb rax, al", true);
+                self.builder.add_row("push rax", true);
                 return;
             }
             NodeKind::BitNot => {
                 self.gen_asm_from_expr(node.lhs.as_ref().unwrap());
-                println!("  pop rax");
-                println!("  not rax");
-                println!("  push rax");
+                self.builder.add_row("pop rax", true);
+                self.builder.add_row("not rax", true);
+                self.builder.add_row("push rax", true);
                 return;
             }
             NodeKind::Addr => {
@@ -212,36 +223,36 @@ impl Generator {
                 let seq = self.label_seq;
                 self.label_seq += 1;
                 self.gen_asm_from_expr(node.lhs.as_ref().unwrap());
-                println!("  pop rax");
-                println!("  cmp rax, 0");
-                println!("  je .L.false.{}", seq);
+                self.builder.add_row("pop rax", true);
+                self.builder.add_row("cmp rax, 0", true);
+                self.builder.add_row(&format!("je .L.false.{}", seq), true);
                 self.gen_asm_from_expr(node.rhs.as_ref().unwrap());
-                println!("  pop rax");
-                println!("  cmp rax, 0");
-                println!("  je .L.false.{}", seq);
-                println!("  push 1");
-                println!("  jmp .L.end.{}", seq);
-                println!(".L.false.{}:", seq);
-                println!("  push 0");
-                println!(".L.end.{}:", seq);
+                self.builder.add_row("pop rax", true);
+                self.builder.add_row("cmp rax, 0", true);
+                self.builder.add_row(&format!("je .L.false.{}", seq), true);
+                self.builder.add_row("push 1", true);
+                self.builder.add_row(&format!("jmp .L.end.{}", seq), true);
+                self.builder.add_row(&format!(".L.false.{}:", seq), false);
+                self.builder.add_row("push 0", true);
+                self.builder.add_row(&format!(".L.end.{}:", seq), false);
                 return;
             }
             NodeKind::LogicalOr => {
                 let seq = self.label_seq;
                 self.label_seq += 1;
                 self.gen_asm_from_expr(node.lhs.as_ref().unwrap());
-                println!("  pop rax");
-                println!("  cmp rax, 0");
-                println!("  jne .L.true.{}", seq);
+                self.builder.add_row("pop rax", true);
+                self.builder.add_row("cmp rax, 0", true);
+                self.builder.add_row(&format!("jne .L.true.{}", seq), true);
                 self.gen_asm_from_expr(node.rhs.as_ref().unwrap());
-                println!("  pop rax");
-                println!("  cmp rax, 0");
-                println!("  jne .L.true.{}", seq);
-                println!("  push 0");
-                println!("  jmp .L.end.{}", seq);
-                println!(".L.true.{}:", seq);
-                println!("  push 1");
-                println!(".L.end.{}:", seq);
+                self.builder.add_row("pop rax", true);
+                self.builder.add_row("cmp rax, 0", true);
+                self.builder.add_row(&format!("jne .L.true.{}", seq), true);
+                self.builder.add_row("push 0", true);
+                self.builder.add_row(&format!("jmp .L.end.{}", seq), true);
+                self.builder.add_row(&format!(".L.true.{}:", seq), false);
+                self.builder.add_row("push 1", true);
+                self.builder.add_row(&format!(".L.end.{}:", seq), false);
                 return;
             }
             NodeKind::If => {
@@ -250,22 +261,22 @@ impl Generator {
                 if node.els.is_some() {
                     // else節あり
                     self.gen_asm_from_expr(node.cond.as_ref().unwrap());
-                    println!("  pop rax");
-                    println!("  cmp rax, 0");
-                    println!("  je .L.else.{}", seq);
+                    self.builder.add_row("pop rax", true);
+                    self.builder.add_row("cmp rax, 0", true);
+                    self.builder.add_row(&format!("je .L.else.{}", seq), true);
                     self.gen_asm_from_expr(node.then.as_ref().unwrap());
-                    println!("  jmp .L.end.{}", seq);
-                    println!(".L.else.{}:", seq);
+                    self.builder.add_row(&format!("jmp .L.end.{}", seq), true);
+                    self.builder.add_row(&format!(".L.else.{}:", seq), false);
                     self.gen_asm_from_expr(node.els.as_ref().unwrap());
-                    println!(".L.end.{}:", seq);
+                    self.builder.add_row(&format!(".L.end.{}:", seq), false);
                 } else {
                     // else節なし
                     self.gen_asm_from_expr(node.cond.as_ref().unwrap());
-                    println!("  pop rax");
-                    println!("  cmp rax, 0");
-                    println!("  je .L.end.{}", seq);
+                    self.builder.add_row("pop rax", true);
+                    self.builder.add_row("cmp rax, 0", true);
+                    self.builder.add_row(&format!("je .L.end.{}", seq), true);
                     self.gen_asm_from_expr(node.then.as_ref().unwrap());
-                    println!(".L.end.{}:", seq);
+                    self.builder.add_row(&format!(".L.end.{}:", seq), false);
                 }
                 return;
             }
@@ -277,14 +288,16 @@ impl Generator {
                 self.break_seq = seq;
                 self.continue_seq = seq;
 
-                println!(".L.continue.{}:", seq);
+                self.builder
+                    .add_row(&format!(".L.continue.{}:", seq), false);
                 self.gen_asm_from_expr(node.cond.as_ref().unwrap());
-                println!("  pop rax");
-                println!("  cmp rax, 0");
-                println!("  je .L.break.{}", seq);
+                self.builder.add_row("pop rax", true);
+                self.builder.add_row("cmp rax, 0", true);
+                self.builder.add_row(&format!("je .L.break.{}", seq), true);
                 self.gen_asm_from_expr(node.then.as_ref().unwrap());
-                println!("  jmp .L.continue.{}", seq);
-                println!(".L.break.{}:", seq);
+                self.builder
+                    .add_row(&format!("jmp .L.continue.{}", seq), true);
+                self.builder.add_row(&format!(".L.break.{}:", seq), false);
 
                 self.break_seq = current_break_seq;
                 self.continue_seq = current_continue_seq;
@@ -301,20 +314,21 @@ impl Generator {
                 if let Some(init) = node.init.as_ref() {
                     self.gen_asm_from_expr(init);
                 }
-                println!(".L.begin.{}:", seq);
+                self.builder.add_row(&format!(".L.begin.{}:", seq), false);
                 if let Some(cond) = node.cond.as_ref() {
                     self.gen_asm_from_expr(cond);
-                    println!("  pop rax");
-                    println!("  cmp rax, 0");
-                    println!("  je .L.break.{}", seq);
+                    self.builder.add_row("pop rax", true);
+                    self.builder.add_row("cmp rax, 0", true);
+                    self.builder.add_row(&format!("je .L.break.{}", seq), true);
                 }
                 self.gen_asm_from_expr(node.then.as_ref().unwrap());
-                println!(".L.continue.{}:", seq);
+                self.builder
+                    .add_row(&format!(".L.continue.{}:", seq), false);
                 if let Some(inc) = node.inc.as_ref() {
                     self.gen_asm_from_expr(inc);
                 }
-                println!("  jmp .L.begin.{}", seq);
-                println!(".L.break.{}:", seq);
+                self.builder.add_row(&format!("jmp .L.begin.{}", seq), true);
+                self.builder.add_row(&format!(".L.break.{}:", seq), false);
 
                 self.break_seq = current_break_seq;
                 self.continue_seq = current_continue_seq;
@@ -328,14 +342,15 @@ impl Generator {
                 self.break_seq = seq;
                 self.continue_seq = seq;
 
-                println!(".L.begin.{}:", seq);
+                self.builder.add_row(&format!(".L.begin.{}:", seq), false);
                 self.gen_asm_from_expr(node.then.as_ref().unwrap());
-                println!(".L.continue.{}:", seq);
+                self.builder
+                    .add_row(&format!(".L.continue.{}:", seq), false);
                 self.gen_asm_from_expr(node.cond.as_ref().unwrap());
-                println!("  pop rax");
-                println!("  cmp rax, 0");
-                println!("  jne .L.begin.{}", seq);
-                println!(".L.break.{}:", seq);
+                self.builder.add_row("pop rax", true);
+                self.builder.add_row("cmp rax, 0", true);
+                self.builder.add_row(&format!("jne .L.begin.{}", seq), true);
+                self.builder.add_row(&format!(".L.break.{}:", seq), false);
 
                 self.break_seq = current_break_seq;
                 self.continue_seq = current_continue_seq;
@@ -344,24 +359,32 @@ impl Generator {
             NodeKind::Block => {
                 for stmt in node.body.iter() {
                     self.gen_asm_from_expr(stmt);
-                    println!("  pop rax"); // ブロック内の各文の結果を捨てる
+                    self.builder.add_row("pop rax", true); // ブロック内の各文の結果を捨てる
                 }
                 return;
             }
             NodeKind::Break => {
-                println!("  jmp .L.break.{}", self.break_seq);
+                self.builder
+                    .add_row(&format!("jmp .L.break.{}", self.break_seq), true);
                 return;
             }
             NodeKind::Continue => {
-                println!("  jmp .L.continue.{}", self.continue_seq);
+                self.builder
+                    .add_row(&format!("jmp .L.continue.{}", self.continue_seq), true);
                 return;
             }
             NodeKind::Goto => {
-                println!("  jmp .L.label.{}.{}", self.func_name, node.label_name);
+                self.builder.add_row(
+                    &format!("jmp .L.label.{}.{}", self.func_name, node.label_name),
+                    true,
+                );
                 return;
             }
             NodeKind::Label => {
-                println!(".L.label.{}.{}:", self.func_name, node.label_name);
+                self.builder.add_row(
+                    &format!(".L.label.{}.{}:", self.func_name, node.label_name),
+                    false,
+                );
                 self.gen_asm_from_expr(node.lhs.as_ref().unwrap());
                 return;
             }
@@ -380,34 +403,37 @@ impl Generator {
                 // 引数を逆順でレジスタに移動
                 let arg_regs = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
                 for i in (0..arg_count).rev() {
-                    println!("  pop {}", arg_regs[i]);
+                    self.builder.add_row(&format!("pop {}", arg_regs[i]), true);
                 }
 
                 // 関数呼び出し
                 // アラインメントを保つためにrspを調整
                 let seq = self.label_seq;
                 self.label_seq += 1;
-                println!("  mov rax, rsp"); // 現在のrspをraxにコピー
-                println!("  and rax, 15"); // rspを16の倍数にする
-                println!("  jnz .L.call.{}", seq); // もし16の倍数でなければ調整
-                println!("  mov rax, 0"); // ダミーのrax設定
-                println!("  call {}", node.func_name); // 関数呼び出し
-                println!("  jmp .L.end.{}", seq);
-                println!(".L.call.{}:", seq); // 16の倍数でない場合の処理
-                println!("  sub rsp, 8"); // スタックを8バイト下げる
-                println!("  mov rax, 0"); // ダミーのrax設定
-                println!("  call {}", node.func_name); // 関数呼び出し
-                println!("  add rsp, 8"); // スタックを元に戻す
-                println!(".L.end.{}:", seq);
-                println!("  push rax"); // 戻り値をスタックに積む
+                self.builder.add_row("mov rax, rsp", true); // 現在のrspをraxにコピー
+                self.builder.add_row("and rax, 15", true); // rspを16
+                self.builder.add_row(&format!("jnz .L.call.{}", seq), true); // もし16の倍数でなければ調整
+                self.builder.add_row("mov rax, 0", true); // ダミーのrax設定
+                self.builder
+                    .add_row(&format!("call {}", node.func_name), true); // 関数呼び出し
+                self.builder.add_row(&format!("jmp .L.end.{}", seq), true);
+                self.builder.add_row(&format!(".L.call.{}:", seq), false); // 16の倍数でない場合の処理
+                self.builder.add_row("sub rsp, 8", true); // スタックを8バイト下げる
+                self.builder.add_row("mov rax, 0", true); // ダミーのrax設定
+                self.builder
+                    .add_row(&format!("call {}", node.func_name), true); // 関数呼び出し
+                self.builder.add_row("add rsp, 8", true); // スタックを元に戻す
+                self.builder.add_row(&format!(".L.end.{}:", seq), false);
+                self.builder.add_row("push rax", true); // 戻り値をスタックに積む
                 return;
             }
             NodeKind::Return => {
                 if node.lhs.is_some() {
                     self.gen_asm_from_expr(node.lhs.as_ref().unwrap());
-                    println!("  pop rax");
+                    self.builder.add_row("pop rax", true);
                 }
-                println!("  jmp .L.return.{}", self.func_name);
+                self.builder
+                    .add_row(&format!("jmp .L.return.{}", self.func_name), true);
                 return;
             }
             _ => {}
@@ -418,62 +444,62 @@ impl Generator {
         self.gen_asm_from_binary_op(node);
     }
 
-    fn gen_asm_from_binary_op(&self, node: &Node) {
-        println!("  pop rdi");
-        println!("  pop rax");
+    fn gen_asm_from_binary_op(&mut self, node: &Node) {
+        self.builder.add_row("pop rdi", true);
+        self.builder.add_row("pop rax", true);
 
         match node.kind {
-            NodeKind::Add | NodeKind::AddAssign => println!("  add rax, rdi"),
-            NodeKind::Sub | NodeKind::SubAssign => println!("  sub rax, rdi"),
-            NodeKind::Mul | NodeKind::MulAssign => println!("  imul rax, rdi"),
+            NodeKind::Add | NodeKind::AddAssign => self.builder.add_row("add rax, rdi", true),
+            NodeKind::Sub | NodeKind::SubAssign => self.builder.add_row("sub rax, rdi", true),
+            NodeKind::Mul | NodeKind::MulAssign => self.builder.add_row("imul rax, rdi", true),
             NodeKind::Div | NodeKind::DivAssign => {
-                println!("  cqo");
-                println!("  idiv rdi");
+                self.builder.add_row("cqo", true);
+                self.builder.add_row("idiv rdi", true);
             }
             NodeKind::Rem | NodeKind::RemAssign => {
-                println!("  cqo");
-                println!("  idiv rdi");
-                println!("  mov rax, rdx");
+                self.builder.add_row("cqo", true);
+                self.builder.add_row("idiv rdi", true);
+                self.builder.add_row("mov rax, rdx", true);
             }
             NodeKind::BitAnd | NodeKind::BitAndAssign => {
-                println!("  and rax, rdi");
+                self.builder.add_row("and rax, rdi", true);
             }
             NodeKind::BitOr | NodeKind::BitOrAssign => {
-                println!("  or rax, rdi");
+                self.builder.add_row("or rax, rdi", true);
             }
             NodeKind::BitXor | NodeKind::BitXorAssign => {
-                println!("  xor rax, rdi");
+                self.builder.add_row("xor rax, rdi", true);
             }
             NodeKind::Shl | NodeKind::ShlAssign => {
-                println!("  mov cl, dil");
-                println!("  shl rax, cl");
+                self.builder.add_row("mov cl, dil", true);
+                self.builder.add_row("shl rax, cl", true);
             }
             NodeKind::Shr | NodeKind::ShrAssign => {
-                println!("  mov cl, dil");
-                println!("  shr rax, cl");
+                self.builder.add_row("mov cl, dil", true);
+                self.builder.add_row("shr rax, cl", true);
             }
             NodeKind::Eq => {
-                println!("  cmp rax, rdi");
-                println!("  sete al");
-                println!("  movzb rax, al");
+                self.builder.add_row("cmp rax, rdi", true);
+                self.builder.add_row("sete al", true);
+                self.builder.add_row("movzb rax, al", true);
             }
             NodeKind::Ne => {
-                println!("  cmp rax, rdi");
-                println!("  setne al");
-                println!("  movzb rax, al");
+                self.builder.add_row("cmp rax, rdi", true);
+                self.builder.add_row("setne al", true);
+                self.builder.add_row("movzb rax, al", true);
             }
             NodeKind::Lt => {
-                println!("  cmp rax, rdi");
-                println!("  setl al");
-                println!("  movzb rax, al");
+                self.builder.add_row("cmp rax, rdi", true);
+                self.builder.add_row("setl al", true);
+                self.builder.add_row("movzb rax, al", true);
             }
             NodeKind::Le => {
-                println!("  cmp rax, rdi");
-                println!("  setle al");
-                println!("  movzb rax, al");
+                self.builder.add_row("cmp rax, rdi", true);
+                self.builder.add_row("setle al", true);
+                self.builder.add_row("movzb rax, al", true);
             }
             _ => {}
         }
-        println!("  push rax");
+        self.builder.add_row("push rax", true);
     }
 }
