@@ -4,12 +4,14 @@ use core::fmt;
 pub enum TypeKind {
     Int,
     Ptr,
+    Array,
 }
 
 #[derive(Clone)]
 pub struct Type {
     pub kind: TypeKind,
     pub ptr_to: Option<Box<Type>>,
+    pub array_size: usize, // 配列の要素数（配列型の場合）
 }
 
 impl fmt::Debug for Type {
@@ -34,6 +36,7 @@ impl Type {
         Type {
             kind: TypeKind::Int,
             ptr_to: None,
+            array_size: 0,
         }
     }
 
@@ -41,6 +44,15 @@ impl Type {
         Type {
             kind: TypeKind::Ptr,
             ptr_to: Some(Box::new(to.clone())),
+            array_size: 0,
+        }
+    }
+
+    pub fn new_array(of: &Type, size: usize) -> Self {
+        Type {
+            kind: TypeKind::Array,
+            ptr_to: Some(Box::new(of.clone())),
+            array_size: size,
         }
     }
 
@@ -48,10 +60,18 @@ impl Type {
         matches!(self.kind, TypeKind::Ptr)
     }
 
+    // TODO: 配列型のサイズ計算は仮実装
     pub fn size_of(&self) -> i64 {
         match self.kind {
             TypeKind::Int => 4,
             TypeKind::Ptr => 8,
+            TypeKind::Array => {
+                if let Some(ref to) = self.ptr_to {
+                    to.size_of() * self.array_size as i64
+                } else {
+                    0
+                }
+            }
         }
     }
 }

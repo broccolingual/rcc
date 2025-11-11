@@ -172,14 +172,32 @@ impl Ast {
     }
 
     // direct_declarator ::= ident
+    //                       | ident "[" number "]"
     fn direct_declarator(&mut self, ty: Type) -> Option<Box<Node>> {
         if let Some(var_name) = self.consume_ident() {
-            let offset = self.locals.first().map_or(8, |last| last.offset + 8);
+            let offset;
+            let new_ty;
+            if self.consume_symbol("[") {
+                // 配列型の処理
+                let array_size = self.expect_number().unwrap() as usize;
+                self.expect_symbol("]").unwrap();
+                let array_ty = Type::new_array(&ty, array_size);
+                new_ty = array_ty;
+                offset = self.locals.first().map_or(8 * array_size as i64, |last| {
+                    last.offset + 8 * array_size as i64
+                });
+            } else {
+                // 通常の変数型の場合
+                new_ty = ty;
+                offset = self.locals.first().map_or(8, |last| last.offset + 8);
+            }
+
+            // ローカル変数ノードを作成
             let mut node_var = Node::from(NodeKind::LVar);
             node_var.name = var_name.clone(); // 変数名を設定
             node_var.offset = offset; // 新しいローカル変数のオフセットを設定
-            node_var.ty = Some(Box::new(ty.clone()));
-            self.locals.insert(0, LVar::new(&var_name, offset, ty)); // ローカル変数リストの先頭に追加
+            node_var.ty = Some(Box::new(new_ty.clone())); // 変数の型情報を設定
+            self.locals.insert(0, LVar::new(&var_name, offset, new_ty)); // ローカル変数リストの先頭に追加
             return Some(Box::new(node_var));
         } else {
             panic!("識別子のパースに失敗しました");
@@ -197,7 +215,6 @@ impl Ast {
 
             // 変数名を取得
             if let Some(node_var) = self.direct_declarator(ty) {
-                // let lvar = self.locals.first().unwrap().clone();
                 return Some(node_var);
             } else {
                 panic!("変数名のパースに失敗しました");
@@ -238,7 +255,7 @@ impl Ast {
 
         if self.consume_symbol(";") {
             // 関数プロトタイプ宣言
-            return None;
+            panic!("関数プロトタイプ宣言はサポートされていません");
         }
 
         // 関数本体のパース
@@ -250,6 +267,7 @@ impl Ast {
         Some(Box::new(func))
     }
 
+    // declaration ::= declarator ";"
     fn declaration(&mut self) -> Option<Box<Node>> {
         // variable declaration
         if let Some(var_node) = self.declarator() {
@@ -775,6 +793,7 @@ impl Ast {
     }
 
     // primary_expr ::= "(" expr ")"
+    //                  | ident "(" (assign_expr ("," assign_expr)*)? ")"
     //                  | ident
     //                  | num
     fn primary_expr(&mut self) -> Option<Box<Node>> {

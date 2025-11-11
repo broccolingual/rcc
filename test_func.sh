@@ -62,5 +62,10 @@ int main() {
     */
     return *q;
 }'
+assert 0 '
+int main() {
+    int a[3];
+    return 0;
+}'
 
 echo OK
