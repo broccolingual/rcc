@@ -2,6 +2,11 @@ use crate::asm_builder::AsmBuilder;
 use crate::ast::Ast;
 use crate::node::{Node, NodeKind};
 
+// const ARG_BYTE_REGS: [&str; 6] = ["dil", "sil", "dl", "cl", "r8b", "r9b"];
+// const ARG_WORD_REGS: [&str; 6] = ["di", "si", "dx", "cx", "r8w", "r9w"];
+// const ARG_DWORD_REGS: [&str; 6] = ["edi", "esi", "edx", "ecx", "r8d", "r9d"];
+const ARG_QWORD_REGS: [&str; 6] = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
+
 pub struct Generator {
     label_seq: usize,
     break_seq: usize,
@@ -35,13 +40,16 @@ impl Generator {
             self.builder.add_row("mov rbp, rsp", true);
 
             // 関数のローカル変数に対応するスタック領域を確保
-            self.builder.add_row("sub rsp, 208", true); // 変数26個分の領域を確保
+            // ローカル変数の最大オフセットに基づいてスタック領域を計算
+            let max_offset = func.locals.first().map_or(0, |arg| arg.offset);
+            let stack_size = ((max_offset + 15) / 16) * 16; // 16バイトアラインメント
+            self.builder
+                .add_row(&format!("sub rsp, {}", stack_size), true);
 
-            // 引数を逆順でスタックに読み出し
-            let arg_regs = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
+            // 引数を逆順でスタックから読み出し
             for (i, arg) in func.locals.iter().rev().enumerate() {
                 self.builder.add_row(
-                    &format!("  mov [rbp-{}], {}", arg.offset, arg_regs[i]),
+                    &format!("  mov [rbp-{}], {}", arg.offset, ARG_QWORD_REGS[i]),
                     true,
                 );
             }
@@ -403,9 +411,9 @@ impl Generator {
                 }
 
                 // 引数をレジスタに移動
-                let arg_regs = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
                 for i in 0..arg_count {
-                    self.builder.add_row(&format!("pop {}", arg_regs[i]), true);
+                    self.builder
+                        .add_row(&format!("pop {}", ARG_QWORD_REGS[i]), true);
                 }
 
                 // 関数呼び出し

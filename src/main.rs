@@ -40,6 +40,7 @@ fn main() {
 
     let mut generator = Generator::new();
     generator.gen_asm(&ast);
+    generator.builder.optimize();
     let code = generator.builder.build();
     println!("{}", code);
 }
