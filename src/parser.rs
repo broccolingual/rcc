@@ -1,18 +1,15 @@
 use crate::token::Token;
 use crate::token::{RESERVED_SYMBOLS, RESERVED_TYPES, RESERVED_WORDS};
+use crate::types::TypeKind;
 
-pub struct Tokenizer {
-    pub tokens: Vec<Token>,
-}
+pub struct Tokenizer {}
 
 impl Tokenizer {
-    pub fn new(input: &str) -> Self {
-        let mut tokenizer = Tokenizer { tokens: Vec::new() };
-        tokenizer.tokenize(input);
-        tokenizer
+    pub fn new() -> Self {
+        Tokenizer {}
     }
 
-    pub fn tokenize(&mut self, input: &str) {
+    pub fn tokenize(&self, input: &str) -> Result<Vec<Token>, String> {
         // 演算子トークンを長い順にソート
         let mut sorted_reserved_symbols = RESERVED_SYMBOLS.to_vec();
         sorted_reserved_symbols.sort_by(|a, b| b.len().cmp(&a.len()));
@@ -30,12 +27,29 @@ impl Tokenizer {
                 continue;
             }
 
-            // コメント行をスキップ
+            // 行コメントをスキップ
             if c == '/' && pos + 1 < chars.len() && chars[pos + 1] == '/' {
+                pos += 2;
                 while pos < chars.len() && chars[pos] != '\n' {
                     pos += 1;
                 }
                 pos += 1;
+                continue;
+            }
+
+            // ブロックコメントをスキップ
+            if c == '/' && pos + 1 < chars.len() && chars[pos + 1] == '*' {
+                pos += 2;
+                while pos + 1 < chars.len() {
+                    if chars[pos] == '*' && chars[pos + 1] == '/' {
+                        pos += 2;
+                        break;
+                    }
+                    pos += 1;
+                }
+                if pos == chars.len() - 1 {
+                    return Err("ブロックコメントが閉じられていません".to_string());
+                }
                 continue;
             }
 
@@ -91,7 +105,11 @@ impl Tokenizer {
                 }
                 if RESERVED_TYPES.contains(&ident.as_str()) {
                     // 型はTypeトークンとして扱う
-                    tokens.push(Token::Type(ident));
+                    let type_kind = match ident.as_str() {
+                        "int" => TypeKind::Int,
+                        _ => return Err(format!("未対応の型です: {}", ident)),
+                    };
+                    tokens.push(Token::Type(type_kind));
                     continue;
                 } else if RESERVED_WORDS.contains(&ident.as_str()) {
                     // 予約語はReservedトークンとして扱う
@@ -103,9 +121,10 @@ impl Tokenizer {
                     continue;
                 }
             }
-            panic!("不明な文字です: {}", c);
+
+            return Err(format!("不明な文字が含まれています: {}", c));
         }
         tokens.push(Token::EOF);
-        self.tokens = tokens;
+        Ok(tokens)
     }
 }

@@ -2,7 +2,7 @@ use core::fmt;
 
 use crate::node::{Node, NodeKind};
 use crate::token::Token;
-use crate::types::Type;
+use crate::types::{Type, TypeKind};
 
 #[derive(Clone)]
 pub struct LVar {
@@ -64,14 +64,12 @@ pub struct Ast {
 }
 
 impl Ast {
-    pub fn new(tokens: Vec<Token>) -> Self {
-        let mut ast = Ast {
-            tokens,
+    pub fn new(tokens: &[Token]) -> Self {
+        Ast {
+            tokens: tokens.to_vec(),
             funcs: Vec::new(),
             locals: Vec::new(),
-        };
-        ast.translation_unit();
-        ast
+        }
     }
 
     fn find_lvar(&mut self, name: &str) -> Option<&mut LVar> {
@@ -147,18 +145,12 @@ impl Ast {
         }
     }
 
-    fn new_lvar(&mut self, name: &str, ty: Box<Type>) -> LVar {
-        // 新しいローカル変数のオフセットを計算
-        let offset = self.locals.first().map_or(8, |last| last.offset + 8);
-        LVar::new(name, offset, ty.as_ref().clone())
-    }
-
     fn at_eof(&self) -> bool {
         self.tokens.is_empty() || matches!(self.tokens.first(), Some(Token::EOF))
     }
 
     // translation_unit ::= external_declaration*
-    fn translation_unit(&mut self) {
+    pub fn translation_unit(&mut self) {
         while !self.at_eof() {
             if let Some(func) = self.external_declaration() {
                 self.funcs.push(func);
@@ -171,47 +163,69 @@ impl Ast {
         self.func_def()
     }
 
-    // define_variable ::= type "*"* ident
-    fn define_variable(&mut self) -> Option<(Box<Node>, LVar)> {
-        if let Some(_) = self.consume_type() {
-            // ポインタのアスタリスクを処理
-            let mut ty = Type::new_int();
-            while self.consume_symbol("*") {
-                let mut new_ty = Type::new_ptr(&ty);
-                new_ty.ptr_to = Some(Box::new(ty.clone()));
-                ty = new_ty;
+    // pointer ::= "*" pointer?
+    fn pointer(&mut self, ty: Type) -> Type {
+        while self.consume_symbol("*") {
+            return self.pointer(Type::new_ptr(&ty));
+        }
+        ty
+    }
+
+    // direct_declarator ::= ident
+    fn direct_declarator(&mut self, ty: Type) -> Option<Box<Node>> {
+        if let Some(var_name) = self.consume_ident() {
+            let offset = self.locals.first().map_or(8, |last| last.offset + 8);
+            let mut node_var = Node::from(NodeKind::LVar);
+            node_var.name = var_name.clone(); // 変数名を設定
+            node_var.offset = offset; // 新しいローカル変数のオフセットを設定
+            node_var.ty = Some(Box::new(ty.clone()));
+            self.locals.insert(0, LVar::new(&var_name, offset, ty)); // ローカル変数リストの先頭に追加
+            return Some(Box::new(node_var));
+        } else {
+            panic!("識別子のパースに失敗しました");
+        }
+    }
+
+    // declarator ::= pointer? direct_declarator
+    fn declarator(&mut self) -> Option<Box<Node>> {
+        if let Some(tok) = self.consume_type() {
+            // ポインタを処理
+            if tok != Token::Type(TypeKind::Int) {
+                panic!("現在サポートされている型はintのみです");
             }
+            let ty = self.pointer(Type::new_int());
 
             // 変数名を取得
-            let var_name = self.consume_ident();
-            if var_name.is_none() {
+            if let Some(node_var) = self.direct_declarator(ty) {
+                // let lvar = self.locals.first().unwrap().clone();
+                return Some(node_var);
+            } else {
                 panic!("変数名のパースに失敗しました");
             }
-            let mut node_var = Node::from(NodeKind::LVar);
-            let lvar = self.new_lvar(&var_name.unwrap(), Box::new(ty));
-            node_var.offset = lvar.offset; // 新しいローカル変数のオフセットを設定
-            node_var.ty = Some(Box::new(*lvar.ty.clone())); // 変数の型情報を設定
-            self.locals.insert(0, lvar.clone()); // ローカル変数リストの先頭に追加
-            return Some((Box::new(node_var), lvar));
         }
         None
     }
 
-    // func_def ::= define_variable "(" (define_variable ("," define_variable)*)? ")" compound_stmt
+    // func_def ::= declarator "(" (declarator ("," declarator)*)? ")" compound_stmt
     fn func_def(&mut self) -> Option<Box<Function>> {
         // 関数名と戻り値の型のパース
         let func_name;
-        if let Some((_, lvar)) = self.define_variable() {
-            func_name = lvar.name;
+        if let Some(var_node) = self.declarator() {
+            func_name = var_node.name;
         } else {
             panic!("関数名と戻り値の型のパースに失敗しました");
         }
         let mut func = Function::new(func_name);
-        self.expect_symbol("(").unwrap();
 
         // 引数のパース（型情報もパース）
+        self.expect_symbol("(").unwrap();
         loop {
-            if let Some((_, lvar)) = self.define_variable() {
+            if let Some(var_node) = self.declarator() {
+                let lvar = LVar::new(
+                    &var_node.name,
+                    var_node.offset,
+                    (*var_node.ty.unwrap()).clone(),
+                );
                 func.args.push(lvar);
             } else {
                 break;
@@ -238,7 +252,7 @@ impl Ast {
 
     fn declaration(&mut self) -> Option<Box<Node>> {
         // variable declaration
-        if let Some((var_node, _)) = self.define_variable() {
+        if let Some(var_node) = self.declarator() {
             self.expect_symbol(";").unwrap();
             return Some(var_node);
         }
@@ -804,6 +818,7 @@ impl Ast {
             let mut node = Node::from(NodeKind::LVar);
             let lvar = self.find_lvar(&name);
             if let Some(lvar) = lvar {
+                node.name = name; // 変数名を設定
                 node.offset = lvar.offset; // 既存のローカル変数のオフセットを設定
                 node.ty = Some(Box::new(*lvar.ty.clone())); // 変数の型情報を設定
             } else {

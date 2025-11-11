@@ -1,5 +1,7 @@
 use core::fmt;
 
+use crate::types::TypeKind;
+
 pub const RESERVED_SYMBOLS: [&str; 45] = [
     "+", "-", "*", "/", "%", "=", "&", "~", "!", "^", "|", "==", "!=", "<", "<=", ">", ">=", "*=",
     "/=", "%=", "+=", "-=", "&=", "^=", "|=", "<<", ">>", "&&", "||", "++", "--", "<<=", ">>=",
@@ -18,7 +20,7 @@ pub const RESERVED_WORDS: [&str; 20] = [
 
 #[derive(PartialEq, Eq, Clone)]
 pub enum Token {
-    Type(String),     // 型
+    Type(TypeKind),   // 型
     Symbol(String),   // 記号トークン
     Reserved(String), // 予約語
     Ident(String),    // 識別子
@@ -29,7 +31,7 @@ pub enum Token {
 impl fmt::Debug for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Token::Type(s) => write!(f, "Type    ('{}')", s),
+            Token::Type(s) => write!(f, "Type    ('{:?}')", s),
             Token::Symbol(s) => write!(f, "Symbol  ('{}')", s),
             Token::Reserved(s) => write!(f, "Reserved('{}')", s),
             Token::Ident(s) => write!(f, "Ident   ('{}')", s),

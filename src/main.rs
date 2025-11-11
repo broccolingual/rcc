@@ -18,13 +18,21 @@ fn main() {
         return;
     }
 
-    let tokenizer = Tokenizer::new(&args[1]);
-    let ast = Ast::new(tokenizer.tokens.clone());
+    let tokenizer = Tokenizer::new();
+    let tokens = match tokenizer.tokenize(&args[1]) {
+        Ok(tokens) => tokens,
+        Err(e) => {
+            eprintln!("Tokenizer Error: {}", e);
+            return;
+        }
+    };
+    let mut ast = Ast::new(&tokens);
+    ast.translation_unit();
 
     let debug = false;
     if debug {
         println!("=== Tokens ===");
-        println!("{:#?}", tokenizer.tokens);
+        println!("{:#?}", tokens);
         println!("=== Functions ===");
         println!("{:#?}", ast.funcs);
         println!("=== Local Variables ===");

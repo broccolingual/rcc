@@ -87,7 +87,9 @@ pub struct Node {
     pub lhs: Option<Box<Node>>,
     pub rhs: Option<Box<Node>>,
     pub val: i64,                // kindがNumのときに使う
-    pub offset: i64,             // kindがLVarのときに使う
+    pub offset: i64,             // 変数のオフセット(kindがLVarのときに使う)
+    pub name: String,            // 変数名(kindがLVarのときに使う)
+    pub ty: Option<Box<Type>>,   // ノードの型情報(kindがLVarのときに使う)
     pub cond: Option<Box<Node>>, // if, while文の条件式
     pub then: Option<Box<Node>>, // if, while文のthen節
     pub els: Option<Box<Node>>,  // if文のelse節
@@ -97,7 +99,6 @@ pub struct Node {
     pub label_name: String,      // ラベル名
     pub func_name: String,       // 関数名
     pub args: Vec<Box<Node>>,    // 関数呼び出しの引数リスト
-    pub ty: Option<Box<Type>>,   // ノードの型情報（kindがLVarのときに使う）
 }
 
 impl Node {
@@ -108,6 +109,8 @@ impl Node {
             rhs,
             val: 0,
             offset: 0,
+            name: String::new(),
+            ty: None,
             cond: None,
             then: None,
             els: None,
@@ -117,7 +120,6 @@ impl Node {
             label_name: String::new(),
             func_name: String::new(),
             args: Vec::new(),
-            ty: None,
         }
     }
 
