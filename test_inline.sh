@@ -94,6 +94,7 @@ assert 3 'int a; a = 1; if (a % 2 == 1) return 3; else return 4;'
 assert 7 'int a; a = 4; if (a % 2 == 1) return 3; else return a + 3;'
 assert 4 'int a; a = 4; if (a % 2 == 1) return 3; return 4;'
 assert 2 'int a; a = 1; if (a > 5) return 5; else if (a < 2) return 2; else return 3;'
+assert 5 'int a; a = 6; if (a > 5) { a = 4; 1 + 2; } else { a = 3; } a = 5; return a;'
 
 # while statement
 assert 5 'int i; i = 0; while (i < 5) i = i + 1; return i;'

@@ -42,8 +42,7 @@ impl Generator {
             // 関数のローカル変数に対応するスタック領域を確保
             // ローカル変数の最大オフセットに基づいてスタック領域を計算
             let max_offset = func.locals.first().map_or(0, |arg| arg.offset);
-            let mut stack_size = ((max_offset + 15) / 16) * 16; // 16バイトアラインメント
-            stack_size += 16; // TODO: スタックリークが発生しているっぽいため余分に確保
+            let stack_size = ((max_offset + 15) / 16) * 16; // 16バイトアラインメント
             self.builder
                 .add_row(&format!("sub rsp, {}", stack_size), true);
 
@@ -125,18 +124,13 @@ impl Generator {
             }
             NodeKind::LVar => {
                 self.gen_asm_lval(node);
-                self.builder.add_row("pop rax", true);
-                self.builder.add_row("mov rax, [rax]", true);
-                self.builder.add_row("push rax", true);
+                self.load();
                 return;
             }
             NodeKind::Assign => {
                 self.gen_asm_lval(node.lhs.as_ref().unwrap());
                 self.gen_asm_from_expr(node.rhs.as_ref().unwrap());
-                self.builder.add_row("pop rdi", true);
-                self.builder.add_row("pop rax", true);
-                self.builder.add_row("mov [rax], rdi", true);
-                self.builder.add_row("push rdi", true);
+                self.store();
                 return;
             }
             NodeKind::Ternary => {
@@ -280,6 +274,7 @@ impl Generator {
                     self.builder.add_row(&format!(".L.else.{}:", seq), false);
                     self.gen_asm_from_expr(node.els.as_ref().unwrap());
                     self.builder.add_row(&format!(".L.end.{}:", seq), false);
+                    self.builder.add_row("push rax", true); // then節またはelse節の結果をスタックに積む
                 } else {
                     // else節なし
                     self.gen_asm_from_expr(node.cond.as_ref().unwrap());
@@ -288,6 +283,7 @@ impl Generator {
                     self.builder.add_row(&format!("je .L.end.{}", seq), true);
                     self.gen_asm_from_expr(node.then.as_ref().unwrap());
                     self.builder.add_row(&format!(".L.end.{}:", seq), false);
+                    self.builder.add_row("push rax", true); // then節の結果をスタックに積む
                 }
                 return;
             }
