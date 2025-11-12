@@ -14,9 +14,9 @@ assert() {
   actual="$?"
 
   if [ "$actual" = "$expected" ]; then
-    echo "( OK ) $input => $actual"
+    echo -e "\033[32m( OK )\033[0m $input => $actual"
   else
-    echo "( NG ) $input => $expected expected, but got $actual"
+    echo -e "\033[31m( NG )\033[0m $input => $expected expected, but got $actual"
     exit 1
   fi
 }

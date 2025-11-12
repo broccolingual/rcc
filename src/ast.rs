@@ -5,28 +5,30 @@ use crate::token::Token;
 use crate::types::{Type, TypeKind};
 
 #[derive(Clone)]
-pub struct LVar {
+pub struct Var {
     name: String,
     pub offset: i64,
     pub ty: Box<Type>,
+    pub is_local: bool,
 }
 
-impl LVar {
-    pub fn new(name: &str, offset: i64, ty: Type) -> Self {
-        LVar {
+impl Var {
+    pub fn new(name: &str, offset: i64, ty: Type, is_local: bool) -> Self {
+        Var {
             name: name.to_string(),
             offset,
             ty: Box::new(ty),
+            is_local,
         }
     }
 }
 
-impl fmt::Debug for LVar {
+impl fmt::Debug for Var {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "LVar {{ name: '{}', type: {:?}, offset: {} }}",
-            self.name, self.ty, self.offset
+            "Var {{ name: '{}', type: {:?}, offset: {}, is_local: {} }}",
+            self.name, self.ty, self.offset, self.is_local
         )
     }
 }
@@ -34,7 +36,7 @@ impl fmt::Debug for LVar {
 pub struct Function {
     pub name: String,
     pub body: Vec<Box<Node>>,
-    pub locals: Vec<LVar>,
+    pub locals: Vec<Var>,
 }
 
 impl Function {
@@ -48,8 +50,13 @@ impl Function {
 }
 
 impl Function {
-    fn find_lvar(&mut self, name: &str) -> Option<&mut LVar> {
-        self.locals.iter_mut().find(|lvar| lvar.name == name)
+    fn find_lvar(&mut self, name: &str) -> Option<&mut Var> {
+        for lvar in &mut self.locals {
+            if lvar.name == name && lvar.is_local {
+                return Some(lvar);
+            }
+        }
+        None
     }
 }
 
@@ -216,7 +223,7 @@ impl Ast {
                     .as_mut()
                     .unwrap()
                     .locals
-                    .insert(0, LVar::new(&var_name, offset, new_ty)); // ローカル変数リストの先頭に追加
+                    .insert(0, Var::new(&var_name, offset, new_ty, true)); // ローカル変数リストの先頭に追加
             }
             return Some(Box::new(node_var));
         } else {
