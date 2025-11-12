@@ -867,19 +867,27 @@ impl Ast {
             let lvar = self.current_func.as_mut().unwrap().find_lvar(&name);
             if let Some(lvar) = lvar {
                 // ローカル変数ノードを作成
-                let mut node = Node::from(NodeKind::LVar);
-                node.name = name; // 変数名を設定
-                node.offset = lvar.offset; // 既存のローカル変数のオフセットを設定
-                node.ty = Some(Box::new(*lvar.ty.clone())); // 変数の型情報を設定
+                let mut node = Node::new_lvar(&lvar.name, lvar.offset, &lvar.ty);
+
+                // 配列の場合はポインタ型に変換
+                if self.consume_symbol("[") {
+                    let add = Node::new(NodeKind::Add, Some(Box::new(node)), self.expr());
+                    node = Node::new_unary(NodeKind::Deref, Some(Box::new(add)));
+                    self.expect_symbol("]").unwrap();
+                }
                 return Some(Box::new(node));
             } else if let Some(gvar) = self.find_gvar(&name) {
                 // グローバル変数ノードを作成
-                let mut node = Node::from(NodeKind::GVar);
-                node.name = name; // 変数名を設定
-                node.ty = Some(Box::new(*gvar.ty.clone())); // 変数の型情報を設定
+                let mut node = Node::new_gvar(&gvar.name, &gvar.ty);
+
+                // 配列の場合はポインタ型に変換
+                if self.consume_symbol("[") {
+                    let add = Node::new(NodeKind::Add, Some(Box::new(node)), self.expr());
+                    node = Node::new_unary(NodeKind::Deref, Some(Box::new(add)));
+                    self.expect_symbol("]").unwrap();
+                }
                 return Some(Box::new(node));
             }
-
             panic!("未定義の関数もしくは変数です: {}", name);
         }
         Some(Box::new(Node::new_num(self.expect_number().unwrap())))

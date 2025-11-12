@@ -138,4 +138,19 @@ impl Node {
         node.ty = Some(Box::new(Type::new_int()));
         node
     }
+
+    pub fn new_lvar(name: &str, offset: i64, ty: &Type) -> Self {
+        let mut node = Node::new(NodeKind::LVar, None, None);
+        node.name = name.to_string();
+        node.offset = offset;
+        node.ty = Some(Box::new(ty.clone()));
+        node
+    }
+
+    pub fn new_gvar(name: &str, ty: &Type) -> Self {
+        let mut node = Node::new(NodeKind::GVar, None, None);
+        node.name = name.to_string();
+        node.ty = Some(Box::new(ty.clone()));
+        node
+    }
 }
