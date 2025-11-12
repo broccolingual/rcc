@@ -30,7 +30,7 @@ fn main() {
     let mut ast = Ast::new(&tokens);
     ast.translation_unit();
 
-    let debug = true;
+    let debug = false;
     if debug {
         // println!("=== Tokens ===");
         // println!("{:#?}", tokens);

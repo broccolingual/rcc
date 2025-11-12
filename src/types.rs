@@ -63,7 +63,7 @@ impl Type {
     // TODO: 配列型のサイズ計算は仮実装
     pub fn size_of(&self) -> i64 {
         match self.kind {
-            TypeKind::Int => 4,
+            TypeKind::Int => 8, // サイズは8バイトで仮置き
             TypeKind::Ptr => 8,
             TypeKind::Array => {
                 if let Some(ref to) = self.ptr_to {

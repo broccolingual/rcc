@@ -28,11 +28,31 @@ impl Generator {
 
     pub fn gen_asm(&mut self, ast: &Ast) {
         self.builder.add_row(&".intel_syntax noprefix", false);
+        // グローバル変数の定義
+        for gvar in ast.globals.iter() {
+            self.builder
+                .add_row(&format!(".globl {}", gvar.name), false);
+            self.builder
+                .add_row(&format!(".type {}, @object", gvar.name), true);
+            self.builder
+                .add_row(&format!(".size {}, {}", gvar.name, gvar.ty.size_of()), true);
+        }
+        self.builder.add_row(&".bss", false);
+        for gvar in ast.globals.iter() {
+            self.builder.add_row(&format!(".align 8"), false);
+            self.builder.add_row(&format!("{}:", gvar.name), false);
+            self.builder
+                .add_row(&format!(".zero {}", gvar.ty.size_of()), true);
+        }
+
+        // 関数の定義
         self.builder.add_row(&".text", false);
         for func in ast.funcs.iter() {
             self.func_name = func.name.clone();
             self.builder
                 .add_row(&format!(".globl {}", self.func_name), false);
+            self.builder
+                .add_row(&format!(".type {}, @function", self.func_name), false);
             self.builder.add_row(&format!("{}:", self.func_name), false);
 
             // 関数プロローグ

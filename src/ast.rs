@@ -6,7 +6,7 @@ use crate::types::{Type, TypeKind};
 
 #[derive(Clone)]
 pub struct Var {
-    name: String,
+    pub name: String,
     pub offset: i64,
     pub ty: Box<Type>,
     pub is_local: bool,
@@ -336,8 +336,8 @@ impl Ast {
         if self.consume_symbol("{") {
             let mut node = Node::from(NodeKind::Block);
             while !self.consume_symbol("}") {
-                if let Some(decl) = self.declaration() {
-                    node.body.push(decl);
+                if self.declaration().is_some() {
+                    continue;
                 } else if let Some(stmt) = self.stmt() {
                     node.body.push(stmt);
                 } else {
