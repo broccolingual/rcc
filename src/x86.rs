@@ -1,6 +1,7 @@
 use crate::asm_builder::AsmBuilder;
 use crate::ast::Ast;
 use crate::node::{Node, NodeKind};
+use crate::types::TypeKind;
 
 // const ARG_BYTE_REGS: [&str; 6] = ["dil", "sil", "dl", "cl", "r8b", "r9b"];
 // const ARG_WORD_REGS: [&str; 6] = ["di", "si", "dx", "cx", "r8w", "r9w"];
@@ -27,32 +28,37 @@ impl Generator {
     }
 
     pub fn gen_asm(&mut self, ast: &Ast) {
-        self.builder.add_row(&".intel_syntax noprefix", false);
+        self.builder.add_row(&".intel_syntax noprefix", true);
+        self.builder.add_row(&".text", true);
+
         // グローバル変数の定義
+        self.builder.add_row(&".bss", true);
         for gvar in ast.globals.iter() {
-            self.builder
-                .add_row(&format!(".globl {}", gvar.name), false);
+            // TODO: サイズ計算は仮で8の倍数に固定
+            let size = if gvar.ty.kind == TypeKind::Array {
+                8 * gvar.ty.array_size as i64
+            } else {
+                8
+            };
+
+            self.builder.add_row(&format!(".globl {}", gvar.name), true);
+            self.builder.add_row(&format!(".align 8"), true); // TODO: アラインメントは仮で8に固定
             self.builder
                 .add_row(&format!(".type {}, @object", gvar.name), true);
             self.builder
-                .add_row(&format!(".size {}, {}", gvar.name, gvar.ty.size_of()), true);
-        }
-        self.builder.add_row(&".bss", false);
-        for gvar in ast.globals.iter() {
-            self.builder.add_row(&format!(".align 8"), false);
+                .add_row(&format!(".size {}, {}", gvar.name, size), true);
             self.builder.add_row(&format!("{}:", gvar.name), false);
-            self.builder
-                .add_row(&format!(".zero {}", gvar.ty.size_of()), true);
+            self.builder.add_row(&format!(".zero {}", size), true);
         }
 
         // 関数の定義
-        self.builder.add_row(&".text", false);
+        self.builder.add_row(&".text", true);
         for func in ast.funcs.iter() {
             self.func_name = func.name.clone();
             self.builder
-                .add_row(&format!(".globl {}", self.func_name), false);
+                .add_row(&format!(".globl {}", self.func_name), true);
             self.builder
-                .add_row(&format!(".type {}, @function", self.func_name), false);
+                .add_row(&format!(".type {}, @function", self.func_name), true);
             self.builder.add_row(&format!("{}:", self.func_name), false);
 
             // 関数プロローグ
@@ -88,20 +94,27 @@ impl Generator {
         }
         // スタックを実行不可に設定
         self.builder
-            .add_row(&".section .note.GNU-stack,\"\",@progbits", false);
+            .add_row(&".section .note.GNU-stack,\"\",@progbits", true);
     }
 
-    pub fn gen_asm_lval(&mut self, node: &Node) {
-        if node.kind == NodeKind::Deref {
-            self.gen_asm_from_expr(node.lhs.as_ref().unwrap());
-            return;
+    pub fn get_val(&mut self, node: &Node) {
+        match node.kind {
+            NodeKind::Deref => {
+                self.gen_asm_from_expr(node.lhs.as_ref().unwrap());
+                return;
+            }
+            NodeKind::LVar => {
+                self.builder
+                    .add_row(&format!("lea rax, [rbp-{}]", node.offset), true);
+                self.builder.add_row("push rax", true);
+            }
+            NodeKind::GVar => {
+                self.builder
+                    .add_row(&format!("lea rax, {}[rip]", node.name), true);
+                self.builder.add_row("push rax", true);
+            }
+            _ => panic!("代入の左辺値が変数ではありません: {:?}", node.kind),
         }
-        if node.kind != NodeKind::LVar {
-            panic!("代入の左辺値が変数ではありません");
-        }
-        self.builder
-            .add_row(&format!("lea rax, [rbp-{}]", node.offset), true);
-        self.builder.add_row("push rax", true);
     }
 
     // スタックトップのアドレスから値を読み出してスタックに積む
@@ -142,13 +155,13 @@ impl Generator {
                 self.builder.add_row(&format!("push {}", node.val), true);
                 return;
             }
-            NodeKind::LVar => {
-                self.gen_asm_lval(node);
+            NodeKind::LVar | NodeKind::GVar => {
+                self.get_val(node);
                 self.load();
                 return;
             }
             NodeKind::Assign => {
-                self.gen_asm_lval(node.lhs.as_ref().unwrap());
+                self.get_val(node.lhs.as_ref().unwrap());
                 self.gen_asm_from_expr(node.rhs.as_ref().unwrap());
                 self.store();
                 return;
@@ -168,7 +181,7 @@ impl Generator {
                 return;
             }
             NodeKind::PreInc => {
-                self.gen_asm_lval(node.lhs.as_ref().unwrap());
+                self.get_val(node.lhs.as_ref().unwrap());
                 self.builder.add_row("push [rsp]", true);
                 self.load();
                 self.inc();
@@ -176,7 +189,7 @@ impl Generator {
                 return;
             }
             NodeKind::PreDec => {
-                self.gen_asm_lval(node.lhs.as_ref().unwrap());
+                self.get_val(node.lhs.as_ref().unwrap());
                 self.builder.add_row("push [rsp]", true);
                 self.load();
                 self.dec();
@@ -184,7 +197,7 @@ impl Generator {
                 return;
             }
             NodeKind::PostInc => {
-                self.gen_asm_lval(node.lhs.as_ref().unwrap());
+                self.get_val(node.lhs.as_ref().unwrap());
                 self.builder.add_row("push [rsp]", true);
                 self.load();
                 self.inc();
@@ -193,7 +206,7 @@ impl Generator {
                 return;
             }
             NodeKind::PostDec => {
-                self.gen_asm_lval(node.lhs.as_ref().unwrap());
+                self.get_val(node.lhs.as_ref().unwrap());
                 self.builder.add_row("push [rsp]", true);
                 self.load();
                 self.dec();
@@ -211,7 +224,7 @@ impl Generator {
             | NodeKind::BitXorAssign
             | NodeKind::ShlAssign
             | NodeKind::ShrAssign => {
-                self.gen_asm_lval(node.lhs.as_ref().unwrap());
+                self.get_val(node.lhs.as_ref().unwrap());
                 self.builder.add_row("push [rsp]", true);
                 self.load();
                 self.gen_asm_from_expr(node.rhs.as_ref().unwrap());
@@ -236,7 +249,7 @@ impl Generator {
                 return;
             }
             NodeKind::Addr => {
-                self.gen_asm_lval(node.lhs.as_ref().unwrap());
+                self.get_val(node.lhs.as_ref().unwrap());
                 return;
             }
             NodeKind::Deref => {

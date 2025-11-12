@@ -9,16 +9,14 @@ pub struct Var {
     pub name: String,
     pub offset: i64,
     pub ty: Box<Type>,
-    pub is_local: bool,
 }
 
 impl Var {
-    pub fn new(name: &str, offset: i64, ty: Type, is_local: bool) -> Self {
+    pub fn new(name: &str, ty: Type) -> Self {
         Var {
             name: name.to_string(),
-            offset,
+            offset: 0,
             ty: Box::new(ty),
-            is_local,
         }
     }
 }
@@ -27,8 +25,8 @@ impl fmt::Debug for Var {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "Var {{ name: '{}', type: {:?}, offset: {}, is_local: {} }}",
-            self.name, self.ty, self.offset, self.is_local
+            "Var {{ name: '{}', type: {:?}, offset: {} }}",
+            self.name, self.ty, self.offset
         )
     }
 }
@@ -40,9 +38,9 @@ pub struct Function {
 }
 
 impl Function {
-    pub fn new() -> Self {
+    pub fn new(name: &str) -> Self {
         Function {
-            name: String::new(),
+            name: name.to_string(),
             body: Vec::new(),
             locals: Vec::new(),
         }
@@ -50,9 +48,31 @@ impl Function {
 }
 
 impl Function {
+    fn gen_lvar(&mut self, mut var: Var) -> Result<(), &str> {
+        if self.find_lvar(&var.name).is_some() {
+            return Err("同じ名前のローカル変数が既に存在します");
+        }
+        // TODO: 変数の型に応じてオフセット計算を修正
+        if var.ty.kind == TypeKind::Array {
+            var.offset = if let Some(first_var) = self.locals.first() {
+                first_var.offset + 8 * var.ty.array_size as i64
+            } else {
+                8 * var.ty.array_size as i64
+            };
+        } else {
+            var.offset = if let Some(first_var) = self.locals.first() {
+                first_var.offset + 8 as i64
+            } else {
+                8 as i64
+            };
+        }
+        self.locals.insert(0, var);
+        Ok(())
+    }
+
     fn find_lvar(&mut self, name: &str) -> Option<&mut Var> {
         for var in &mut self.locals {
-            if var.name == name && var.is_local {
+            if var.name == name {
                 return Some(var);
             }
         }
@@ -85,6 +105,14 @@ impl Ast {
             funcs: Vec::new(),
             current_func: None,
         }
+    }
+
+    fn gen_gvar(&mut self, var: Var) -> Result<(), &str> {
+        if self.find_gvar(&var.name).is_some() {
+            return Err("同じ名前のグローバル変数が既に存在します");
+        }
+        self.globals.push(var);
+        Ok(())
     }
 
     fn find_gvar(&mut self, name: &str) -> Option<&mut Var> {
@@ -193,9 +221,8 @@ impl Ast {
 
     // direct_declarator ::= ident
     //                       | ident "[" number "]"
-    fn direct_declarator(&mut self, ty: Type, is_lvar: bool) -> Option<Box<Node>> {
-        if let Some(var_name) = self.consume_ident() {
-            let offset;
+    fn direct_declarator(&mut self, ty: Type) -> Result<Var, &str> {
+        if let Some(name) = self.consume_ident() {
             let new_ty;
             if self.consume_symbol("[") {
                 // 配列型の処理
@@ -203,85 +230,52 @@ impl Ast {
                 self.expect_symbol("]").unwrap();
                 let array_ty = Type::new_array(&ty, array_size);
                 new_ty = array_ty;
-                offset = self
-                    .current_func
-                    .as_mut()
-                    .unwrap()
-                    .locals
-                    .first()
-                    .map_or(8 * array_size as i64, |last| {
-                        last.offset + 8 * array_size as i64
-                    });
             } else {
                 // 通常の変数型の場合
                 new_ty = ty;
-                offset = self
-                    .current_func
-                    .as_mut()
-                    .unwrap()
-                    .locals
-                    .first()
-                    .map_or(8, |last| last.offset + 8);
             }
-
-            // 変数ノードを作成
-            let mut node_var = Node::from(NodeKind::LVar);
-            node_var.name = var_name.clone(); // 変数名を設定
-            node_var.ty = Some(Box::new(new_ty.clone())); // 変数の型情報を設定
-            let var = Var::new(&var_name, offset, new_ty, is_lvar);
-            if is_lvar {
-                node_var.offset = offset; // 新しいローカル変数のオフセットを設定
-                self.current_func.as_mut().unwrap().locals.insert(0, var); // ローカル変数リストの先頭に追加
-            } else {
-                self.globals.insert(0, var); // グローバル変数リストの先頭に追加
-            }
-            return Some(Box::new(node_var));
-        } else {
-            panic!("識別子のパースに失敗しました");
+            return Ok(Var::new(&name, new_ty));
         }
+        Err("direct_declaratorのパースに失敗しました")
     }
 
     // declarator ::= pointer? direct_declarator
-    fn declarator(&mut self, is_lvar: bool) -> Option<Box<Node>> {
+    fn declarator(&mut self) -> Result<Var, &str> {
         if let Some(tok) = self.consume_type() {
             // ポインタを処理
             if tok != Token::Type(TypeKind::Int) {
-                panic!("現在サポートされている型はintのみです");
+                return Err("int型以外の型はサポートされていません");
             }
             let ty = self.pointer(Type::new_int());
 
             // 変数名を取得
-            if let Some(node_var) = self.direct_declarator(ty, is_lvar) {
-                return Some(node_var);
-            } else {
-                panic!("変数名のパースに失敗しました");
-            }
+            return self.direct_declarator(ty);
         }
-        None
+        Err("declaratorのパースに失敗しました")
     }
 
     // func_def ::= declarator "(" (declarator ("," declarator)*)? ")" compound_stmt
     fn func_def(&mut self) -> Option<Box<Function>> {
-        self.current_func = Some(Box::new(Function::new()));
-
         // 関数名と戻り値の型のパース
-        if let Some(var_node) = self.declarator(false) {
-            self.current_func.as_mut().unwrap().name = var_node.name;
+        let global_info;
+        if let Ok(var) = self.declarator() {
+            global_info = var;
         } else {
             panic!("グローバル変数または関数名のパースに失敗しました");
         }
 
         if self.consume_symbol(";") {
             // グローバル変数宣言
-            self.current_func = None;
+            self.gen_gvar(global_info).unwrap();
             return None;
         }
 
         if self.consume_symbol("(") {
             // 関数の引数のパース（型情報もパース）
+            let mut func = Function::new(&global_info.name);
             loop {
-                if self.declarator(true).is_none() {
-                    break;
+                if let Ok(param) = self.declarator() {
+                    func.gen_lvar(param).unwrap();
                 }
                 if !self.consume_symbol(",") {
                     break;
@@ -294,9 +288,11 @@ impl Ast {
                 panic!("関数プロトタイプ宣言はサポートされていません");
             }
 
+            self.current_func = Some(Box::new(func)); // 現在の関数を設定
+
             // 関数本体のパース
-            if let Some(body_node) = self.compound_stmt() {
-                self.current_func.as_mut().unwrap().body = body_node.body;
+            if let Some(node) = self.compound_stmt() {
+                self.current_func.as_mut().unwrap().body = node.body;
             } else {
                 panic!("関数本体のパースに失敗しました");
             }
@@ -307,11 +303,11 @@ impl Ast {
     }
 
     // declaration ::= declarator ";"
-    fn declaration(&mut self) -> Option<Box<Node>> {
+    fn declaration(&mut self) -> Option<Var> {
         // variable declaration
-        if let Some(var_node) = self.declarator(true) {
+        if let Ok(var) = self.declarator() {
             self.expect_symbol(";").unwrap();
-            return Some(var_node);
+            return Some(var);
         }
         None
     }
@@ -336,7 +332,8 @@ impl Ast {
         if self.consume_symbol("{") {
             let mut node = Node::from(NodeKind::Block);
             while !self.consume_symbol("}") {
-                if self.declaration().is_some() {
+                if let Some(var) = self.declaration() {
+                    self.current_func.as_mut().unwrap().gen_lvar(var).unwrap();
                     continue;
                 } else if let Some(stmt) = self.stmt() {
                     node.body.push(stmt);
@@ -885,7 +882,6 @@ impl Ast {
                 // グローバル変数ノードを作成
                 let mut node = Node::from(NodeKind::GVar);
                 node.name = name; // 変数名を設定
-                node.offset = gvar.offset; // 既存のグローバル変数のオフセットを設定
                 node.ty = Some(Box::new(*gvar.ty.clone())); // 変数の型情報を設定
                 return Some(Box::new(node));
             }

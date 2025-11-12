@@ -154,10 +154,10 @@ assert 3 'int a; int b; int c; a = 3; b = 5; c = &b + 8; return *c;'
 assert 7 'int a; int *p; p = &a; *p = 7; return a;'
 
 echo + sizeof operator
-assert 4 'int x; return sizeof(x);'
+assert 4 'int x; return sizeof(x);' # TODO: INT型を4バイトに変更したら4に修正すること
 assert 8 'int *p; return sizeof(p);'
 assert 4 'return sizeof 1;'
-# assert 4 'int x; return sizeof(x + 3);' # TODO: 木を辿って型を判定する必要アリ
+# assert 8 'int x; return sizeof(x + 3);' # TODO: 木を辿って型を判定する必要アリ
 
 echo + operator precedence and associativity
 assert 8 'return 1 << 2 + 1;'           # 1 << (2 + 1) = 8
