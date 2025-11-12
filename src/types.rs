@@ -2,7 +2,9 @@ use core::fmt;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TypeKind {
+    Short,
     Int,
+    Long,
     Ptr,
     Array,
 }
@@ -32,9 +34,25 @@ impl fmt::Debug for Type {
 }
 
 impl Type {
+    pub fn new_short() -> Self {
+        Type {
+            kind: TypeKind::Short,
+            ptr_to: None,
+            array_size: 0,
+        }
+    }
+
     pub fn new_int() -> Self {
         Type {
             kind: TypeKind::Int,
+            ptr_to: None,
+            array_size: 0,
+        }
+    }
+
+    pub fn new_long() -> Self {
+        Type {
+            kind: TypeKind::Long,
             ptr_to: None,
             array_size: 0,
         }
@@ -62,7 +80,9 @@ impl Type {
 
     pub fn size_of(&self) -> i64 {
         match self.kind {
+            TypeKind::Short => 2,
             TypeKind::Int => 8, // TODO: 一旦8バイト固定
+            TypeKind::Long => 8,
             TypeKind::Ptr => 8,
             TypeKind::Array => {
                 if let Some(ref to) = self.ptr_to {

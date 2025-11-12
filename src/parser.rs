@@ -106,7 +106,9 @@ impl Tokenizer {
                 if RESERVED_TYPES.contains(&ident.as_str()) {
                     // 型はTypeトークンとして扱う
                     let type_kind = match ident.as_str() {
+                        "short" => TypeKind::Short,
                         "int" => TypeKind::Int,
+                        "long" => TypeKind::Long,
                         _ => return Err(format!("未対応の型です: {}", ident)),
                     };
                     tokens.push(Token::Type(type_kind));

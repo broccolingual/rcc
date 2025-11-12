@@ -1,4 +1,4 @@
-use core::fmt;
+use core::{fmt, panic};
 
 use crate::node::{Node, NodeKind};
 use crate::token::Token;
@@ -52,20 +52,11 @@ impl Function {
         if self.find_lvar(&var.name).is_some() {
             return Err("同じ名前のローカル変数が既に存在します");
         }
-        // TODO: 変数の型に応じてオフセット計算を修正
-        if var.ty.kind == TypeKind::Array {
-            var.offset = if let Some(first_var) = self.locals.first() {
-                first_var.offset + 8 * var.ty.array_size as i64
-            } else {
-                8 * var.ty.array_size as i64
-            };
+        var.offset = if let Some(first_var) = self.locals.first() {
+            first_var.offset + var.ty.size_of() as i64
         } else {
-            var.offset = if let Some(first_var) = self.locals.first() {
-                first_var.offset + 8 as i64
-            } else {
-                8 as i64
-            };
-        }
+            var.ty.size_of() as i64
+        };
         self.locals.insert(0, var);
         Ok(())
     }
@@ -220,13 +211,12 @@ impl Ast {
                     // 関数定義
                     if let Ok(func) = self.func_def(var) {
                         return Some(func);
-                    } else {
-                        return None;
                     }
+                    panic!("関数定義のパースに失敗しました");
                 }
             }
         }
-        None
+        panic!("external_declarationのパースに失敗しました");
     }
 
     // pointer ::= "*" pointer?
