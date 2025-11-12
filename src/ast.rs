@@ -207,8 +207,26 @@ impl Ast {
     }
 
     // external_declaration ::= func_def
+    //                          | declaration
     fn external_declaration(&mut self) -> Option<Box<Function>> {
-        self.func_def()
+        if let Some(result) = self.declaration() {
+            match result {
+                Ok(var) => {
+                    // グローバル変数宣言
+                    self.gen_gvar(var).unwrap();
+                    return None;
+                }
+                Err(var) => {
+                    // 関数定義
+                    if let Ok(func) = self.func_def(var) {
+                        return Some(func);
+                    } else {
+                        return None;
+                    }
+                }
+            }
+        }
+        None
     }
 
     // pointer ::= "*" pointer?
@@ -254,22 +272,8 @@ impl Ast {
         Err("declaratorのパースに失敗しました")
     }
 
-    // func_def ::= declarator "(" (declarator ("," declarator)*)? ")" compound_stmt
-    fn func_def(&mut self) -> Option<Box<Function>> {
-        // 関数名と戻り値の型のパース
-        let global_info;
-        if let Ok(var) = self.declarator() {
-            global_info = var;
-        } else {
-            panic!("グローバル変数または関数名のパースに失敗しました");
-        }
-
-        if self.consume_symbol(";") {
-            // グローバル変数宣言
-            self.gen_gvar(global_info).unwrap();
-            return None;
-        }
-
+    // func_def ::= "(" (declarator ("," declarator)*)? ")" compound_stmt
+    fn func_def(&mut self, global_info: Var) -> Result<Box<Function>, &str> {
         if self.consume_symbol("(") {
             // 関数の引数のパース（型情報もパース）
             let mut func = Function::new(&global_info.name);
@@ -285,7 +289,7 @@ impl Ast {
 
             if self.consume_symbol(";") {
                 // 関数プロトタイプ宣言
-                panic!("関数プロトタイプ宣言はサポートされていません");
+                return Err("関数プロトタイプ宣言はサポートされていません");
             }
 
             self.current_func = Some(Box::new(func)); // 現在の関数を設定
@@ -293,21 +297,21 @@ impl Ast {
             // 関数本体のパース
             if let Some(node) = self.compound_stmt() {
                 self.current_func.as_mut().unwrap().body = node.body;
-            } else {
-                panic!("関数本体のパースに失敗しました");
+                return Ok(self.current_func.take().unwrap());
             }
-            return Some(self.current_func.take().unwrap());
+            return Err("関数本体のパースに失敗しました");
         }
-
-        panic!("関数の引数リストのパースに失敗しました");
+        Err("関数の引数リストのパースに失敗しました")
     }
 
     // declaration ::= declarator ";"
-    fn declaration(&mut self) -> Option<Var> {
-        // variable declaration
+    fn declaration(&mut self) -> Option<Result<Var, Var>> {
+        // declaratorのみパース出来た場合は，ErrとしてVarを返す
         if let Ok(var) = self.declarator() {
-            self.expect_symbol(";").unwrap();
-            return Some(var);
+            if self.consume_symbol(";") {
+                return Some(Ok(var));
+            }
+            return Some(Err(var));
         }
         None
     }
@@ -332,7 +336,7 @@ impl Ast {
         if self.consume_symbol("{") {
             let mut node = Node::from(NodeKind::Block);
             while !self.consume_symbol("}") {
-                if let Some(var) = self.declaration() {
+                if let Some(Ok(var)) = self.declaration() {
                     self.current_func.as_mut().unwrap().gen_lvar(var).unwrap();
                     continue;
                 } else if let Some(stmt) = self.stmt() {
