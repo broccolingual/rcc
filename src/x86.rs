@@ -34,21 +34,15 @@ impl Generator {
         // グローバル変数の定義
         self.builder.add_row(&".bss", true);
         for gvar in ast.globals.iter() {
-            // TODO: サイズ計算は仮で8の倍数に固定
-            let size = if gvar.ty.kind == TypeKind::Array {
-                8 * gvar.ty.array_size as i64
-            } else {
-                8
-            };
-
             self.builder.add_row(&format!(".globl {}", gvar.name), true);
             self.builder.add_row(&format!(".align 8"), true); // TODO: アラインメントは仮で8に固定
             self.builder
                 .add_row(&format!(".type {}, @object", gvar.name), true);
             self.builder
-                .add_row(&format!(".size {}, {}", gvar.name, size), true);
+                .add_row(&format!(".size {}, {}", gvar.name, gvar.ty.size_of()), true);
             self.builder.add_row(&format!("{}:", gvar.name), false);
-            self.builder.add_row(&format!(".zero {}", size), true);
+            self.builder
+                .add_row(&format!(".zero {}", gvar.ty.size_of()), true);
         }
 
         // 関数の定義
@@ -157,7 +151,9 @@ impl Generator {
             }
             NodeKind::LVar | NodeKind::GVar => {
                 self.get_val(node);
-                self.load();
+                if node.ty.as_ref().unwrap().kind != TypeKind::Array {
+                    self.load(); // 配列型以外は値を読み出す
+                }
                 return;
             }
             NodeKind::Assign => {

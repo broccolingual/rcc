@@ -62,7 +62,7 @@ impl Type {
 
     pub fn size_of(&self) -> i64 {
         match self.kind {
-            TypeKind::Int => 4,
+            TypeKind::Int => 8, // TODO: 一旦8バイト固定
             TypeKind::Ptr => 8,
             TypeKind::Array => {
                 if let Some(ref to) = self.ptr_to {

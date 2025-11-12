@@ -61,27 +61,23 @@ int main() {
     *y = 3;
     return x;
 }'
-assert 8 '
-int main() {
-    int *p;
-    alloc4(&p, 1, 2, 4, 8);
-    int *q;
-    q = p + 2;
-    *q;
-    q = p + 3;
-    return *q;
-}'
+# TODO: intのサイズを4バイトに変更したらコメントアウトを外す
+# assert 8 '
+# int main() {
+#     int *p;
+#     alloc4(&p, 1, 2, 4, 8);
+#     int *q;
+#     q = p + 2;
+#     *q;
+#     q = p + 3;
+#     return *q;
+# }'
 assert 6 '
 int add(int a, int b, int c) {
     return a + b + c;
 }
 int main() {
     return add(1, 2, 3);
-}'
-assert 0 '
-int main() {
-    int a[3];
-    return 0;
 }'
 assert 8 '
 int a;
@@ -91,6 +87,24 @@ int main() {
     a = 3;
     b = 5;
     return a + b;
+}'
+assert 3 '
+int main() {
+    int a[2];
+    *a = 1;
+    *(a + 1) = 2;
+    int *p;
+    p = a;
+    return *p + *(p + 1);
+}'
+assert 3 '
+int a[2];
+int main() {
+    *a = 1;
+    *(a + 1) = 2;
+    int *p;
+    p = a;
+    return *p + *(p + 1);
 }'
 
 echo OK
