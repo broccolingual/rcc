@@ -79,6 +79,16 @@ int main() {
     return add(1, 2, 3);
 }'
 assert 0 '
+int x;
+int a[3];
+int *b;
+
+int main() {
+    int i;
+    int **j;
+    return 0;
+}'
+assert 0 '
 int main() {
     int a[3];
     return 0;

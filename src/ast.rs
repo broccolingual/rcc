@@ -51,9 +51,9 @@ impl Function {
 
 impl Function {
     fn find_lvar(&mut self, name: &str) -> Option<&mut Var> {
-        for lvar in &mut self.locals {
-            if lvar.name == name && lvar.is_local {
-                return Some(lvar);
+        for var in &mut self.locals {
+            if var.name == name && var.is_local {
+                return Some(var);
             }
         }
         None
@@ -72,6 +72,7 @@ impl fmt::Debug for Function {
 
 pub struct Ast {
     tokens: Vec<Token>,
+    pub globals: Vec<Var>,
     pub funcs: Vec<Box<Function>>,
     current_func: Option<Box<Function>>,
 }
@@ -80,9 +81,19 @@ impl Ast {
     pub fn new(tokens: &[Token]) -> Self {
         Ast {
             tokens: tokens.to_vec(),
+            globals: Vec::new(),
             funcs: Vec::new(),
             current_func: None,
         }
+    }
+
+    fn find_gvar(&mut self, name: &str) -> Option<&mut Var> {
+        for var in &mut self.globals {
+            if var.name == name {
+                return Some(var);
+            }
+        }
+        None
     }
 
     fn consume(&mut self, token: &Token) -> bool {
@@ -213,17 +224,16 @@ impl Ast {
                     .map_or(8, |last| last.offset + 8);
             }
 
-            // ローカル変数ノードを作成
+            // 変数ノードを作成
             let mut node_var = Node::from(NodeKind::LVar);
             node_var.name = var_name.clone(); // 変数名を設定
-            node_var.offset = offset; // 新しいローカル変数のオフセットを設定
             node_var.ty = Some(Box::new(new_ty.clone())); // 変数の型情報を設定
+            let var = Var::new(&var_name, offset, new_ty, is_lvar);
             if is_lvar {
-                self.current_func
-                    .as_mut()
-                    .unwrap()
-                    .locals
-                    .insert(0, Var::new(&var_name, offset, new_ty, true)); // ローカル変数リストの先頭に追加
+                node_var.offset = offset; // 新しいローカル変数のオフセットを設定
+                self.current_func.as_mut().unwrap().locals.insert(0, var); // ローカル変数リストの先頭に追加
+            } else {
+                self.globals.insert(0, var); // グローバル変数リストの先頭に追加
             }
             return Some(Box::new(node_var));
         } else {
@@ -258,33 +268,42 @@ impl Ast {
         if let Some(var_node) = self.declarator(false) {
             self.current_func.as_mut().unwrap().name = var_node.name;
         } else {
-            panic!("関数名と戻り値の型のパースに失敗しました");
+            panic!("グローバル変数または関数名のパースに失敗しました");
         }
-
-        // 引数のパース（型情報もパース）
-        self.expect_symbol("(").unwrap();
-        loop {
-            if self.declarator(true).is_none() {
-                break;
-            }
-            if !self.consume_symbol(",") {
-                break;
-            }
-        }
-        self.expect_symbol(")").unwrap();
 
         if self.consume_symbol(";") {
-            // 関数プロトタイプ宣言
-            panic!("関数プロトタイプ宣言はサポートされていません");
+            // グローバル変数宣言
+            self.current_func = None;
+            return None;
         }
 
-        // 関数本体のパース
-        if let Some(body_node) = self.compound_stmt() {
-            self.current_func.as_mut().unwrap().body = body_node.body;
-        } else {
-            panic!("関数本体のパースに失敗しました");
+        if self.consume_symbol("(") {
+            // 関数の引数のパース（型情報もパース）
+            loop {
+                if self.declarator(true).is_none() {
+                    break;
+                }
+                if !self.consume_symbol(",") {
+                    break;
+                }
+            }
+            self.expect_symbol(")").unwrap();
+
+            if self.consume_symbol(";") {
+                // 関数プロトタイプ宣言
+                panic!("関数プロトタイプ宣言はサポートされていません");
+            }
+
+            // 関数本体のパース
+            if let Some(body_node) = self.compound_stmt() {
+                self.current_func.as_mut().unwrap().body = body_node.body;
+            } else {
+                panic!("関数本体のパースに失敗しました");
+            }
+            return Some(self.current_func.take().unwrap());
         }
-        Some(self.current_func.take().unwrap())
+
+        panic!("関数の引数リストのパースに失敗しました");
     }
 
     // declaration ::= declarator ";"
@@ -853,17 +872,25 @@ impl Ast {
                 return Some(Box::new(node));
             }
 
-            // ローカル変数ノードを作成
-            let mut node = Node::from(NodeKind::LVar);
+            // 変数参照
             let lvar = self.current_func.as_mut().unwrap().find_lvar(&name);
             if let Some(lvar) = lvar {
+                // ローカル変数ノードを作成
+                let mut node = Node::from(NodeKind::LVar);
                 node.name = name; // 変数名を設定
                 node.offset = lvar.offset; // 既存のローカル変数のオフセットを設定
                 node.ty = Some(Box::new(*lvar.ty.clone())); // 変数の型情報を設定
-            } else {
-                panic!("未定義の変数です: {}", name);
+                return Some(Box::new(node));
+            } else if let Some(gvar) = self.find_gvar(&name) {
+                // グローバル変数ノードを作成
+                let mut node = Node::from(NodeKind::GVar);
+                node.name = name; // 変数名を設定
+                node.offset = gvar.offset; // 既存のグローバル変数のオフセットを設定
+                node.ty = Some(Box::new(*gvar.ty.clone())); // 変数の型情報を設定
+                return Some(Box::new(node));
             }
-            return Some(Box::new(node));
+
+            panic!("未定義の関数もしくは変数です: {}", name);
         }
         Some(Box::new(Node::new_num(self.expect_number().unwrap())))
     }

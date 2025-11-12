@@ -49,6 +49,7 @@ pub enum NodeKind {
     Break,        // break
     Continue,     // continue
     LVar,         // ローカル変数
+    GVar,         // グローバル変数
     Return,       // return
     Num,          // 整数
     Nop,          // 空命令

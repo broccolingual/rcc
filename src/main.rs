@@ -30,10 +30,12 @@ fn main() {
     let mut ast = Ast::new(&tokens);
     ast.translation_unit();
 
-    let debug = false;
+    let debug = true;
     if debug {
-        println!("=== Tokens ===");
-        println!("{:#?}", tokens);
+        // println!("=== Tokens ===");
+        // println!("{:#?}", tokens);
+        println!("=== Global Variables ===");
+        println!("{:#?}", ast.globals);
         println!("=== Functions ===");
         println!("{:#?}", ast.funcs);
     }
