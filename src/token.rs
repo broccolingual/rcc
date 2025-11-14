@@ -1,53 +1,74 @@
 use core::fmt;
 
-use crate::types::TypeKind;
-
-pub const RESERVED_SYMBOLS: [&str; 45] = [
-    "+", "-", "*", "/", "%", "=", "&", "~", "!", "^", "|", "==", "!=", "<", "<=", ">", ">=", "*=",
-    "/=", "%=", "+=", "-=", "&=", "^=", "|=", "<<", ">>", "&&", "||", "++", "--", "<<=", ">>=",
-    "->", "(", ")", "{", "}", "[", "]", ";", ",", ".", "?", ":",
+pub const PUNCTUATORS: [&str; 55] = [
+    "[", "]", "(", ")", "{", "}", ".", "->", "++", "--", "&", "*", "+", "-", "~", "!", "/", "%",
+    "<<", ">>", "<", "<=", ">", ">=", "==", "!=", "^", "|", "&&", "||", "?", ":", "::", ";", "...",
+    "=", "*=", "/=", "%=", "+=", "-=", "&=", "^=", "|=", "<<=", ">>=", ",", "#", "##", "<:", ":>",
+    "<%", "%>", "%:", "%:%:",
 ];
 
-pub const TYPES: [&str; 9] = [
-    "int", "char", "void", "short", "long", "float", "double", "signed", "unsigned",
-];
-
-pub const STRUCT_OR_UNION: [&str; 2] = ["struct", "union"];
-
-pub const TYPE_QUALIFIERS: [&str; 2] = ["const", "volatile"];
-
-pub const STORAGE_CLASSES: [&str; 5] = ["auto", "register", "static", "extern", "typedef"];
-
-pub const RESERVED_WORDS: [&str; 13] = [
-    "break", "case", "continue", "default", "do", "else", "for", "goto", "if", "return", "sizeof",
-    "switch", "while",
+pub const KEYWORDS: [&str; 44] = [
+    "alignas",
+    "alignof",
+    "auto",
+    "bool",
+    "break",
+    "case",
+    "char",
+    "const",
+    "constexpr",
+    "continue",
+    "default",
+    "do",
+    "double",
+    "else",
+    "enum",
+    "extern",
+    "float",
+    "for",
+    "goto",
+    "if",
+    "inline",
+    "int",
+    "long",
+    "nullptr",
+    "register",
+    "restrict",
+    "return",
+    "short",
+    "signed",
+    "sizeof",
+    "static",
+    "static_assert",
+    "struct",
+    "switch",
+    "thread_local",
+    "true",
+    "typedef",
+    "typeof",
+    "typeof_unqual",
+    "union",
+    "unsigned",
+    "void",
+    "volatile",
+    "while",
 ];
 
 #[derive(PartialEq, Eq, Clone)]
 pub enum Token {
-    Type(TypeKind),        // 型
-    StructOrUnion(String), // structまたはunion
-    Enum,                  // enum
-    TypeQualifier(String), // 型修飾子
-    StorageClass(String),  // 記憶クラス
-    Symbol(String),        // 記号トークン
-    Reserved(String),      // 予約語
-    Ident(String),         // 識別子
-    Num(i64),              // 整数トークン
-    EOF,                   // 入力の終わりを表すトークン
+    Punctuator(String), // 記号トークン
+    Keyword(String),    // キーワード
+    Identifier(String), // 識別子
+    Num(i64),           // 整数トークン
+    EOF,                // 入力の終わりを表すトークン
 }
 
 impl fmt::Debug for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Token::Type(s) => write!(f, "Type('{:?}')", s),
-            Token::StructOrUnion(s) => write!(f, "StructOrUnion('{}')", s),
-            Token::Enum => write!(f, "Enum"),
-            Token::TypeQualifier(s) => write!(f, "TypeQualifier('{}')", s),
-            Token::StorageClass(s) => write!(f, "StorageClass('{}')", s),
-            Token::Symbol(s) => write!(f, "Symbol('{}')", s),
-            Token::Reserved(s) => write!(f, "Reserved('{}')", s),
-            Token::Ident(s) => write!(f, "Ident('{}')", s),
+            Token::Punctuator(s) => write!(f, "Punctuator('{}')", s),
+            Token::Keyword(s) => write!(f, "Keyword('{}')", s),
+            Token::Identifier(s) => write!(f, "Identifier('{}')", s),
             Token::Num(n) => write!(f, "Num({})", n),
             Token::EOF => write!(f, "EOF"),
         }

@@ -1,8 +1,5 @@
 use crate::token::Token;
-use crate::token::{
-    RESERVED_SYMBOLS, RESERVED_WORDS, STORAGE_CLASSES, STRUCT_OR_UNION, TYPE_QUALIFIERS, TYPES,
-};
-use crate::types::TypeKind;
+use crate::token::{KEYWORDS, PUNCTUATORS};
 
 pub struct Tokenizer {}
 
@@ -13,8 +10,8 @@ impl Tokenizer {
 
     pub fn tokenize(&self, input: &str) -> Result<Vec<Token>, String> {
         // 演算子トークンを長い順にソート
-        let mut sorted_reserved_symbols = RESERVED_SYMBOLS.to_vec();
-        sorted_reserved_symbols.sort_by(|a, b| b.len().cmp(&a.len()));
+        let mut sorted_punctuators = PUNCTUATORS.to_vec();
+        sorted_punctuators.sort_by(|a, b| b.len().cmp(&a.len()));
 
         let mut tokens = Vec::new();
         let chars = input.chars().collect::<Vec<char>>();
@@ -57,12 +54,12 @@ impl Tokenizer {
 
             // 演算子トークン
             let mut matched = false;
-            for symbol in &sorted_reserved_symbols {
+            for symbol in &sorted_punctuators {
                 let symbol_len = symbol.len();
                 if pos + symbol_len <= chars.len() {
                     let candidate: String = chars[pos..pos + symbol_len].iter().collect();
                     if candidate == *symbol {
-                        tokens.push(Token::Symbol(symbol.to_string()));
+                        tokens.push(Token::Punctuator(symbol.to_string()));
                         pos += symbol_len;
                         matched = true;
                         break;
@@ -105,39 +102,13 @@ impl Tokenizer {
                         break;
                     }
                 }
-                if TYPES.contains(&ident.as_str()) {
-                    // 型はTypeトークンとして扱う
-                    let type_kind = match ident.as_str() {
-                        "short" => TypeKind::Short,
-                        "int" => TypeKind::Int,
-                        "long" => TypeKind::Long,
-                        _ => return Err(format!("未対応の型です: {}", ident)),
-                    };
-                    tokens.push(Token::Type(type_kind));
-                    continue;
-                } else if STRUCT_OR_UNION.contains(&ident.as_str()) {
-                    // structまたはunionはStructOrUnionトークンとして扱う
-                    tokens.push(Token::StructOrUnion(ident));
-                    continue;
-                } else if ident == "enum" {
-                    // enumはEnumトークンとして扱う
-                    tokens.push(Token::Enum);
-                    continue;
-                } else if TYPE_QUALIFIERS.contains(&ident.as_str()) {
-                    // 型修飾子はTypeQualifierトークンとして扱う
-                    tokens.push(Token::TypeQualifier(ident));
-                    continue;
-                } else if STORAGE_CLASSES.contains(&ident.as_str()) {
-                    // 記憶クラスはStorageClassトークンとして扱う
-                    tokens.push(Token::StorageClass(ident));
-                    continue;
-                } else if RESERVED_WORDS.contains(&ident.as_str()) {
-                    // 予約語はReservedトークンとして扱う
-                    tokens.push(Token::Reserved(ident));
+                if KEYWORDS.contains(&ident.as_str()) {
+                    // 予約語はKeywordトークンとして扱う
+                    tokens.push(Token::Keyword(ident));
                     continue;
                 } else {
                     // それ以外は識別子トークン
-                    tokens.push(Token::Ident(ident));
+                    tokens.push(Token::Identifier(ident));
                     continue;
                 }
             }
