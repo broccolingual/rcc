@@ -1,3 +1,5 @@
+use core::str;
+
 use crate::types::{Type, TypeKind};
 
 #[derive(PartialEq, Eq, Clone, Hash, Debug)]
@@ -55,31 +57,59 @@ pub enum NodeKind {
     Nop,          // 空命令
 }
 
-impl NodeKind {
-    pub fn from_str(sym: &str) -> Option<Self> {
-        match sym {
+impl str::FromStr for NodeKind {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
             // assignment operators
-            "=" => Some(NodeKind::Assign),
-            "*=" => Some(NodeKind::MulAssign),
-            "/=" => Some(NodeKind::DivAssign),
-            "%=" => Some(NodeKind::RemAssign),
-            "+=" => Some(NodeKind::AddAssign),
-            "-=" => Some(NodeKind::SubAssign),
-            "<<=" => Some(NodeKind::ShlAssign),
-            ">>=" => Some(NodeKind::ShrAssign),
-            "&=" => Some(NodeKind::BitAndAssign),
-            "^=" => Some(NodeKind::BitXorAssign),
-            "|=" => Some(NodeKind::BitOrAssign),
+            "=" => Ok(NodeKind::Assign),
+            "*=" => Ok(NodeKind::MulAssign),
+            "/=" => Ok(NodeKind::DivAssign),
+            "%=" => Ok(NodeKind::RemAssign),
+            "+=" => Ok(NodeKind::AddAssign),
+            "-=" => Ok(NodeKind::SubAssign),
+            "<<=" => Ok(NodeKind::ShlAssign),
+            ">>=" => Ok(NodeKind::ShrAssign),
+            "&=" => Ok(NodeKind::BitAndAssign),
+            "^=" => Ok(NodeKind::BitXorAssign),
+            "|=" => Ok(NodeKind::BitOrAssign),
             // unary operators
-            "&" => Some(NodeKind::Addr),
-            "*" => Some(NodeKind::Deref),
-            "+" => Some(NodeKind::Add),
-            "-" => Some(NodeKind::Sub),
-            "~" => Some(NodeKind::BitNot),
-            "!" => Some(NodeKind::LogicalNot),
-            _ => None,
+            "&" => Ok(NodeKind::Addr),
+            "*" => Ok(NodeKind::Deref),
+            "+" => Ok(NodeKind::Add),
+            "-" => Ok(NodeKind::Sub),
+            "~" => Ok(NodeKind::BitNot),
+            "!" => Ok(NodeKind::LogicalNot),
+            _ => Err(()),
         }
     }
+}
+
+impl NodeKind {
+    // pub fn from_str(sym: &str) -> Option<Self> {
+    //     match sym {
+    //         // assignment operators
+    //         "=" => Some(NodeKind::Assign),
+    //         "*=" => Some(NodeKind::MulAssign),
+    //         "/=" => Some(NodeKind::DivAssign),
+    //         "%=" => Some(NodeKind::RemAssign),
+    //         "+=" => Some(NodeKind::AddAssign),
+    //         "-=" => Some(NodeKind::SubAssign),
+    //         "<<=" => Some(NodeKind::ShlAssign),
+    //         ">>=" => Some(NodeKind::ShrAssign),
+    //         "&=" => Some(NodeKind::BitAndAssign),
+    //         "^=" => Some(NodeKind::BitXorAssign),
+    //         "|=" => Some(NodeKind::BitOrAssign),
+    //         // unary operators
+    //         "&" => Some(NodeKind::Addr),
+    //         "*" => Some(NodeKind::Deref),
+    //         "+" => Some(NodeKind::Add),
+    //         "-" => Some(NodeKind::Sub),
+    //         "~" => Some(NodeKind::BitNot),
+    //         "!" => Some(NodeKind::LogicalNot),
+    //         _ => None,
+    //     }
+    // }
 }
 
 #[derive(Clone, Debug)]

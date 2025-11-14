@@ -16,6 +16,12 @@ pub struct Generator {
     pub builder: AsmBuilder,
 }
 
+impl Default for Generator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Generator {
     pub fn new() -> Self {
         Generator {
@@ -28,14 +34,14 @@ impl Generator {
     }
 
     pub fn gen_asm(&mut self, ast: &Ast) {
-        self.builder.add_row(&".intel_syntax noprefix", true);
-        self.builder.add_row(&".text", true);
+        self.builder.add_row(".intel_syntax noprefix", true);
+        self.builder.add_row(".text", true);
 
         // グローバル変数の定義
-        self.builder.add_row(&".bss", true);
+        self.builder.add_row(".bss", true);
         for gvar in ast.globals.iter() {
             self.builder.add_row(&format!(".globl {}", gvar.name), true);
-            self.builder.add_row(&format!(".align 8"), true); // TODO: アラインメントは仮で8に固定
+            self.builder.add_row(".align 8", true); // TODO: アラインメントは仮で8に固定
             self.builder
                 .add_row(&format!(".type {}, @object", gvar.name), true);
             self.builder
@@ -46,7 +52,7 @@ impl Generator {
         }
 
         // 関数の定義
-        self.builder.add_row(&".text", true);
+        self.builder.add_row(".text", true);
         for func in ast.funcs.iter() {
             self.func_name = func.name.clone();
             self.builder
@@ -88,14 +94,13 @@ impl Generator {
         }
         // スタックを実行不可に設定
         self.builder
-            .add_row(&".section .note.GNU-stack,\"\",@progbits", true);
+            .add_row(".section .note.GNU-stack,\"\",@progbits", true);
     }
 
     pub fn get_val(&mut self, node: &Node) {
         match node.kind {
             NodeKind::Deref => {
                 self.gen_asm_from_expr(node.lhs.as_ref().unwrap());
-                return;
             }
             NodeKind::LVar => {
                 self.builder
@@ -437,9 +442,8 @@ impl Generator {
                 }
 
                 // 引数をレジスタに移動
-                for i in 0..arg_count {
-                    self.builder
-                        .add_row(&format!("pop {}", ARG_QWORD_REGS[i]), true);
+                for reg in ARG_QWORD_REGS.iter().take(arg_count) {
+                    self.builder.add_row(&format!("pop {}", reg), true);
                 }
 
                 // 関数呼び出し

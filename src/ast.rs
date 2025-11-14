@@ -1,4 +1,4 @@
-use core::{fmt, panic};
+use core::fmt;
 
 mod declaration;
 mod expression;
@@ -13,6 +13,7 @@ pub struct Var {
     pub name: String,
     pub offset: i64,
     pub ty: Box<Type>,
+    pub initializer: Option<Box<Node>>,
 }
 
 impl Var {
@@ -21,6 +22,7 @@ impl Var {
             name: name.to_string(),
             offset: 0,
             ty: Box::new(ty),
+            initializer: None,
         }
     }
 }
@@ -57,21 +59,19 @@ impl Function {
             return Err("同じ名前のローカル変数が既に存在します");
         }
         var.offset = if let Some(first_var) = self.locals.first() {
-            first_var.offset + var.ty.size_of() as i64
+            first_var.offset + var.ty.size_of()
         } else {
-            var.ty.size_of() as i64
+            var.ty.size_of()
         };
         self.locals.insert(0, var);
         Ok(())
     }
 
     fn find_lvar(&mut self, name: &str) -> Option<&mut Var> {
-        for var in &mut self.locals {
-            if var.name == name {
-                return Some(var);
-            }
-        }
-        None
+        self.locals
+            .iter_mut()
+            .find(|var| var.name == name)
+            .map(|v| v as _)
     }
 }
 
@@ -87,6 +87,7 @@ impl fmt::Debug for Function {
 
 pub struct Ast {
     tokens: Vec<Token>,
+    token_pos: usize,
     pub globals: Vec<Var>,
     pub funcs: Vec<Box<Function>>,
     current_func: Option<Box<Function>>,
@@ -96,6 +97,7 @@ impl Ast {
     pub fn new(tokens: &[Token]) -> Self {
         Ast {
             tokens: tokens.to_vec(),
+            token_pos: 0,
             globals: Vec::new(),
             funcs: Vec::new(),
             current_func: None,
@@ -111,18 +113,34 @@ impl Ast {
     }
 
     fn find_gvar(&mut self, name: &str) -> Option<&mut Var> {
-        for var in &mut self.globals {
-            if var.name == name {
-                return Some(var);
-            }
+        self.globals
+            .iter_mut()
+            .find(|var| var.name == name)
+            .map(|v| v as _)
+    }
+
+    fn get_token(&self) -> Option<&Token> {
+        self.tokens.get(self.token_pos)
+    }
+
+    // トークンを1つ進める
+    fn advance_token(&mut self) {
+        if self.token_pos < self.tokens.len() - 1 {
+            self.token_pos += 1;
         }
-        None
+    }
+
+    // トークンを1つ戻す
+    fn retreat_token(&mut self) {
+        if self.token_pos > 0 {
+            self.token_pos -= 1;
+        }
     }
 
     fn consume(&mut self, token: &Token) -> bool {
-        match self.tokens.first() {
+        match self.get_token() {
             Some(t) if t == token => {
-                self.tokens.remove(0);
+                self.advance_token();
                 true
             }
             _ => false,
@@ -138,10 +156,10 @@ impl Ast {
     }
 
     fn consume_ident(&mut self) -> Option<String> {
-        match self.tokens.first() {
+        match self.get_token() {
             Some(Token::Identifier(name)) => {
                 let name_clone = name.clone();
-                self.tokens.remove(0);
+                self.advance_token();
                 Some(name_clone)
             }
             _ => None,
@@ -149,9 +167,9 @@ impl Ast {
     }
 
     fn expect(&mut self, token: &Token) -> Result<(), &str> {
-        match self.tokens.first() {
+        match self.get_token() {
             Some(t) if t == token => {
-                self.tokens.remove(0);
+                self.advance_token();
                 Ok(())
             }
             _ => Err("期待されたトークンではありません"),
@@ -167,10 +185,10 @@ impl Ast {
     }
 
     fn expect_number(&mut self) -> Result<i64, &str> {
-        match self.tokens.first() {
+        match self.get_token() {
             Some(Token::Num(val)) => {
                 let val_clone = *val;
-                self.tokens.remove(0);
+                self.advance_token();
                 Ok(val_clone)
             }
             _ => Err("数値トークンではありません"),
@@ -178,7 +196,7 @@ impl Ast {
     }
 
     fn at_eof(&self) -> bool {
-        self.tokens.is_empty() || matches!(self.tokens.first(), Some(Token::EOF))
+        self.tokens.is_empty() || matches!(self.get_token(), Some(Token::EOF))
     }
 
     // translation_unit ::= external_declaration*
@@ -194,29 +212,26 @@ impl Ast {
     //                          | declaration
     fn external_declaration(&mut self) -> Result<(), &str> {
         // 関数定義
-        let saved_tokens = self.tokens.clone();
+        // let saved_tokens = self.tokens.clone();
+        let token_pos = self.token_pos;
         if let Ok(func) = self.func_def() {
             self.funcs.push(func);
             return Ok(());
         }
 
-        self.tokens = saved_tokens;
+        // self.tokens = saved_tokens;
+        self.token_pos = token_pos;
         // グローバル変数宣言
         if let Some(vars) = self.declaration() {
-            for var in *vars {
+            for var in vars {
                 self.gen_gvar(var).unwrap();
             }
             return Ok(());
         }
-        panic!("external_declarationのパースに失敗しました");
+        Err("external_declarationのパースに失敗しました")
     }
 
-    // func_body ::= compound_stmt
-    fn func_body(&mut self) -> Option<Box<Node>> {
-        self.compound_stmt()
-    }
-
-    // func_def ::= declaration_specifier declarator func_body
+    // func_def ::= declaration_specifier declarator compound_stmt
     fn func_def(&mut self) -> Result<Box<Function>, &str> {
         let specifier = self.declaration_specifier();
         let base_kind = if let Some(specifier) = specifier {
@@ -234,7 +249,7 @@ impl Ast {
             func.gen_lvar(param).unwrap();
         }
         self.current_func = Some(func);
-        let func_body = if let Some(func_body) = self.func_body() {
+        let func_body = if let Some(func_body) = self.compound_stmt() {
             func_body
         } else {
             return Err("関数本体のパースに失敗しました");

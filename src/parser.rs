@@ -3,6 +3,12 @@ use crate::token::{KEYWORDS, PUNCTUATORS};
 
 pub struct Tokenizer {}
 
+impl Default for Tokenizer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Tokenizer {
     pub fn new() -> Self {
         Tokenizer {}
@@ -11,7 +17,7 @@ impl Tokenizer {
     pub fn tokenize(&self, input: &str) -> Result<Vec<Token>, String> {
         // 演算子トークンを長い順にソート
         let mut sorted_punctuators = PUNCTUATORS.to_vec();
-        sorted_punctuators.sort_by(|a, b| b.len().cmp(&a.len()));
+        sorted_punctuators.sort_by_key(|a| std::cmp::Reverse(a.len()));
 
         let mut tokens = Vec::new();
         let chars = input.chars().collect::<Vec<char>>();
@@ -71,13 +77,13 @@ impl Tokenizer {
             }
 
             // 数字トークン
-            if matches!(c, '0'..='9') {
+            if c.is_ascii_digit() {
                 let mut num_str = String::new();
                 num_str.push(c);
                 pos += 1;
                 while pos < chars.len() {
                     let next_c = chars[pos];
-                    if matches!(next_c, '0'..='9') {
+                    if next_c.is_ascii_digit() {
                         num_str.push(next_c);
                         pos += 1;
                     } else {
@@ -90,7 +96,7 @@ impl Tokenizer {
             }
 
             // 識別子トークン
-            if matches!(c, 'a'..='z' | 'A'..='Z') {
+            if matches!(c, 'a'..='z' | 'A'..='Z' | '_') {
                 let mut ident = c.to_string();
                 pos += 1;
                 while pos < chars.len() {

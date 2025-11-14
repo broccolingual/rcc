@@ -6,7 +6,7 @@ use crate::types::{
 
 impl Ast {
     // declaration ::= declaration_specifiers init_declarator_list ";"
-    pub(super) fn declaration(&mut self) -> Option<Box<Vec<Var>>> {
+    pub(super) fn declaration(&mut self) -> Option<Vec<Var>> {
         let specifiers = self.declaration_specifiers();
         if specifiers.is_empty() {
             return None;
@@ -21,12 +21,12 @@ impl Ast {
     }
 
     // declaration_specifiers ::= declaration_specifier+
-    pub(super) fn declaration_specifiers(&mut self) -> Box<Vec<DeclarationSpecifier>> {
+    pub(super) fn declaration_specifiers(&mut self) -> Vec<DeclarationSpecifier> {
         let mut specifiers = Vec::new();
         while let Some(specifier) = self.declaration_specifier() {
             specifiers.push(specifier);
         }
-        Box::new(specifiers)
+        specifiers
     }
 
     // declaration_specifier ::= storage_class_specifier | type_specifier_qualifier | function_specifier
@@ -48,7 +48,7 @@ impl Ast {
     }
 
     // init_declarator_list ::= init_declarator ("," init_declarator)*
-    fn init_declarator_list(&mut self, base_kind: TypeKind) -> Box<Vec<Var>> {
+    fn init_declarator_list(&mut self, base_kind: TypeKind) -> Vec<Var> {
         let mut vars = Vec::new();
         if let Some(var) = self.init_declarator(base_kind.clone()) {
             vars.push(*var);
@@ -58,7 +58,7 @@ impl Ast {
                 vars.push(*var);
             }
         }
-        Box::new(vars)
+        vars
     }
 
     // init_declarator ::= declarator
@@ -71,25 +71,20 @@ impl Ast {
 
     // storage_class_specifier ::= "auto" | "constexpr" | "extern" | "register" | "static" | "thread_local" | "typedef"
     fn storage_class_specifier(&mut self) -> Option<StorageClassKind> {
-        for specifier in StorageClassKind::all() {
-            if self.consume_keyword(&specifier.to_string()) {
-                return Some(specifier);
-            }
-        }
-        None
+        StorageClassKind::all()
+            .into_iter()
+            .find(|specifier| self.consume_keyword(&specifier.to_string()))
     }
 
     // type_specifier ::= "void" | "char" | "short" | "int" | "long" | "float" | "double" | "bool"
     fn type_specifier(&mut self) -> Option<TypeKind> {
-        for specifier in TypeKind::all() {
-            if self.consume_keyword(&specifier.to_string()) {
-                return Some(specifier);
-            }
-        }
-        None
+        TypeKind::all()
+            .into_iter()
+            .find(|specifier| self.consume_keyword(&specifier.to_string()))
     }
 
     // specifier_qualifier_list ::= type_specifier_qualifier+
+    #[allow(dead_code)]
     fn specifier_qualifier_list(&mut self) -> Vec<TypeSpecifierQualifier> {
         let mut specifiers = Vec::new();
         while let Some(specifier) = self.type_specifier_qualifier() {
@@ -111,22 +106,16 @@ impl Ast {
 
     // type_qualifier ::= "const" | "volatile" | "restrict"
     fn type_qualifier(&mut self) -> Option<TypeQualifierKind> {
-        for qualifier in TypeQualifierKind::all() {
-            if self.consume_keyword(&qualifier.to_string()) {
-                return Some(qualifier);
-            }
-        }
-        None
+        TypeQualifierKind::all()
+            .into_iter()
+            .find(|qualifier| self.consume_keyword(&qualifier.to_string()))
     }
 
     // function_specifier ::= "inline"
     fn function_specifier(&mut self) -> Option<FunctionKind> {
-        for specifier in FunctionKind::all() {
-            if self.consume_keyword(&specifier.to_string()) {
-                return Some(specifier);
-            }
-        }
-        None
+        FunctionKind::all()
+            .into_iter()
+            .find(|specifier| self.consume_keyword(&specifier.to_string()))
     }
 
     // type_qualifier_list ::= type_qualifier*
@@ -139,6 +128,7 @@ impl Ast {
     }
 
     // pointer ::= "*" type_qualifier_list* pointer?
+    #[allow(clippy::never_loop)]
     fn pointer(&mut self, base_ty: Box<Type>) -> Box<Type> {
         while self.consume_punctuator("*") {
             return self.pointer(Box::new(Type::new_ptr(&base_ty)));
@@ -150,7 +140,7 @@ impl Ast {
     // declarator ::= pointer? direct_declarator
     pub(super) fn declarator(&mut self, base_kind: TypeKind) -> Result<Box<Var>, &str> {
         let ty = self.pointer(Box::new(Type::new(base_kind)));
-        return self.direct_declarator(ty);
+        self.direct_declarator(ty)
     }
 
     // direct_declarator ::= "(" declarator ")"
@@ -194,12 +184,12 @@ impl Ast {
     }
 
     // parameter_type_list ::= parameter_list
-    fn parameter_type_list(&mut self) -> Box<Vec<Var>> {
+    fn parameter_type_list(&mut self) -> Vec<Var> {
         self.parameter_list()
     }
 
     // parameter_list ::= parameter_declaration ("," parameter_declaration)*
-    fn parameter_list(&mut self) -> Box<Vec<Var>> {
+    fn parameter_list(&mut self) -> Vec<Var> {
         let mut params = Vec::new();
         if let Ok(param) = self.parameter_declaration() {
             params.push(*param);
@@ -209,7 +199,7 @@ impl Ast {
                 params.push(*param);
             }
         }
-        Box::new(params)
+        params
     }
 
     // parameter_declaration ::= declaration_specifiers declarator

@@ -1,3 +1,5 @@
+use core::str::FromStr;
+
 use crate::ast::Ast;
 use crate::node::{Node, NodeKind};
 use crate::types::TypeKind;
@@ -214,31 +216,31 @@ impl Ast {
             if self.consume_punctuator("+") {
                 // addition
                 let mut rhs = self.mul_expr();
-                if let Some(ty) = &node.as_ref().unwrap().ty {
-                    if ty.kind == TypeKind::Ptr || ty.kind == TypeKind::Array {
-                        // ポインタ加算の場合、スケーリングを考慮
-                        let size = ty.ptr_to.as_ref().unwrap().size_of();
-                        rhs = Some(Box::new(Node::new(
-                            NodeKind::Mul,
-                            rhs,
-                            Some(Box::new(Node::new_num(size))),
-                        )));
-                    }
+                if let Some(ty) = &node.as_ref().unwrap().ty
+                    && (ty.kind == TypeKind::Ptr || ty.kind == TypeKind::Array)
+                {
+                    // ポインタ加算の場合、スケーリングを考慮
+                    let size = ty.ptr_to.as_ref().unwrap().size_of();
+                    rhs = Some(Box::new(Node::new(
+                        NodeKind::Mul,
+                        rhs,
+                        Some(Box::new(Node::new_num(size))),
+                    )));
                 }
                 node = Some(Box::new(Node::new(NodeKind::Add, node, rhs)));
             } else if self.consume_punctuator("-") {
                 // subtraction
                 let mut rhs = self.mul_expr();
-                if let Some(ty) = &node.as_ref().unwrap().ty {
-                    if ty.kind == TypeKind::Ptr || ty.kind == TypeKind::Array {
-                        // ポインタ減算の場合、スケーリングを考慮
-                        let size = ty.ptr_to.as_ref().unwrap().size_of();
-                        rhs = Some(Box::new(Node::new(
-                            NodeKind::Mul,
-                            rhs,
-                            Some(Box::new(Node::new_num(size))),
-                        )));
-                    }
+                if let Some(ty) = &node.as_ref().unwrap().ty
+                    && (ty.kind == TypeKind::Ptr || ty.kind == TypeKind::Array)
+                {
+                    // ポインタ減算の場合、スケーリングを考慮
+                    let size = ty.ptr_to.as_ref().unwrap().size_of();
+                    rhs = Some(Box::new(Node::new(
+                        NodeKind::Mul,
+                        rhs,
+                        Some(Box::new(Node::new_num(size))),
+                    )));
                 }
                 node = Some(Box::new(Node::new(NodeKind::Sub, node, rhs)));
             } else {

@@ -19,7 +19,7 @@ fn main() {
         return;
     }
 
-    let tokenizer = Tokenizer::new();
+    let tokenizer = Tokenizer::default();
     let tokens = match tokenizer.tokenize(&args[1]) {
         Ok(tokens) => tokens,
         Err(e) => {
@@ -38,11 +38,11 @@ fn main() {
         println!("{:#?}", ast.globals);
         println!("=== Functions ===");
         println!("{:#?}", ast.funcs);
+    } else {
+        let mut generator = Generator::default();
+        generator.gen_asm(&ast);
+        generator.builder.optimize();
+        let code = generator.builder.build();
+        println!("{}", code);
     }
-
-    let mut generator = Generator::new();
-    generator.gen_asm(&ast);
-    generator.builder.optimize();
-    let code = generator.builder.build();
-    println!("{}", code);
 }

@@ -210,10 +210,10 @@ impl Type {
     // TODO: constやvolatileの情報も扱う
     pub fn from(declaration_specifiers: &Vec<DeclarationSpecifier>) -> Option<Self> {
         for specifier in declaration_specifiers {
-            if let DeclarationSpecifier::TypeSpecifierQualifier(tsq) = specifier {
-                if let TypeSpecifierQualifier::TypeSpecifier(type_kind) = tsq {
-                    return Some(Type::new(type_kind.clone()));
-                }
+            if let DeclarationSpecifier::TypeSpecifierQualifier(tsq) = specifier
+                && let TypeSpecifierQualifier::TypeSpecifier(type_kind) = tsq
+            {
+                return Some(Type::new(type_kind.clone()));
             }
         }
         None

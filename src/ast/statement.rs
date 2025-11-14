@@ -1,6 +1,5 @@
 use crate::ast::Ast;
 use crate::node::{Node, NodeKind};
-use crate::token::Token;
 
 impl Ast {
     // TODO: case文, default文の実装
@@ -12,7 +11,7 @@ impl Ast {
                 return Some(Box::new(node));
             } else {
                 // ラベル名ではなかった場合、トークンを元に戻す
-                self.tokens.insert(0, Token::Identifier(label_name));
+                self.retreat_token();
             }
         }
         None
@@ -24,7 +23,7 @@ impl Ast {
             let mut node = Node::from(NodeKind::Block);
             while !self.consume_punctuator("}") {
                 if let Some(vars) = self.declaration() {
-                    for var in *vars {
+                    for var in vars {
                         self.current_func.as_mut().unwrap().gen_lvar(var).unwrap();
                     }
                     continue;
@@ -178,11 +177,11 @@ impl Ast {
     // expr_stmt ::= expr? ";"
     fn expr_stmt(&mut self) -> Option<Box<Node>> {
         if self.consume_punctuator(";") {
-            return Some(Box::new(Node::from(NodeKind::Nop)));
+            Some(Box::new(Node::from(NodeKind::Nop)))
         } else {
             let expr_node = self.expr();
             self.expect_punctuator(";").unwrap();
-            return expr_node;
-        };
+            expr_node
+        }
     }
 }

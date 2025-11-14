@@ -9,6 +9,12 @@ pub struct AsmBuilder {
     rows: Vec<Row>,
 }
 
+impl Default for AsmBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AsmBuilder {
     pub fn new() -> Self {
         AsmBuilder { rows: Vec::new() }
@@ -26,7 +32,7 @@ impl AsmBuilder {
         let mut result = String::new();
         for row in &self.rows {
             if row.indent {
-                result.push_str("\t");
+                result.push('\t');
             }
             result.push_str(&row.elements.join(" "));
             result.push('\n');
