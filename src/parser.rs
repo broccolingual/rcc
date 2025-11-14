@@ -1,5 +1,7 @@
 use crate::token::Token;
-use crate::token::{RESERVED_SYMBOLS, RESERVED_TYPES, RESERVED_WORDS};
+use crate::token::{
+    RESERVED_SYMBOLS, RESERVED_WORDS, STORAGE_CLASSES, STRUCT_OR_UNION, TYPE_QUALIFIERS, TYPES,
+};
 use crate::types::TypeKind;
 
 pub struct Tokenizer {}
@@ -103,7 +105,7 @@ impl Tokenizer {
                         break;
                     }
                 }
-                if RESERVED_TYPES.contains(&ident.as_str()) {
+                if TYPES.contains(&ident.as_str()) {
                     // 型はTypeトークンとして扱う
                     let type_kind = match ident.as_str() {
                         "short" => TypeKind::Short,
@@ -112,6 +114,22 @@ impl Tokenizer {
                         _ => return Err(format!("未対応の型です: {}", ident)),
                     };
                     tokens.push(Token::Type(type_kind));
+                    continue;
+                } else if STRUCT_OR_UNION.contains(&ident.as_str()) {
+                    // structまたはunionはStructOrUnionトークンとして扱う
+                    tokens.push(Token::StructOrUnion(ident));
+                    continue;
+                } else if ident == "enum" {
+                    // enumはEnumトークンとして扱う
+                    tokens.push(Token::Enum);
+                    continue;
+                } else if TYPE_QUALIFIERS.contains(&ident.as_str()) {
+                    // 型修飾子はTypeQualifierトークンとして扱う
+                    tokens.push(Token::TypeQualifier(ident));
+                    continue;
+                } else if STORAGE_CLASSES.contains(&ident.as_str()) {
+                    // 記憶クラスはStorageClassトークンとして扱う
+                    tokens.push(Token::StorageClass(ident));
                     continue;
                 } else if RESERVED_WORDS.contains(&ident.as_str()) {
                     // 予約語はReservedトークンとして扱う
@@ -123,7 +141,6 @@ impl Tokenizer {
                     continue;
                 }
             }
-
             return Err(format!("不明な文字が含まれています: {}", c));
         }
         tokens.push(Token::EOF);

@@ -8,34 +8,47 @@ pub const RESERVED_SYMBOLS: [&str; 45] = [
     "->", "(", ")", "{", "}", "[", "]", ";", ",", ".", "?", ":",
 ];
 
-pub const RESERVED_TYPES: [&str; 12] = [
-    "int", "char", "void", "short", "long", "float", "double", "signed", "unsigned", "struct",
-    "union", "enum",
+pub const TYPES: [&str; 9] = [
+    "int", "char", "void", "short", "long", "float", "double", "signed", "unsigned",
 ];
 
-pub const RESERVED_WORDS: [&str; 20] = [
-    "auto", "break", "case", "const", "continue", "default", "do", "else", "extern", "for", "goto",
-    "if", "register", "return", "sizeof", "static", "switch", "typedef", "volatile", "while",
+pub const STRUCT_OR_UNION: [&str; 2] = ["struct", "union"];
+
+pub const TYPE_QUALIFIERS: [&str; 2] = ["const", "volatile"];
+
+pub const STORAGE_CLASSES: [&str; 5] = ["auto", "register", "static", "extern", "typedef"];
+
+pub const RESERVED_WORDS: [&str; 13] = [
+    "break", "case", "continue", "default", "do", "else", "for", "goto", "if", "return", "sizeof",
+    "switch", "while",
 ];
 
 #[derive(PartialEq, Eq, Clone)]
 pub enum Token {
-    Type(TypeKind),   // 型
-    Symbol(String),   // 記号トークン
-    Reserved(String), // 予約語
-    Ident(String),    // 識別子
-    Num(i64),         // 整数トークン
-    EOF,              // 入力の終わりを表すトークン
+    Type(TypeKind),        // 型
+    StructOrUnion(String), // structまたはunion
+    Enum,                  // enum
+    TypeQualifier(String), // 型修飾子
+    StorageClass(String),  // 記憶クラス
+    Symbol(String),        // 記号トークン
+    Reserved(String),      // 予約語
+    Ident(String),         // 識別子
+    Num(i64),              // 整数トークン
+    EOF,                   // 入力の終わりを表すトークン
 }
 
 impl fmt::Debug for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Token::Type(s) => write!(f, "Type    ('{:?}')", s),
-            Token::Symbol(s) => write!(f, "Symbol  ('{}')", s),
+            Token::Type(s) => write!(f, "Type('{:?}')", s),
+            Token::StructOrUnion(s) => write!(f, "StructOrUnion('{}')", s),
+            Token::Enum => write!(f, "Enum"),
+            Token::TypeQualifier(s) => write!(f, "TypeQualifier('{}')", s),
+            Token::StorageClass(s) => write!(f, "StorageClass('{}')", s),
+            Token::Symbol(s) => write!(f, "Symbol('{}')", s),
             Token::Reserved(s) => write!(f, "Reserved('{}')", s),
-            Token::Ident(s) => write!(f, "Ident   ('{}')", s),
-            Token::Num(n) => write!(f, "Num     ({})", n),
+            Token::Ident(s) => write!(f, "Ident('{}')", s),
+            Token::Num(n) => write!(f, "Num({})", n),
             Token::EOF => write!(f, "EOF"),
         }
     }
