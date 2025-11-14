@@ -309,13 +309,43 @@ impl Ast {
                 self.cast_expr(),
             )));
         }
-
-        let unary_ops = ["&", "*", "~", "!"];
-        for op in &unary_ops {
-            if self.consume_punctuator(op) {
-                let kind = NodeKind::from_str(op).unwrap();
-                return Some(Box::new(Node::new_unary(kind, self.cast_expr())));
-            }
+        if self.consume_punctuator("&") {
+            // address-of
+            return Some(Box::new(Node::new_unary(NodeKind::Addr, self.cast_expr())));
+        }
+        if self.consume_punctuator("*") {
+            // dereference
+            // デリファレンスした結果の型はポインタの指す型になるようにする
+            let cast_node = self.cast_expr();
+            let deref_ty = if let Some(ty) = &cast_node.as_ref().unwrap().ty {
+                if let Some(ptr_to) = &ty.ptr_to {
+                    Some(ptr_to.clone())
+                } else {
+                    panic!(
+                        "ポインタ型ではないものをデリファレンスしようとしました: {:?}",
+                        cast_node
+                    );
+                }
+            } else {
+                panic!("デリファレンス先の型情報がありません: {:?}", cast_node);
+            };
+            let mut node = Node::new_unary(NodeKind::Deref, cast_node);
+            node.ty = deref_ty;
+            return Some(Box::new(node));
+        }
+        if self.consume_punctuator("~") {
+            // bitwise not
+            return Some(Box::new(Node::new_unary(
+                NodeKind::BitNot,
+                self.cast_expr(),
+            )));
+        }
+        if self.consume_punctuator("!") {
+            // logical not
+            return Some(Box::new(Node::new_unary(
+                NodeKind::LogicalNot,
+                self.cast_expr(),
+            )));
         }
 
         if self.consume_keyword("sizeof") {
@@ -325,7 +355,7 @@ impl Ast {
                 let size = ty.size_of();
                 return Some(Box::new(Node::new_num(size)));
             } else {
-                panic!("sizeofのパースに失敗しました");
+                panic!("sizeofの型情報がありません: {:?}", node);
             }
         }
 

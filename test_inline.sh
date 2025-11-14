@@ -148,21 +148,20 @@ assert 8 '{ int a; int b; a = 3; b = 5; return a + b; }'
 assert 10 '{ int a; int b; int c; a = 3; b = 5; c = 2; return a + b + c; }'
 assert 55 'int sum; int i; sum = 0; for (i = 1; i <= 10; i = i + 1) sum = sum + i; return sum;'
 
-echo + pointer dereference and address-of
-assert 3 'int a; int b; a = 3; b = &a; return *b;'
-assert 3 'int a; int b; int c; a = 3; b = 5; c = &b + 8; return *c;'
-assert 7 'int a; int *p; p = &a; *p = 7; return a;'
-
 echo + sizeof operator
-assert 8 'int x; return sizeof(x);' # TODO: INT型を4バイトに変更したら4に修正すること
+assert 4 'int x; return sizeof(x);'
 assert 8 'int *p; return sizeof(p);'
-assert 8 'return sizeof 1;' # TODO: INT型を4バイトに変更したら4に修正すること
-# assert 8 'int x; return sizeof(x + 3);' # TODO: 木を辿って型を判定する必要アリ
+assert 4 'return sizeof 1;'
+assert 8 'int x; return sizeof(x + 3);'
 
 echo + operator precedence and associativity
 assert 8 'return 1 << 2 + 1;'           # 1 << (2 + 1) = 8
 assert 5 'return (1 << 2) + 1;'        # (1 << 2) + 1 = 5
 assert 0 'return 1 ^ 2 ^ 3;'           # (1 ^ 2) ^ 3 = 0
 assert 1 'return 1 < 2 < 3;'           # (1 < 2) = 1, then 1 < 3 -> 1
+
+echo + pointer dereference and address-of
+assert 3 'int a; int *b; a = 3; b = &a; return *b;'
+assert 7 'int a; int *p; p = &a; *p = 7; return a;'
 
 echo OK

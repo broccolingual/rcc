@@ -258,7 +258,7 @@ impl Type {
             TypeKind::Void => 0,
             TypeKind::Char => 1,
             TypeKind::Short => 2,
-            TypeKind::Int => 8, // TODO: 一旦8バイト固定
+            TypeKind::Int => 4,
             TypeKind::Long => 8,
             TypeKind::Float => 4,
             TypeKind::Double => 8,

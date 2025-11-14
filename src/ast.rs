@@ -212,14 +212,12 @@ impl Ast {
     //                          | declaration
     fn external_declaration(&mut self) -> Result<(), &str> {
         // 関数定義
-        // let saved_tokens = self.tokens.clone();
         let token_pos = self.token_pos;
         if let Ok(func) = self.func_def() {
             self.funcs.push(func);
             return Ok(());
         }
 
-        // self.tokens = saved_tokens;
         self.token_pos = token_pos;
         // グローバル変数宣言
         if let Some(vars) = self.declaration() {

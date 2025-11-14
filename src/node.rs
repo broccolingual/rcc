@@ -1,4 +1,4 @@
-use core::str;
+use core::{fmt, str};
 
 use crate::types::{Type, TypeKind};
 
@@ -73,46 +73,12 @@ impl str::FromStr for NodeKind {
             "&=" => Ok(NodeKind::BitAndAssign),
             "^=" => Ok(NodeKind::BitXorAssign),
             "|=" => Ok(NodeKind::BitOrAssign),
-            // unary operators
-            "&" => Ok(NodeKind::Addr),
-            "*" => Ok(NodeKind::Deref),
-            "+" => Ok(NodeKind::Add),
-            "-" => Ok(NodeKind::Sub),
-            "~" => Ok(NodeKind::BitNot),
-            "!" => Ok(NodeKind::LogicalNot),
             _ => Err(()),
         }
     }
 }
 
-impl NodeKind {
-    // pub fn from_str(sym: &str) -> Option<Self> {
-    //     match sym {
-    //         // assignment operators
-    //         "=" => Some(NodeKind::Assign),
-    //         "*=" => Some(NodeKind::MulAssign),
-    //         "/=" => Some(NodeKind::DivAssign),
-    //         "%=" => Some(NodeKind::RemAssign),
-    //         "+=" => Some(NodeKind::AddAssign),
-    //         "-=" => Some(NodeKind::SubAssign),
-    //         "<<=" => Some(NodeKind::ShlAssign),
-    //         ">>=" => Some(NodeKind::ShrAssign),
-    //         "&=" => Some(NodeKind::BitAndAssign),
-    //         "^=" => Some(NodeKind::BitXorAssign),
-    //         "|=" => Some(NodeKind::BitOrAssign),
-    //         // unary operators
-    //         "&" => Some(NodeKind::Addr),
-    //         "*" => Some(NodeKind::Deref),
-    //         "+" => Some(NodeKind::Add),
-    //         "-" => Some(NodeKind::Sub),
-    //         "~" => Some(NodeKind::BitNot),
-    //         "!" => Some(NodeKind::LogicalNot),
-    //         _ => None,
-    //     }
-    // }
-}
-
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Node {
     pub kind: NodeKind,
     pub lhs: Option<Box<Node>>,
@@ -130,6 +96,28 @@ pub struct Node {
     pub label_name: String,      // ラベル名
     pub func_name: String,       // 関数名
     pub args: Vec<Box<Node>>,    // 関数呼び出しの引数リスト
+}
+
+impl fmt::Debug for Node {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Node {{ {:?}, ty: {:?}", self.kind, self.ty)?;
+        if let Some(ref lhs) = self.lhs {
+            write!(f, ", lhs: {:?}", lhs)?;
+        }
+        if let Some(ref rhs) = self.rhs {
+            write!(f, ", rhs: {:?}", rhs)?;
+        }
+        if self.val != 0 {
+            write!(f, ", val: {}", self.val)?;
+        }
+        if self.offset != 0 {
+            write!(f, ", offset: {}", self.offset)?;
+        }
+        if !self.name.is_empty() {
+            write!(f, ", name: {}", self.name)?;
+        }
+        write!(f, " }}")
+    }
 }
 
 impl Node {

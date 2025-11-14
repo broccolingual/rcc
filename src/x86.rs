@@ -3,9 +3,9 @@ use crate::ast::Ast;
 use crate::node::{Node, NodeKind};
 use crate::types::TypeKind;
 
-// const ARG_BYTE_REGS: [&str; 6] = ["dil", "sil", "dl", "cl", "r8b", "r9b"];
-// const ARG_WORD_REGS: [&str; 6] = ["di", "si", "dx", "cx", "r8w", "r9w"];
-// const ARG_DWORD_REGS: [&str; 6] = ["edi", "esi", "edx", "ecx", "r8d", "r9d"];
+const ARG_BYTE_REGS: [&str; 6] = ["dil", "sil", "dl", "cl", "r8b", "r9b"];
+const ARG_WORD_REGS: [&str; 6] = ["di", "si", "dx", "cx", "r8w", "r9w"];
+const ARG_DWORD_REGS: [&str; 6] = ["edi", "esi", "edx", "ecx", "r8d", "r9d"];
 const ARG_QWORD_REGS: [&str; 6] = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
 
 pub struct Generator {
@@ -74,10 +74,33 @@ impl Generator {
 
             // 引数を逆順でスタックから読み出し
             for (i, arg) in func.locals.iter().rev().enumerate() {
-                self.builder.add_row(
-                    &format!("  mov [rbp-{}], {}", arg.offset, ARG_QWORD_REGS[i]),
-                    true,
-                );
+                match arg.ty.size_of() {
+                    1 => {
+                        self.builder.add_row(
+                            &format!("  mov [rbp-{}], {}", arg.offset, ARG_BYTE_REGS[i]),
+                            true,
+                        );
+                    }
+                    2 => {
+                        self.builder.add_row(
+                            &format!("  mov [rbp-{}], {}", arg.offset, ARG_WORD_REGS[i]),
+                            true,
+                        );
+                    }
+                    4 => {
+                        self.builder.add_row(
+                            &format!("  mov [rbp-{}], {}", arg.offset, ARG_DWORD_REGS[i]),
+                            true,
+                        );
+                    }
+                    8 => {
+                        self.builder.add_row(
+                            &format!("  mov [rbp-{}], {}", arg.offset, ARG_QWORD_REGS[i]),
+                            true,
+                        );
+                    }
+                    _ => panic!("未対応の引数サイズ: {}", arg.ty.size_of()),
+                }
             }
 
             // 関数本体のコード生成
@@ -117,17 +140,57 @@ impl Generator {
     }
 
     // スタックトップのアドレスから値を読み出してスタックに積む
-    fn load(&mut self) {
+    fn load(&mut self, node: &Node) {
         self.builder.add_row("pop rax", true);
-        self.builder.add_row("mov rax, [rax]", true);
+        if node.ty.is_none() {
+            panic!("load先の型情報がありません: {:?}", node);
+        }
+        match node.ty.as_ref().unwrap().size_of() {
+            1 => {
+                self.builder.add_row("movsx rax, BYTE PTR [rax]", true);
+            }
+            2 => {
+                self.builder.add_row("movsx rax, WORD PTR [rax]", true);
+            }
+            4 => {
+                self.builder.add_row("movsxd rax, DWORD PTR [rax]", true);
+            }
+            8 => {
+                self.builder.add_row("mov rax, QWORD PTR [rax]", true);
+            }
+            _ => panic!(
+                "未対応のロードサイズ: {}",
+                node.ty.as_ref().unwrap().size_of()
+            ),
+        }
         self.builder.add_row("push rax", true);
     }
 
     // スタックトップの値をアドレスに格納する
-    fn store(&mut self) {
+    fn store(&mut self, node: &Node) {
         self.builder.add_row("pop rdi", true);
         self.builder.add_row("pop rax", true);
-        self.builder.add_row("mov [rax], rdi", true);
+        if node.ty.is_none() {
+            panic!("store先の型情報がありません: {:?}", node);
+        }
+        match node.ty.as_ref().unwrap().size_of() {
+            1 => {
+                self.builder.add_row("mov BYTE PTR [rax], dil", true);
+            }
+            2 => {
+                self.builder.add_row("mov WORD PTR [rax], di", true);
+            }
+            4 => {
+                self.builder.add_row("mov DWORD PTR [rax], edi", true);
+            }
+            8 => {
+                self.builder.add_row("mov QWORD PTR [rax], rdi", true);
+            }
+            _ => panic!(
+                "未対応のストアサイズ: {}",
+                node.ty.as_ref().unwrap().size_of()
+            ),
+        }
         self.builder.add_row("push rdi", true);
     }
 
@@ -157,14 +220,14 @@ impl Generator {
             NodeKind::LVar | NodeKind::GVar => {
                 self.get_val(node);
                 if node.ty.as_ref().unwrap().kind != TypeKind::Array {
-                    self.load(); // 配列型以外は値を読み出す
+                    self.load(node); // 配列型以外は値を読み出す
                 }
                 return;
             }
             NodeKind::Assign => {
                 self.get_val(node.lhs.as_ref().unwrap());
                 self.gen_asm_from_expr(node.rhs.as_ref().unwrap());
-                self.store();
+                self.store(node.lhs.as_ref().unwrap());
                 return;
             }
             NodeKind::Ternary => {
@@ -184,34 +247,34 @@ impl Generator {
             NodeKind::PreInc => {
                 self.get_val(node.lhs.as_ref().unwrap());
                 self.builder.add_row("push [rsp]", true);
-                self.load();
+                self.load(node.lhs.as_ref().unwrap());
                 self.inc();
-                self.store();
+                self.store(node.lhs.as_ref().unwrap());
                 return;
             }
             NodeKind::PreDec => {
                 self.get_val(node.lhs.as_ref().unwrap());
                 self.builder.add_row("push [rsp]", true);
-                self.load();
+                self.load(node.lhs.as_ref().unwrap());
                 self.dec();
-                self.store();
+                self.store(node.lhs.as_ref().unwrap());
                 return;
             }
             NodeKind::PostInc => {
                 self.get_val(node.lhs.as_ref().unwrap());
                 self.builder.add_row("push [rsp]", true);
-                self.load();
+                self.load(node.lhs.as_ref().unwrap());
                 self.inc();
-                self.store();
+                self.store(node.lhs.as_ref().unwrap());
                 self.dec();
                 return;
             }
             NodeKind::PostDec => {
                 self.get_val(node.lhs.as_ref().unwrap());
                 self.builder.add_row("push [rsp]", true);
-                self.load();
+                self.load(node.lhs.as_ref().unwrap());
                 self.dec();
-                self.store();
+                self.store(node.lhs.as_ref().unwrap());
                 self.inc();
                 return;
             }
@@ -227,10 +290,10 @@ impl Generator {
             | NodeKind::ShrAssign => {
                 self.get_val(node.lhs.as_ref().unwrap());
                 self.builder.add_row("push [rsp]", true);
-                self.load();
+                self.load(node.lhs.as_ref().unwrap());
                 self.gen_asm_from_expr(node.rhs.as_ref().unwrap());
                 self.gen_asm_from_binary_op(node);
-                self.store();
+                self.store(node.lhs.as_ref().unwrap());
                 return;
             }
             NodeKind::LogicalNot => {
@@ -255,7 +318,7 @@ impl Generator {
             }
             NodeKind::Deref => {
                 self.gen_asm_from_expr(node.lhs.as_ref().unwrap());
-                self.load();
+                self.load(node.lhs.as_ref().unwrap());
                 return;
             }
             NodeKind::LogicalAnd => {
