@@ -1,89 +1,96 @@
 use crate::ast::{Ast, Var};
-use crate::types::Type;
+use crate::types::{
+    DeclarationSpecifier, FunctionKind, StorageClassKind, Type, TypeKind, TypeQualifierKind,
+    TypeSpecifierQualifier,
+};
 
 impl Ast {
-    // declaration ::= declarator ";"
-    pub(super) fn declaration(&mut self) -> Option<Result<Var, Var>> {
-        // declaratorのみパース出来た場合は，ErrとしてVarを返す
-        if let Ok(var) = self.declarator() {
-            if self.consume_punctuator(";") {
-                return Some(Ok(var));
-            }
-            return Some(Err(var));
+    // declaration ::= declaration_specifiers init_declarator_list ";"
+    pub(super) fn declaration(&mut self) -> Option<Box<Vec<Var>>> {
+        let specifiers = self.declaration_specifiers();
+        if specifiers.is_empty() {
+            return None;
         }
-        None
+        let base_kind = Type::from(&specifiers).unwrap().kind;
+        let vars = self.init_declarator_list(base_kind);
+        if vars.is_empty() {
+            return None;
+        }
+        self.expect_punctuator(";").unwrap();
+        Some(vars)
     }
 
     // declaration_specifiers ::= declaration_specifier+
-    fn declaration_specifiers(&mut self) -> Vec<String> {
+    pub(super) fn declaration_specifiers(&mut self) -> Box<Vec<DeclarationSpecifier>> {
         let mut specifiers = Vec::new();
         while let Some(specifier) = self.declaration_specifier() {
             specifiers.push(specifier);
         }
-        specifiers
+        Box::new(specifiers)
     }
 
     // declaration_specifier ::= storage_class_specifier | type_specifier_qualifier | function_specifier
-    fn declaration_specifier(&mut self) -> Option<String> {
+    pub(super) fn declaration_specifier(&mut self) -> Option<DeclarationSpecifier> {
         if let Some(storage_class_specifier) = self.storage_class_specifier() {
-            return Some(storage_class_specifier);
+            return Some(DeclarationSpecifier::StorageClassSpecifier(
+                storage_class_specifier,
+            ));
         }
         if let Some(type_specifier_qualifier) = self.type_specifier_qualifier() {
-            return Some(type_specifier_qualifier);
+            return Some(DeclarationSpecifier::TypeSpecifierQualifier(
+                type_specifier_qualifier,
+            ));
         }
         if let Some(function_specifier) = self.function_specifier() {
-            return Some(function_specifier);
+            return Some(DeclarationSpecifier::FunctionSpecifier(function_specifier));
         }
         None
+    }
+
+    // init_declarator_list ::= init_declarator ("," init_declarator)*
+    fn init_declarator_list(&mut self, base_kind: TypeKind) -> Box<Vec<Var>> {
+        let mut vars = Vec::new();
+        if let Some(var) = self.init_declarator(base_kind.clone()) {
+            vars.push(*var);
+        }
+        while self.consume_punctuator(",") {
+            if let Some(var) = self.init_declarator(base_kind.clone()) {
+                vars.push(*var);
+            }
+        }
+        Box::new(vars)
     }
 
     // init_declarator ::= declarator
-    fn init_declarator(&mut self) -> Option<Var> {
-        unimplemented!("init_declaratorは未実装です");
+    fn init_declarator(&mut self, base_kind: TypeKind) -> Option<Box<Var>> {
+        if let Ok(var) = self.declarator(base_kind) {
+            return Some(var);
+        }
+        None
     }
 
     // storage_class_specifier ::= "auto" | "constexpr" | "extern" | "register" | "static" | "thread_local" | "typedef"
-    fn storage_class_specifier(&mut self) -> Option<String> {
-        for specifier in [
-            "auto",
-            "constexpr",
-            "extern",
-            "register",
-            "static",
-            "thread_local",
-            "typedef",
-        ] {
-            if self.consume_keyword(specifier) {
-                return Some(specifier.to_string());
+    fn storage_class_specifier(&mut self) -> Option<StorageClassKind> {
+        for specifier in StorageClassKind::all() {
+            if self.consume_keyword(&specifier.to_string()) {
+                return Some(specifier);
             }
         }
         None
     }
 
-    // type_specifier ::= "void" | "char" | "short" | "int" | "long" | "float" | "double" | "signed" | "unsigned" | "bool"
-    fn type_specifier(&mut self) -> Option<String> {
-        for specifier in [
-            "void", "char", "short", "int", "long", "float", "double", "signed", "unsigned", "bool",
-        ] {
-            if self.consume_keyword(specifier) {
-                return Some(specifier.to_string());
-            }
-        }
-        None
-    }
-
-    // function_specifier ::= "inline"
-    fn function_specifier(&mut self) -> Option<String> {
-        for specifier in ["inline"] {
-            if self.consume_keyword(specifier) {
-                return Some(specifier.to_string());
+    // type_specifier ::= "void" | "char" | "short" | "int" | "long" | "float" | "double" | "bool"
+    fn type_specifier(&mut self) -> Option<TypeKind> {
+        for specifier in TypeKind::all() {
+            if self.consume_keyword(&specifier.to_string()) {
+                return Some(specifier);
             }
         }
         None
     }
 
     // specifier_qualifier_list ::= type_specifier_qualifier+
-    fn specifier_qualifier_list(&mut self) -> Vec<String> {
+    fn specifier_qualifier_list(&mut self) -> Vec<TypeSpecifierQualifier> {
         let mut specifiers = Vec::new();
         while let Some(specifier) = self.type_specifier_qualifier() {
             specifiers.push(specifier);
@@ -92,28 +99,38 @@ impl Ast {
     }
 
     // type_specifier_qualifier ::= type_specifier | type_qualifier
-    fn type_specifier_qualifier(&mut self) -> Option<String> {
+    fn type_specifier_qualifier(&mut self) -> Option<TypeSpecifierQualifier> {
         if let Some(specifier) = self.type_specifier() {
-            return Some(specifier);
+            return Some(TypeSpecifierQualifier::TypeSpecifier(specifier));
         }
         if let Some(qualifier) = self.type_qualifier() {
-            return Some(qualifier);
+            return Some(TypeSpecifierQualifier::TypeQualifier(qualifier));
         }
         None
     }
 
     // type_qualifier ::= "const" | "volatile" | "restrict"
-    fn type_qualifier(&mut self) -> Option<String> {
-        for qualifier in ["const", "volatile", "restrict"] {
-            if self.consume_keyword(qualifier) {
-                return Some(qualifier.to_string());
+    fn type_qualifier(&mut self) -> Option<TypeQualifierKind> {
+        for qualifier in TypeQualifierKind::all() {
+            if self.consume_keyword(&qualifier.to_string()) {
+                return Some(qualifier);
+            }
+        }
+        None
+    }
+
+    // function_specifier ::= "inline"
+    fn function_specifier(&mut self) -> Option<FunctionKind> {
+        for specifier in FunctionKind::all() {
+            if self.consume_keyword(&specifier.to_string()) {
+                return Some(specifier);
             }
         }
         None
     }
 
     // type_qualifier_list ::= type_qualifier*
-    fn type_qualifier_list(&mut self) -> Vec<String> {
+    fn type_qualifier_list(&mut self) -> Vec<TypeQualifierKind> {
         let mut qualifiers = Vec::new();
         while let Some(qualifier) = self.type_qualifier() {
             qualifiers.push(qualifier);
@@ -121,43 +138,89 @@ impl Ast {
         qualifiers
     }
 
-    // pointer ::= "*" pointer?
-    fn pointer(&mut self, ty: Type) -> Type {
+    // pointer ::= "*" type_qualifier_list* pointer?
+    fn pointer(&mut self, base_ty: Box<Type>) -> Box<Type> {
         while self.consume_punctuator("*") {
-            return self.pointer(Type::new_ptr(&ty));
+            return self.pointer(Box::new(Type::new_ptr(&base_ty)));
         }
-        ty
-    }
-
-    // direct_declarator ::= ident
-    //                       | ident "[" number "]"
-    fn direct_declarator(&mut self, ty: Type) -> Result<Var, &str> {
-        if let Some(name) = self.consume_ident() {
-            let new_ty;
-            if self.consume_punctuator("[") {
-                // 配列型の処理
-                let array_size = self.expect_number().unwrap() as usize;
-                self.expect_punctuator("]").unwrap();
-                let array_ty = Type::new_array(&ty, array_size);
-                new_ty = array_ty;
-            } else {
-                // 通常の変数型の場合
-                new_ty = ty;
-            }
-            return Ok(Var::new(&name, new_ty));
-        }
-        Err("direct_declaratorのパースに失敗しました")
+        self.type_qualifier_list(); // 現状は型修飾子を無視
+        base_ty
     }
 
     // declarator ::= pointer? direct_declarator
-    pub(super) fn declarator(&mut self) -> Result<Var, &str> {
-        if self.consume_keyword("int") {
-            // ポインタを処理
-            let ty = self.pointer(Type::new_int());
+    pub(super) fn declarator(&mut self, base_kind: TypeKind) -> Result<Box<Var>, &str> {
+        let ty = self.pointer(Box::new(Type::new(base_kind)));
+        return self.direct_declarator(ty);
+    }
 
-            // 変数名を取得
-            return self.direct_declarator(ty);
+    // direct_declarator ::= "(" declarator ")"
+    //                       | ident
+    //                       | array_declarator
+    //                       | function_declarator
+    fn direct_declarator(&mut self, ty: Box<Type>) -> Result<Box<Var>, &str> {
+        let mut var = if self.consume_punctuator("(") {
+            if let Ok(v) = self.declarator(ty.kind.clone()) {
+                self.expect_punctuator(")").unwrap();
+                v
+            } else {
+                return Err("direct_declarator: parentheses declarator failed");
+            }
+        } else if let Some(name) = self.consume_ident() {
+            Box::new(Var::new(&name, *ty.clone()))
+        } else {
+            return Err("direct_declaratorのパースに失敗しました");
+        };
+
+        loop {
+            // array_declarator
+            if self.consume_punctuator("[") {
+                let array_size = self.expect_number().unwrap() as usize;
+                self.expect_punctuator("]").unwrap();
+                let array_ty = Type::new_array(&var.ty, array_size);
+                var = Box::new(Var::new(&var.name, array_ty));
+                continue;
+            }
+            // function_declarator
+            if self.consume_punctuator("(") {
+                let params = self.parameter_type_list();
+                self.expect_punctuator(")").unwrap();
+                let func_ty = Type::new_func(&var.ty, params.to_vec());
+                var = Box::new(Var::new(&var.name, func_ty));
+                continue;
+            }
+            break;
         }
-        Err("declaratorのパースに失敗しました")
+        Ok(var)
+    }
+
+    // parameter_type_list ::= parameter_list
+    fn parameter_type_list(&mut self) -> Box<Vec<Var>> {
+        self.parameter_list()
+    }
+
+    // parameter_list ::= parameter_declaration ("," parameter_declaration)*
+    fn parameter_list(&mut self) -> Box<Vec<Var>> {
+        let mut params = Vec::new();
+        if let Ok(param) = self.parameter_declaration() {
+            params.push(*param);
+        }
+        while self.consume_punctuator(",") {
+            if let Ok(param) = self.parameter_declaration() {
+                params.push(*param);
+            }
+        }
+        Box::new(params)
+    }
+
+    // parameter_declaration ::= declaration_specifiers declarator
+    fn parameter_declaration(&mut self) -> Result<Box<Var>, &str> {
+        let specifiers = self.declaration_specifiers();
+        if !specifiers.is_empty() {
+            let base_kind = Type::from(&specifiers).unwrap().kind;
+            if let Ok(var) = self.declarator(base_kind) {
+                return Ok(var);
+            }
+        }
+        Err("parameter_declarationのパースに失敗しました")
     }
 }

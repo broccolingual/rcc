@@ -184,30 +184,29 @@ impl Ast {
     // translation_unit ::= external_declaration*
     pub fn translation_unit(&mut self) {
         while !self.at_eof() {
-            if let Some(func) = self.external_declaration() {
-                self.funcs.push(func);
+            if self.external_declaration().is_ok() {
+                continue;
             }
         }
     }
 
     // external_declaration ::= func_def
     //                          | declaration
-    fn external_declaration(&mut self) -> Option<Box<Function>> {
-        if let Some(result) = self.declaration() {
-            match result {
-                Ok(var) => {
-                    // グローバル変数宣言
-                    self.gen_gvar(var).unwrap();
-                    return None;
-                }
-                Err(var) => {
-                    // 関数定義
-                    if let Ok(func) = self.func_def(var) {
-                        return Some(func);
-                    }
-                    panic!("関数定義のパースに失敗しました");
-                }
+    fn external_declaration(&mut self) -> Result<(), &str> {
+        // 関数定義
+        let saved_tokens = self.tokens.clone();
+        if let Ok(func) = self.func_def() {
+            self.funcs.push(func);
+            return Ok(());
+        }
+
+        self.tokens = saved_tokens;
+        // グローバル変数宣言
+        if let Some(vars) = self.declaration() {
+            for var in *vars {
+                self.gen_gvar(var).unwrap();
             }
+            return Ok(());
         }
         panic!("external_declarationのパースに失敗しました");
     }
@@ -217,34 +216,31 @@ impl Ast {
         self.compound_stmt()
     }
 
-    // func_def ::= "(" (declarator ("," declarator)*)? ")" func_body
-    fn func_def(&mut self, global_info: Var) -> Result<Box<Function>, &str> {
-        if self.consume_punctuator("(") {
-            // 関数の引数のパース（型情報もパース）
-            let mut func = Function::new(&global_info.name);
-            loop {
-                if let Ok(param) = self.declarator() {
-                    func.gen_lvar(param).unwrap();
-                }
-                if !self.consume_punctuator(",") {
-                    break;
-                }
-            }
-            self.expect_punctuator(")").unwrap();
-            if self.consume_punctuator(";") {
-                // 関数プロトタイプ宣言
-                return Err("関数プロトタイプ宣言はサポートされていません");
-            }
-
-            self.current_func = Some(Box::new(func)); // 現在の関数を設定
-
-            // 関数本体のパース
-            if let Some(node) = self.func_body() {
-                self.current_func.as_mut().unwrap().body = node.body;
-                return Ok(self.current_func.take().unwrap());
-            }
-            return Err("関数本体のパースに失敗しました");
+    // func_def ::= declaration_specifier declarator func_body
+    fn func_def(&mut self) -> Result<Box<Function>, &str> {
+        let specifier = self.declaration_specifier();
+        let base_kind = if let Some(specifier) = specifier {
+            Type::from(&vec![specifier]).unwrap().kind
+        } else {
+            return Err("関数定義のパースに失敗しました");
+        };
+        let func_decl = if let Ok(var) = self.declarator(base_kind) {
+            var
+        } else {
+            return Err("関数の引数定義のパースに失敗しました");
+        };
+        let mut func = Box::new(Function::new(&func_decl.name));
+        for param in func_decl.ty.params.unwrap_or_default() {
+            func.gen_lvar(param).unwrap();
         }
-        Err("関数の引数リストのパースに失敗しました")
+        self.current_func = Some(func);
+        let func_body = if let Some(func_body) = self.func_body() {
+            func_body
+        } else {
+            return Err("関数本体のパースに失敗しました");
+        };
+        func = self.current_func.take().unwrap();
+        func.body = func_body.body;
+        Ok(func)
     }
 }

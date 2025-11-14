@@ -23,8 +23,10 @@ impl Ast {
         if self.consume_punctuator("{") {
             let mut node = Node::from(NodeKind::Block);
             while !self.consume_punctuator("}") {
-                if let Some(Ok(var)) = self.declaration() {
-                    self.current_func.as_mut().unwrap().gen_lvar(var).unwrap();
+                if let Some(vars) = self.declaration() {
+                    for var in *vars {
+                        self.current_func.as_mut().unwrap().gen_lvar(var).unwrap();
+                    }
                     continue;
                 } else if let Some(stmt) = self.stmt() {
                     node.body.push(stmt);
