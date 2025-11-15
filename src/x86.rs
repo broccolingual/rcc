@@ -79,8 +79,10 @@ impl Generator {
             // ローカル変数の最大オフセットに基づいてスタック領域を計算
             let max_offset = func.locals.first().map_or(0, |arg| arg.offset);
             let stack_size = ((max_offset + 15) / 16) * 16; // 16バイトアラインメント
-            self.builder
-                .add_row(&format!("sub rsp, {}", stack_size), true);
+            if stack_size > 0 {
+                self.builder
+                    .add_row(&format!("sub rsp, {}", stack_size), true);
+            }
 
             // 引数を逆順でスタックから読み出し
             for (i, arg) in func.locals.iter().rev().enumerate() {
@@ -121,8 +123,7 @@ impl Generator {
             // 関数エピローグ
             self.builder
                 .add_row(&format!(".L.return.{}:", self.func_name), false);
-            self.builder.add_row("mov rsp, rbp", true);
-            self.builder.add_row("pop rbp", true);
+            self.builder.add_row("leave", true);
             self.builder.add_row("ret", true);
         }
         // スタックを実行不可に設定
@@ -525,24 +526,9 @@ impl Generator {
                     self.builder.add_row(&format!("pop {}", reg), true);
                 }
 
+                // 関数呼び出し（アラインメントは揃っているはず）
                 self.builder.add_row("mov al, 0", true); // 浮動小数点は使わないので0に設定
-
-                // 関数呼び出し
-                // アラインメントを保つためにrspを調整
-                let seq = self.label_seq;
-                self.label_seq += 1;
-                self.builder.add_row("mov rax, rsp", true); // 現在のrspをraxにコピー
-                self.builder.add_row("and rax, 15", true); // rspを16
-                self.builder.add_row(&format!("jnz .L.align.{}", seq), true); // もし16の倍数でなければ調整
-                self.builder.add_row("mov rax, 0", true); // ダミーのrax設定
                 self.builder.add_row(&format!("call {}", node.name), true); // 関数呼び出し
-                self.builder.add_row(&format!("jmp .L.end.{}", seq), true);
-                self.builder.add_row(&format!(".L.align.{}:", seq), false); // 16の倍数でない場合の処理
-                self.builder.add_row("sub rsp, 8", true); // スタックを8バイト下げる
-                self.builder.add_row("mov rax, 0", true); // ダミーのrax設定
-                self.builder.add_row(&format!("call {}", node.name), true); // 関数呼び出し
-                self.builder.add_row("add rsp, 8", true); // スタックを元に戻す
-                self.builder.add_row(&format!(".L.end.{}:", seq), false);
                 self.builder.add_row("push rax", true); // 戻り値をスタックに積む
                 return;
             }
