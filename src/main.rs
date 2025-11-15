@@ -30,6 +30,9 @@ fn main() {
     let mut ast = Ast::new(&tokens);
     ast.translation_unit();
 
+    let mut generator = Generator::default();
+    generator.gen_asm(&ast);
+
     let debug = false;
     if debug {
         // println!("=== Tokens ===");
@@ -39,8 +42,6 @@ fn main() {
         println!("=== Functions ===");
         println!("{:#?}", ast.funcs);
     } else {
-        let mut generator = Generator::default();
-        generator.gen_asm(&ast);
         generator.builder.optimize();
         let code = generator.builder.build();
         println!("{}", code);

@@ -2,7 +2,7 @@ use core::str::FromStr;
 
 use crate::ast::Ast;
 use crate::node::{Node, NodeKind};
-use crate::types::TypeKind;
+use crate::types::{Type, TypeKind};
 
 impl Ast {
     // constant_expr ::= conditional_expr
@@ -215,7 +215,9 @@ impl Ast {
         loop {
             if self.consume_punctuator("+") {
                 // addition
+                self.assign_types(&mut node); // lhs
                 let mut rhs = self.mul_expr();
+                self.assign_types(&mut rhs); // rhs
                 if let Some(ty) = &node.as_ref().unwrap().ty
                     && (ty.kind == TypeKind::Ptr || ty.kind == TypeKind::Array)
                 {
@@ -228,9 +230,25 @@ impl Ast {
                     )));
                 }
                 node = Some(Box::new(Node::new(NodeKind::Add, node, rhs)));
+
+                // let mut rhs = self.mul_expr();
+                // if let Some(ty) = &node.as_ref().unwrap().ty
+                //     && (ty.kind == TypeKind::Ptr || ty.kind == TypeKind::Array)
+                // {
+                //     // ポインタ加算の場合、スケーリングを考慮
+                //     let size = ty.ptr_to.as_ref().unwrap().size_of();
+                //     rhs = Some(Box::new(Node::new(
+                //         NodeKind::Mul,
+                //         rhs,
+                //         Some(Box::new(Node::new_num(size))),
+                //     )));
+                // }
+                // node = Some(Box::new(Node::new(NodeKind::Add, node, rhs)));
             } else if self.consume_punctuator("-") {
                 // subtraction
+                self.assign_types(&mut node); // lhs
                 let mut rhs = self.mul_expr();
+                self.assign_types(&mut rhs); // rhs
                 if let Some(ty) = &node.as_ref().unwrap().ty
                     && (ty.kind == TypeKind::Ptr || ty.kind == TypeKind::Array)
                 {
@@ -243,6 +261,20 @@ impl Ast {
                     )));
                 }
                 node = Some(Box::new(Node::new(NodeKind::Sub, node, rhs)));
+
+                // let mut rhs = self.mul_expr();
+                // if let Some(ty) = &node.as_ref().unwrap().ty
+                //     && (ty.kind == TypeKind::Ptr || ty.kind == TypeKind::Array)
+                // {
+                //     // ポインタ減算の場合、スケーリングを考慮
+                //     let size = ty.ptr_to.as_ref().unwrap().size_of();
+                //     rhs = Some(Box::new(Node::new(
+                //         NodeKind::Mul,
+                //         rhs,
+                //         Some(Box::new(Node::new_num(size))),
+                //     )));
+                // }
+                // node = Some(Box::new(Node::new(NodeKind::Sub, node, rhs)));
             } else {
                 return node;
             }
@@ -311,27 +343,21 @@ impl Ast {
         }
         if self.consume_punctuator("&") {
             // address-of
-            return Some(Box::new(Node::new_unary(NodeKind::Addr, self.cast_expr())));
+            let mut node = Some(Box::new(Node::new_unary(NodeKind::Addr, self.cast_expr())));
+            self.assign_types(&mut node);
+            if node.is_some() && node.as_ref().unwrap().ty.is_none() {
+                panic!("&演算子の型情報が設定されていません: {:?}", node);
+            }
+            return node;
         }
         if self.consume_punctuator("*") {
             // dereference
-            // デリファレンスした結果の型はポインタの指す型になるようにする
-            let cast_node = self.cast_expr();
-            let deref_ty = if let Some(ty) = &cast_node.as_ref().unwrap().ty {
-                if let Some(ptr_to) = &ty.ptr_to {
-                    Some(ptr_to.clone())
-                } else {
-                    panic!(
-                        "ポインタ型ではないものをデリファレンスしようとしました: {:?}",
-                        cast_node
-                    );
-                }
-            } else {
-                panic!("デリファレンス先の型情報がありません: {:?}", cast_node);
-            };
-            let mut node = Node::new_unary(NodeKind::Deref, cast_node);
-            node.ty = deref_ty;
-            return Some(Box::new(node));
+            let mut node = Some(Box::new(Node::new_unary(NodeKind::Deref, self.cast_expr())));
+            self.assign_types(&mut node);
+            if node.is_some() && node.as_ref().unwrap().ty.is_none() {
+                panic!("*演算子の型情報が設定されていません: {:?}", node);
+            }
+            return node;
         }
         if self.consume_punctuator("~") {
             // bitwise not
@@ -350,13 +376,13 @@ impl Ast {
 
         if self.consume_keyword("sizeof") {
             // sizeof unary_expr
-            let node = self.unary_expr();
-            if let Some(ty) = &node.as_ref().unwrap().ty {
-                let size = ty.size_of();
-                return Some(Box::new(Node::new_num(size)));
-            } else {
-                panic!("sizeofの型情報がありません: {:?}", node);
+            let mut node = self.unary_expr();
+            self.assign_types(&mut node);
+            if node.is_some() && node.as_ref().unwrap().ty.is_none() {
+                panic!("sizeofの型情報が設定されていません: {:?}", node);
             }
+            let size = node.as_ref().unwrap().ty.as_ref().unwrap().size_of();
+            return Some(Box::new(Node::new_num(size)));
         }
 
         self.postfix_expr()
@@ -425,29 +451,86 @@ impl Ast {
             let lvar = self.current_func.as_mut().unwrap().find_lvar(&name);
             if let Some(lvar) = lvar {
                 // ローカル変数ノードを作成
-                let mut node = Node::new_lvar(&lvar.name, lvar.offset, &lvar.ty);
+                let node = Node::new_lvar(&lvar.name, lvar.offset, &lvar.ty);
 
                 // 配列の場合はポインタ型に変換
                 if self.consume_punctuator("[") {
                     let add = Node::new(NodeKind::Add, Some(Box::new(node)), self.expr());
-                    node = Node::new_unary(NodeKind::Deref, Some(Box::new(add)));
+                    let mut n = Some(Box::new(Node::new_unary(
+                        NodeKind::Deref,
+                        Some(Box::new(add)),
+                    )));
+                    self.assign_types(&mut n);
                     self.expect_punctuator("]").unwrap();
+                    return n;
                 }
                 return Some(Box::new(node));
             } else if let Some(gvar) = self.find_gvar(&name) {
                 // グローバル変数ノードを作成
-                let mut node = Node::new_gvar(&gvar.name, &gvar.ty);
+                let node = Node::new_gvar(&gvar.name, &gvar.ty);
 
                 // 配列の場合はポインタ型に変換
                 if self.consume_punctuator("[") {
                     let add = Node::new(NodeKind::Add, Some(Box::new(node)), self.expr());
-                    node = Node::new_unary(NodeKind::Deref, Some(Box::new(add)));
+                    let mut n = Some(Box::new(Node::new_unary(
+                        NodeKind::Deref,
+                        Some(Box::new(add)),
+                    )));
+                    self.assign_types(&mut n);
                     self.expect_punctuator("]").unwrap();
+                    return n;
                 }
                 return Some(Box::new(node));
             }
             panic!("未定義の関数もしくは変数です: {}", name);
         }
         Some(Box::new(Node::new_num(self.expect_number().unwrap())))
+    }
+
+    fn assign_types(&mut self, node: &mut Option<Box<Node>>) {
+        if node.is_none() {
+            return;
+        }
+        let node = node.as_mut().unwrap();
+        self.assign_types(&mut node.lhs);
+        self.assign_types(&mut node.rhs);
+
+        match node.kind {
+            NodeKind::Num => {
+                // 数値リテラルの型はすでに設定されているはず
+            }
+            NodeKind::LVar => {
+                // ローカル変数の型はすでに設定されているはず
+            }
+            NodeKind::GVar => {
+                // グローバル変数の型はすでに設定されているはず
+            }
+            NodeKind::Add | NodeKind::Sub | NodeKind::Mul | NodeKind::Div | NodeKind::Rem => {
+                // 二項演算子の型は左辺から決定
+                node.ty = node.lhs.as_ref().unwrap().ty.clone();
+            }
+            NodeKind::Addr => {
+                // アドレス演算子の型はポインタ型にする
+                let base_ty = node.lhs.as_ref().unwrap().ty.as_ref().unwrap();
+                let ptr_ty = Type::new_ptr(base_ty);
+                node.ty = Some(Box::new(ptr_ty));
+            }
+            NodeKind::Deref => {
+                // デリファレンス演算子の型はポインタの指す型にする
+                let ptr_ty = node.lhs.as_ref().unwrap().ty.as_ref().unwrap();
+                if let Some(pointee_ty) = &ptr_ty.ptr_to {
+                    node.ty = Some(Box::new((**pointee_ty).clone()));
+                } else {
+                    panic!(
+                        "ポインタ型ではないものをデリファレンスしようとしました: {:?}",
+                        node
+                    );
+                }
+            }
+            _ => {
+                // その他のノードはとりあえずNoneにする
+                node.ty = None;
+            }
+        }
     }
 }

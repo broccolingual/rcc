@@ -44,11 +44,13 @@ impl Generator {
             self.builder.add_row(".align 8", true); // TODO: アラインメントは仮で8に固定
             self.builder
                 .add_row(&format!(".type {}, @object", gvar.name), true);
-            self.builder
-                .add_row(&format!(".size {}, {}", gvar.name, gvar.ty.size_of()), true);
+            self.builder.add_row(
+                &format!(".size {}, {}", gvar.name, gvar.ty.actual_size_of()),
+                true,
+            );
             self.builder.add_row(&format!("{}:", gvar.name), false);
             self.builder
-                .add_row(&format!(".zero {}", gvar.ty.size_of()), true);
+                .add_row(&format!(".zero {}", gvar.ty.actual_size_of()), true);
         }
 
         // 関数の定義

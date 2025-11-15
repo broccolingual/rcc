@@ -152,7 +152,8 @@ echo + sizeof operator
 assert 4 'int x; return sizeof(x);'
 assert 8 'int *p; return sizeof(p);'
 assert 4 'return sizeof 1;'
-assert 8 'int x; return sizeof(x + 3);'
+assert 4 'int x; return sizeof(x + 3);'
+assert 8 'int *p; return sizeof(p + 3);'
 
 echo + operator precedence and associativity
 assert 8 'return 1 << 2 + 1;'           # 1 << (2 + 1) = 8
