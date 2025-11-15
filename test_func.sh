@@ -61,17 +61,16 @@ int main() {
     *y = 3;
     return x;
 }'
-# TODO: intのサイズを4バイトに変更したらコメントアウトを外す
-# assert 8 '
-# int main() {
-#     int *p;
-#     alloc4(&p, 1, 2, 4, 8);
-#     int *q;
-#     q = p + 2;
-#     *q;
-#     q = p + 3;
-#     return *q;
-# }'
+assert 8 '
+int main() {
+    int *p;
+    alloc4(&p, 1, 2, 4, 8);
+    int *q;
+    q = p + 2;
+    *q;
+    q = p + 3;
+    return *q;
+}'
 assert 6 '
 int add(int a, int b, int c) {
     return a + b + c;
@@ -117,12 +116,12 @@ int main() {
 }'
 assert 6 '
 int main() {
-    char x[3];
+    char x[20];
     x[0] = -1;
-    x[1] = 2;
+    x[17] = 2;
     int y;
     y = 4;
-    return x[1] + y;
+    return x[17] + y;
 }'
 
 echo OK

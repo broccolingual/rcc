@@ -230,20 +230,6 @@ impl Ast {
                     )));
                 }
                 node = Some(Box::new(Node::new(NodeKind::Add, node, rhs)));
-
-                // let mut rhs = self.mul_expr();
-                // if let Some(ty) = &node.as_ref().unwrap().ty
-                //     && (ty.kind == TypeKind::Ptr || ty.kind == TypeKind::Array)
-                // {
-                //     // ポインタ加算の場合、スケーリングを考慮
-                //     let size = ty.ptr_to.as_ref().unwrap().size_of();
-                //     rhs = Some(Box::new(Node::new(
-                //         NodeKind::Mul,
-                //         rhs,
-                //         Some(Box::new(Node::new_num(size))),
-                //     )));
-                // }
-                // node = Some(Box::new(Node::new(NodeKind::Add, node, rhs)));
             } else if self.consume_punctuator("-") {
                 // subtraction
                 self.assign_types(&mut node); // lhs
@@ -261,20 +247,6 @@ impl Ast {
                     )));
                 }
                 node = Some(Box::new(Node::new(NodeKind::Sub, node, rhs)));
-
-                // let mut rhs = self.mul_expr();
-                // if let Some(ty) = &node.as_ref().unwrap().ty
-                //     && (ty.kind == TypeKind::Ptr || ty.kind == TypeKind::Array)
-                // {
-                //     // ポインタ減算の場合、スケーリングを考慮
-                //     let size = ty.ptr_to.as_ref().unwrap().size_of();
-                //     rhs = Some(Box::new(Node::new(
-                //         NodeKind::Mul,
-                //         rhs,
-                //         Some(Box::new(Node::new_num(size))),
-                //     )));
-                // }
-                // node = Some(Box::new(Node::new(NodeKind::Sub, node, rhs)));
             } else {
                 return node;
             }
@@ -381,7 +353,7 @@ impl Ast {
             if node.is_some() && node.as_ref().unwrap().ty.is_none() {
                 panic!("sizeofの型情報が設定されていません: {:?}", node);
             }
-            let size = node.as_ref().unwrap().ty.as_ref().unwrap().size_of();
+            let size = node.as_ref().unwrap().ty.as_ref().unwrap().actual_size_of();
             return Some(Box::new(Node::new_num(size)));
         }
 
@@ -453,6 +425,7 @@ impl Ast {
                 // ローカル変数ノードを作成
                 let node = Node::new_lvar(&lvar.name, lvar.offset, &lvar.ty);
 
+                // TODO: 多次元配列への対応
                 // 配列の場合はポインタ型に変換
                 if self.consume_punctuator("[") {
                     let add = Node::new(NodeKind::Add, Some(Box::new(node)), self.expr());
@@ -469,6 +442,7 @@ impl Ast {
                 // グローバル変数ノードを作成
                 let node = Node::new_gvar(&gvar.name, &gvar.ty);
 
+                // TODO: 多次元配列への対応
                 // 配列の場合はポインタ型に変換
                 if self.consume_punctuator("[") {
                     let add = Node::new(NodeKind::Add, Some(Box::new(node)), self.expr());

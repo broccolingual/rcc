@@ -33,7 +33,7 @@ fn main() {
     let mut generator = Generator::default();
     generator.gen_asm(&ast);
 
-    let debug = false;
+    let debug = true;
     if debug {
         // println!("=== Tokens ===");
         // println!("{:#?}", tokens);

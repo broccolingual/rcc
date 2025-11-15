@@ -267,7 +267,7 @@ impl Type {
         }
     }
 
-    // 型のサイズ（配列の場合はポインタのサイズ）
+    // 型のサイズ（配列の場合は要素のサイズ）
     pub fn size_of(&self) -> i64 {
         match self.kind {
             TypeKind::Void => 0,
@@ -279,8 +279,14 @@ impl Type {
             TypeKind::Double => 8,
             TypeKind::Bool => 1,
             TypeKind::Ptr => 8,
-            TypeKind::Array => 8, // 配列型自体のサイズはポインタサイズとする
-            TypeKind::Func => 8,  // TODO: 一旦8バイト固定
+            TypeKind::Array => {
+                if let Some(ref to) = self.ptr_to {
+                    to.size_of()
+                } else {
+                    0
+                }
+            }
+            TypeKind::Func => 8, // TODO: 一旦8バイト固定
         }
     }
 }

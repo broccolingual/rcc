@@ -59,9 +59,9 @@ impl Function {
             return Err("同じ名前のローカル変数が既に存在します");
         }
         var.offset = if let Some(first_var) = self.locals.first() {
-            first_var.offset + var.ty.size_of()
+            first_var.offset + var.ty.actual_size_of()
         } else {
-            var.ty.size_of()
+            var.ty.actual_size_of()
         };
         self.locals.insert(0, var);
         Ok(())

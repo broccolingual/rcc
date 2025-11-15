@@ -166,6 +166,7 @@ impl Ast {
             if self.consume_punctuator("[") {
                 let array_size = self.expect_number().unwrap() as usize;
                 self.expect_punctuator("]").unwrap();
+                // TODO: 多次元配列の場合，逆順で定義されてしまう
                 let array_ty = Type::new_array(&var.ty, array_size);
                 var = Box::new(Var::new(&var.name, array_ty));
                 continue;
