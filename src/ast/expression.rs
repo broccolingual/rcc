@@ -381,7 +381,7 @@ impl Ast {
     // primary_expr ::= "(" expr ")"
     //                  | ident "(" (assign_expr ("," assign_expr)*)? ")"
     //                  | ident
-    //                  | integer_constant
+    //                  | number
     fn primary_expr(&mut self) -> Option<Box<Node>> {
         if self.consume_punctuator("(") {
             let node = self.expr();

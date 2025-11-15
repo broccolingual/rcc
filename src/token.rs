@@ -59,7 +59,8 @@ pub enum Token {
     Punctuator(String), // 記号トークン
     Keyword(String),    // キーワード
     Identifier(String), // 識別子
-    Num(i64),           // 整数トークン
+    Number(i64),           // 整数トークン
+    String(String),     // 文字列リテラルトークン
     EOF,                // 入力の終わりを表すトークン
 }
 
@@ -69,7 +70,8 @@ impl fmt::Debug for Token {
             Token::Punctuator(s) => write!(f, "Punctuator('{}')", s),
             Token::Keyword(s) => write!(f, "Keyword('{}')", s),
             Token::Identifier(s) => write!(f, "Identifier('{}')", s),
-            Token::Num(n) => write!(f, "Num({})", n),
+            Token::Number(n) => write!(f, "Num({})", n),
+            Token::String(s) => write!(f, "StringLiteral(\"{}\")", s),
             Token::EOF => write!(f, "EOF"),
         }
     }

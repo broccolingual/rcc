@@ -186,7 +186,7 @@ impl Ast {
 
     fn expect_number(&mut self) -> Result<i64, &str> {
         match self.get_token() {
-            Some(Token::Num(val)) => {
+            Some(Token::Number(val)) => {
                 let val_clone = *val;
                 self.advance_token();
                 Ok(val_clone)

@@ -76,6 +76,24 @@ impl Tokenizer {
                 continue;
             }
 
+            // 文字列リテラルトークン
+            if c == '"' {
+                pos += 1; // 開始の"をスキップ
+                let mut str_lit = String::new();
+                while pos < chars.len() {
+                    let next_c = chars[pos];
+                    if next_c == '"' {
+                        pos += 1; // 終了の"をスキップ
+                        break;
+                    } else {
+                        str_lit.push(next_c);
+                        pos += 1;
+                    }
+                }
+                tokens.push(Token::String(str_lit));
+                continue;
+            }
+
             // 数字トークン
             if c.is_ascii_digit() {
                 let mut num_str = String::new();
@@ -91,7 +109,7 @@ impl Tokenizer {
                     }
                 }
                 let val = num_str.parse::<i64>().unwrap();
-                tokens.push(Token::Num(val));
+                tokens.push(Token::Number(val));
                 continue;
             }
 
