@@ -41,6 +41,8 @@ fn main() {
         println!("{:#?}", ast.globals);
         println!("=== Functions ===");
         println!("{:#?}", ast.funcs);
+        println!("=== String Literals ===");
+        println!("{:#?}", ast.string_literals);
     } else {
         generator.builder.optimize();
         let code = generator.builder.build();

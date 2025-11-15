@@ -381,6 +381,7 @@ impl Ast {
     // primary_expr ::= "(" expr ")"
     //                  | ident "(" (assign_expr ("," assign_expr)*)? ")"
     //                  | ident
+    //                  | string
     //                  | number
     fn primary_expr(&mut self) -> Option<Box<Node>> {
         if self.consume_punctuator("(") {
@@ -393,7 +394,7 @@ impl Ast {
             // 関数呼び出し
             if self.consume_punctuator("(") {
                 let mut node = Node::from(NodeKind::Call);
-                node.func_name = name;
+                node.name = name;
 
                 // 引数リストをパース
                 if self.consume_punctuator(")") {
@@ -458,6 +459,15 @@ impl Ast {
             }
             panic!("未定義の関数もしくは変数です: {}", name);
         }
+
+        if let Ok(string) = self.expect_string() {
+            let mut node = Node::from(NodeKind::String);
+            node.name = string.clone();
+            node.offset = self.string_literals.len() as i64;
+            self.string_literals.push(string);
+            return Some(Box::new(node));
+        }
+
         Some(Box::new(Node::new_num(self.expect_number().unwrap())))
     }
 
@@ -470,7 +480,7 @@ impl Ast {
         self.assign_types(&mut node.rhs);
 
         match node.kind {
-            NodeKind::Num => {
+            NodeKind::Number => {
                 // 数値リテラルの型はすでに設定されているはず
             }
             NodeKind::LVar => {

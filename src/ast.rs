@@ -91,6 +91,7 @@ pub struct Ast {
     pub globals: Vec<Var>,
     pub funcs: Vec<Box<Function>>,
     current_func: Option<Box<Function>>,
+    pub string_literals: Vec<String>,
 }
 
 impl Ast {
@@ -101,6 +102,7 @@ impl Ast {
             globals: Vec::new(),
             funcs: Vec::new(),
             current_func: None,
+            string_literals: Vec::new(),
         }
     }
 
@@ -182,6 +184,17 @@ impl Ast {
 
     fn expect_reserved(&mut self, word: &str) -> Result<(), &str> {
         self.expect(&Token::Keyword(word.to_string()))
+    }
+
+    fn expect_string(&mut self) -> Result<String, &str> {
+        match self.get_token() {
+            Some(Token::String(s)) => {
+                let s_clone = s.clone();
+                self.advance_token();
+                Ok(s_clone)
+            }
+            _ => Err("文字列リテラルトークンではありません"),
+        }
     }
 
     fn expect_number(&mut self) -> Result<i64, &str> {

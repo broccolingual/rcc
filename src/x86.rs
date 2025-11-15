@@ -53,6 +53,14 @@ impl Generator {
                 .add_row(&format!(".zero {}", gvar.ty.actual_size_of()), true);
         }
 
+        // 文字列リテラルの定義
+        self.builder.add_row(".data", true);
+        for (i, string) in ast.string_literals.iter().enumerate() {
+            self.builder.add_row(&format!(".L.str.{}:", i), false);
+            self.builder
+                .add_row(&format!(".string \"{}\"", string), true);
+        }
+
         // 関数の定義
         self.builder.add_row(".text", true);
         for func in ast.funcs.iter() {
@@ -215,8 +223,14 @@ impl Generator {
             NodeKind::Nop => {
                 return;
             }
-            NodeKind::Num => {
+            NodeKind::Number => {
                 self.builder.add_row(&format!("push {}", node.val), true);
+                return;
+            }
+            NodeKind::String => {
+                self.builder
+                    .add_row(&format!("lea rax, .L.str.{}[rip]", node.offset), true);
+                self.builder.add_row("push rax", true);
                 return;
             }
             NodeKind::LVar | NodeKind::GVar => {
@@ -481,14 +495,14 @@ impl Generator {
             }
             NodeKind::Goto => {
                 self.builder.add_row(
-                    &format!("jmp .L.label.{}.{}", self.func_name, node.label_name),
+                    &format!("jmp .L.label.{}.{}", self.func_name, node.name),
                     true,
                 );
                 return;
             }
             NodeKind::Label => {
                 self.builder.add_row(
-                    &format!(".L.label.{}.{}:", self.func_name, node.label_name),
+                    &format!(".L.label.{}.{}:", self.func_name, node.name),
                     false,
                 );
                 self.gen_asm_from_expr(node.lhs.as_ref().unwrap());
@@ -511,6 +525,8 @@ impl Generator {
                     self.builder.add_row(&format!("pop {}", reg), true);
                 }
 
+                self.builder.add_row("mov al, 0", true); // 浮動小数点は使わないので0に設定
+
                 // 関数呼び出し
                 // アラインメントを保つためにrspを調整
                 let seq = self.label_seq;
@@ -519,14 +535,12 @@ impl Generator {
                 self.builder.add_row("and rax, 15", true); // rspを16
                 self.builder.add_row(&format!("jnz .L.align.{}", seq), true); // もし16の倍数でなければ調整
                 self.builder.add_row("mov rax, 0", true); // ダミーのrax設定
-                self.builder
-                    .add_row(&format!("call {}", node.func_name), true); // 関数呼び出し
+                self.builder.add_row(&format!("call {}", node.name), true); // 関数呼び出し
                 self.builder.add_row(&format!("jmp .L.end.{}", seq), true);
                 self.builder.add_row(&format!(".L.align.{}:", seq), false); // 16の倍数でない場合の処理
                 self.builder.add_row("sub rsp, 8", true); // スタックを8バイト下げる
                 self.builder.add_row("mov rax, 0", true); // ダミーのrax設定
-                self.builder
-                    .add_row(&format!("call {}", node.func_name), true); // 関数呼び出し
+                self.builder.add_row(&format!("call {}", node.name), true); // 関数呼び出し
                 self.builder.add_row("add rsp, 8", true); // スタックを元に戻す
                 self.builder.add_row(&format!(".L.end.{}:", seq), false);
                 self.builder.add_row("push rax", true); // 戻り値をスタックに積む

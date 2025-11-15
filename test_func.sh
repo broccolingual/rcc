@@ -123,5 +123,17 @@ int main() {
     y = 4;
     return x[17] + y;
 }'
+assert 98 '
+int main() {
+    char *a;
+    a = "abc";
+    return a[1];
+}'
+# GCCがlibcをリンクしてくれるおかげでprintfが使える
+assert 0 '
+int main() {
+    printf("Hello, World! %d\n", 3);
+    return 0;
+}'
 
 echo OK

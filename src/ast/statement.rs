@@ -7,7 +7,7 @@ impl Ast {
         if let Some(label_name) = self.consume_ident() {
             if self.consume_punctuator(":") {
                 let mut node = Node::new_unary(NodeKind::Label, self.stmt());
-                node.label_name = label_name;
+                node.name = label_name;
                 return Some(Box::new(node));
             } else {
                 // ラベル名ではなかった場合、トークンを元に戻す
@@ -110,7 +110,7 @@ impl Ast {
     fn jump_stmt(&mut self) -> Option<Box<Node>> {
         if self.consume_keyword("goto") {
             let mut node = Node::from(NodeKind::Goto);
-            node.label_name = self.consume_ident().unwrap();
+            node.name = self.consume_ident().unwrap();
             self.expect_punctuator(";").unwrap();
             return Some(Box::new(node));
         }

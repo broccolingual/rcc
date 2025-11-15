@@ -53,7 +53,8 @@ pub enum NodeKind {
     LVar,         // ローカル変数
     GVar,         // グローバル変数
     Return,       // return
-    Num,          // 整数
+    Number,       // 整数
+    String,       // 文字列リテラル
     Nop,          // 空命令
 }
 
@@ -83,9 +84,9 @@ pub struct Node {
     pub kind: NodeKind,
     pub lhs: Option<Box<Node>>,
     pub rhs: Option<Box<Node>>,
-    pub val: i64,                // kindがNumのときに使う
-    pub offset: i64,             // 変数のオフセット(kindがLVarのときに使う)
-    pub name: String,            // 変数名(kindがLVarのときに使う)
+    pub val: i64,                // kindがNumberのときに使う
+    pub offset: i64,             // 変数のオフセット / ストリングリテラルの識別子
+    pub name: String,            // 変数名 / 関数名 / ストリングリテラルの内容 / ラベル名
     pub ty: Option<Box<Type>>,   // ノードの型情報(kindがLVarのときに使う)
     pub cond: Option<Box<Node>>, // if, while文の条件式
     pub then: Option<Box<Node>>, // if, while文のthen節
@@ -93,8 +94,6 @@ pub struct Node {
     pub init: Option<Box<Node>>, // for文の初期化式
     pub inc: Option<Box<Node>>,  // for文の更新式
     pub body: Vec<Box<Node>>,    // ブロック内のstatementリスト
-    pub label_name: String,      // ラベル名
-    pub func_name: String,       // 関数名
     pub args: Vec<Box<Node>>,    // 関数呼び出しの引数リスト
 }
 
@@ -136,8 +135,6 @@ impl Node {
             init: None,
             inc: None,
             body: Vec::new(),
-            label_name: String::new(),
-            func_name: String::new(),
             args: Vec::new(),
         }
     }
@@ -151,7 +148,7 @@ impl Node {
     }
 
     pub fn new_num(val: i64) -> Self {
-        let mut node = Node::new(NodeKind::Num, None, None);
+        let mut node = Node::new(NodeKind::Number, None, None);
         node.val = val;
         node.ty = Some(Box::new(Type::new(TypeKind::Int)));
         node
