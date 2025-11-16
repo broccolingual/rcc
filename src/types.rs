@@ -183,6 +183,24 @@ impl Type {
         matches!(self, Type::Ptr { .. } | Type::Array { .. })
     }
 
+    // 型が整数型かどうか
+    pub fn is_integer(&self) -> bool {
+        matches!(
+            self,
+            Type::Char | Type::Short | Type::Int | Type::Long | Type::Bool
+        )
+    }
+
+    // 型が浮動小数点型かどうか
+    pub fn is_floating_point(&self) -> bool {
+        matches!(self, Type::Float | Type::Double)
+    }
+
+    // 型がスカラー型かどうか（整数型または浮動小数点型）
+    pub fn is_scalar(&self) -> bool {
+        self.is_integer() || self.is_floating_point()
+    }
+
     // 実際のサイズ（配列の場合は要素数を考慮）
     pub fn actual_size_of(&self) -> i64 {
         match &self {

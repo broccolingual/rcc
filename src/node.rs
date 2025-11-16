@@ -234,40 +234,169 @@ impl Node {
             NodeKind::GVar { .. } => {
                 // グローバル変数の型はすでに設定されているはず
             }
-            NodeKind::Add
-            | NodeKind::Sub
-            | NodeKind::Mul
-            | NodeKind::Div
-            | NodeKind::Rem
-            | NodeKind::Shl
-            | NodeKind::Shr
-            | NodeKind::BitAnd
-            | NodeKind::BitOr
-            | NodeKind::BitXor => {
-                // 二項演算子の型は左辺から決定
-                self.ty = self.lhs.as_ref().unwrap().ty.clone();
+            NodeKind::Add | NodeKind::Sub | NodeKind::Mul | NodeKind::Div => {
+                let lhs_ty = self.lhs.as_ref().unwrap().ty.as_ref().unwrap();
+                let rhs_ty = self.rhs.as_ref().unwrap().ty.as_ref().unwrap();
+
+                if lhs_ty.is_scalar() && rhs_ty.is_scalar() {
+                    // 両方ともスカラー型の場合、大きい方の型に合わせる
+                    if lhs_ty.size_of() >= rhs_ty.size_of() {
+                        self.ty = Some(lhs_ty.clone());
+                    } else {
+                        self.ty = Some(rhs_ty.clone());
+                    }
+                } else if lhs_ty.is_ptr_or_array() && rhs_ty.is_scalar() {
+                    // 左辺がポインタ/配列型、右辺がスカラー型の場合、左辺の型を結果型とする
+                    self.ty = Some(lhs_ty.clone());
+                } else if lhs_ty.is_scalar() && rhs_ty.is_ptr_or_array() {
+                    // 右辺がポインタ/配列型、左辺がスカラー型の場合、右辺の型を結果型とする
+                    self.ty = Some(rhs_ty.clone());
+                } else {
+                    panic!("不正な型の組み合わせ: {:?} と {:?}", lhs_ty, rhs_ty);
+                }
+            }
+            NodeKind::Rem => {
+                let lhs_ty = self.lhs.as_ref().unwrap().ty.as_ref().unwrap();
+                let rhs_ty = self.rhs.as_ref().unwrap().ty.as_ref().unwrap();
+
+                if lhs_ty.is_integer() && rhs_ty.is_integer() {
+                    // 両方とも整数型の場合、大きい方の型に合わせる
+                    if lhs_ty.size_of() >= rhs_ty.size_of() {
+                        self.ty = Some(lhs_ty.clone());
+                    } else {
+                        self.ty = Some(rhs_ty.clone());
+                    }
+                } else {
+                    panic!(
+                        "剰余演算子は整数型にのみ適用可能です: {:?} と {:?}",
+                        lhs_ty, rhs_ty
+                    );
+                }
+            }
+            NodeKind::BitAnd | NodeKind::BitOr | NodeKind::BitXor => {
+                let lhs_ty = self.lhs.as_ref().unwrap().ty.as_ref().unwrap();
+                let rhs_ty = self.rhs.as_ref().unwrap().ty.as_ref().unwrap();
+
+                if lhs_ty.is_integer() && rhs_ty.is_integer() {
+                    // 両方とも整数型の場合、大きい方の型に合わせる
+                    if lhs_ty.size_of() >= rhs_ty.size_of() {
+                        self.ty = Some(lhs_ty.clone());
+                    } else {
+                        self.ty = Some(rhs_ty.clone());
+                    }
+                } else {
+                    panic!(
+                        "ビット演算子は整数型にのみ適用可能です: {:?} と {:?}",
+                        lhs_ty, rhs_ty
+                    );
+                }
+            }
+            NodeKind::Shl | NodeKind::Shr => {
+                let lhs_ty = self.lhs.as_ref().unwrap().ty.as_ref().unwrap();
+                let rhs_ty = self.rhs.as_ref().unwrap().ty.as_ref().unwrap();
+
+                if lhs_ty.is_integer() && rhs_ty.is_integer() {
+                    // 両方とも整数型の場合、昇格後の型を結果型とする
+                    self.ty = Some(Box::new(Type::Int));
+                } else {
+                    panic!(
+                        "シフト演算子は整数型にのみ適用可能です: {:?} と {:?}",
+                        lhs_ty, rhs_ty
+                    );
+                }
+            }
+            NodeKind::Eq | NodeKind::Ne | NodeKind::Lt | NodeKind::Le => {
+                let lhs_ty = self.lhs.as_ref().unwrap().ty.as_ref().unwrap();
+                let rhs_ty = self.rhs.as_ref().unwrap().ty.as_ref().unwrap();
+
+                if lhs_ty.is_scalar() && rhs_ty.is_scalar()
+                    || lhs_ty.is_ptr_or_array() && rhs_ty.is_ptr_or_array()
+                {
+                    // 両方ともスカラー型の場合、結果型はint型とする
+                    self.ty = Some(Box::new(Type::Int));
+                } else {
+                    panic!(
+                        "比較演算子はスカラー型にのみ適用可能です: {:?} と {:?}",
+                        lhs_ty, rhs_ty
+                    );
+                }
+            }
+            NodeKind::LogicalAnd | NodeKind::LogicalOr => {
+                let lhs_ty = self.lhs.as_ref().unwrap().ty.as_ref().unwrap();
+                let rhs_ty = self.rhs.as_ref().unwrap().ty.as_ref().unwrap();
+
+                if lhs_ty.is_scalar() && rhs_ty.is_scalar()
+                    || lhs_ty.is_ptr_or_array() && rhs_ty.is_ptr_or_array()
+                {
+                    // 両方ともスカラー型の場合、結果型はint型とする
+                    self.ty = Some(Box::new(Type::Int));
+                } else {
+                    panic!(
+                        "論理演算子はスカラー型にのみ適用可能です: {:?} と {:?}",
+                        lhs_ty, rhs_ty
+                    );
+                }
+            }
+            NodeKind::Assign
+            | NodeKind::AddAssign
+            | NodeKind::SubAssign
+            | NodeKind::MulAssign
+            | NodeKind::DivAssign
+            | NodeKind::RemAssign
+            | NodeKind::ShlAssign
+            | NodeKind::ShrAssign
+            | NodeKind::BitAndAssign
+            | NodeKind::BitOrAssign
+            | NodeKind::BitXorAssign => {
+                let lhs_ty = self.lhs.as_ref().unwrap().ty.as_ref().unwrap();
+
+                // 代入演算子の型は左辺の型とする
+                self.ty = Some(lhs_ty.clone());
+            }
+            NodeKind::BitNot => {
+                let lhs_ty = self.lhs.as_ref().unwrap().ty.as_ref().unwrap();
+
+                if lhs_ty.is_integer() {
+                    self.ty = Some(Box::new(Type::Int)); // 整数拡張
+                } else {
+                    panic!("ビット反転演算子は整数型にのみ適用可能です: {:?}", lhs_ty);
+                }
+            }
+            NodeKind::LogicalNot => {
+                let lhs_ty = self.lhs.as_ref().unwrap().ty.as_ref().unwrap();
+
+                if lhs_ty.is_scalar() || lhs_ty.is_ptr_or_array() {
+                    self.ty = Some(Box::new(Type::Int)); // 結果型はint型
+                } else {
+                    panic!("論理否定演算子はスカラー型にのみ適用可能です: {:?}", lhs_ty);
+                }
             }
             NodeKind::Addr => {
+                let lhs_ty = self.lhs.as_ref().unwrap().ty.as_ref().unwrap();
+
                 // アドレス演算子の型はポインタ型にする
-                let base_ty = self.lhs.as_ref().unwrap().ty.as_ref().unwrap();
-                self.ty = Some(Box::new(Type::Ptr {
-                    to: base_ty.clone(),
-                }));
+                self.ty = Some(Box::new(Type::Ptr { to: lhs_ty.clone() }));
             }
             NodeKind::Deref => {
+                let lhs_ty = self.lhs.as_ref().unwrap().ty.as_ref().unwrap();
+
                 // デリファレンス演算子の型はポインタの指す型にする
-                let ptr_ty = self.lhs.as_ref().unwrap().ty.as_ref().unwrap();
-                if !ptr_ty.is_ptr_or_array() {
+                if !lhs_ty.is_ptr_or_array() {
                     panic!(
                         "ポインタ型ではないものをデリファレンスしようとしました: {:?}",
                         self
                     );
                 }
-                self.ty = Some(Box::new(ptr_ty.base_type().clone()));
+                self.ty = Some(Box::new(lhs_ty.base_type().clone()));
+            }
+            NodeKind::PreInc | NodeKind::PreDec | NodeKind::PostInc | NodeKind::PostDec => {
+                let lhs_ty = self.lhs.as_ref().unwrap().ty.as_ref().unwrap();
+
+                // インクリメント・デクリメント演算子の型はオペランドの型とする
+                self.ty = Some(lhs_ty.clone());
             }
             _ => {
-                // その他のノードはとりあえずNoneにする
-                self.ty = None;
+                // その他のノードは型を設定しない
             }
         }
     }
