@@ -189,4 +189,60 @@ impl Node {
         node.ty = Some(Box::new(ty.clone()));
         node
     }
+
+    pub fn assign_types(&mut self) {
+        if let Some(ref mut lhs) = self.lhs {
+            lhs.assign_types();
+        }
+        if let Some(ref mut rhs) = self.rhs {
+            rhs.assign_types();
+        }
+
+        match self.kind {
+            NodeKind::Number => {
+                // 数値リテラルの型はすでに設定されているはず
+            }
+            NodeKind::LVar => {
+                // ローカル変数の型はすでに設定されているはず
+            }
+            NodeKind::GVar => {
+                // グローバル変数の型はすでに設定されているはず
+            }
+            NodeKind::Add
+            | NodeKind::Sub
+            | NodeKind::Mul
+            | NodeKind::Div
+            | NodeKind::Rem
+            | NodeKind::Shl
+            | NodeKind::Shr
+            | NodeKind::BitAnd
+            | NodeKind::BitOr
+            | NodeKind::BitXor => {
+                // 二項演算子の型は左辺から決定
+                self.ty = self.lhs.as_ref().unwrap().ty.clone();
+            }
+            NodeKind::Addr => {
+                // アドレス演算子の型はポインタ型にする
+                let base_ty = self.lhs.as_ref().unwrap().ty.as_ref().unwrap();
+                let ptr_ty = Type::new_ptr(base_ty);
+                self.ty = Some(Box::new(ptr_ty));
+            }
+            NodeKind::Deref => {
+                // デリファレンス演算子の型はポインタの指す型にする
+                let ptr_ty = self.lhs.as_ref().unwrap().ty.as_ref().unwrap();
+                if let Some(pointee_ty) = &ptr_ty.ptr_to {
+                    self.ty = Some(Box::new((**pointee_ty).clone()));
+                } else {
+                    panic!(
+                        "ポインタ型ではないものをデリファレンスしようとしました: {:?}",
+                        self
+                    );
+                }
+            }
+            _ => {
+                // その他のノードはとりあえずNoneにする
+                self.ty = None;
+            }
+        }
+    }
 }

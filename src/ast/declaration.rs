@@ -69,7 +69,7 @@ impl Ast {
             if self.consume_punctuator("=") {
                 if let Some(init) = self.initializer() {
                     let mut init = Some(init);
-                    self.assign_types(&mut init); // initializerの型を設定
+                    init.as_mut().unwrap().assign_types(); // initializerの型を設定
                     if &var.ty != init.as_ref().unwrap().ty.as_ref().unwrap() {
                         panic!(
                             "initializerの型が変数の型と一致しません {:?} <= {:?}",
