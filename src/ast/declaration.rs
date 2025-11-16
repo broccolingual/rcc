@@ -179,16 +179,24 @@ impl Ast {
             return Err("direct_declaratorのパースに失敗しました");
         };
 
-        loop {
-            // array_declarator
-            if self.consume_punctuator("[") {
-                let array_size = self.expect_number().unwrap() as usize;
-                self.expect_punctuator("]").unwrap();
-                // TODO: 多次元配列の場合，逆順で定義されてしまう
-                let array_ty = Type::new_array(&var.ty, array_size);
-                var = Box::new(Var::new(&var.name, array_ty));
-                continue;
+        // Collect array dimensions first
+        let mut array_sizes = Vec::new();
+        while self.consume_punctuator("[") {
+            let array_size = self.expect_number().unwrap() as usize;
+            self.expect_punctuator("]").unwrap();
+            array_sizes.push(array_size);
+        }
+
+        // Build array type from right to left (innermost to outermost)
+        if !array_sizes.is_empty() {
+            let mut result_ty = (*var.ty).clone();
+            for &size in array_sizes.iter().rev() {
+                result_ty = Type::new_array(&result_ty, size);
             }
+            var = Box::new(Var::new(&var.name, result_ty));
+        }
+
+        loop {
             // function_declarator
             if self.consume_punctuator("(") {
                 let params = self.parameter_type_list();
@@ -297,18 +305,17 @@ mod tests {
         assert_eq!(var.ty.array_size, 10);
         assert_eq!(var.ty.ptr_to.as_ref().unwrap().kind, TypeKind::Int);
 
-        // TODO: 多次元配列の要素数の宣言が逆順になる問題の修正
-        // let input = "int arr[3][5];";
-        // let mut ast = preproc(input);
-        // let vars = ast.declaration().unwrap();
-        // let var = &vars[0];
-        // assert_eq!(var.name, "arr");
-        // assert_eq!(var.ty.kind, TypeKind::Array);
-        // assert_eq!(var.ty.array_size, 3);
-        // let inner_ty = var.ty.ptr_to.as_ref().unwrap();
-        // assert_eq!(inner_ty.kind, TypeKind::Array);
-        // assert_eq!(inner_ty.array_size, 5);
-        // assert_eq!(inner_ty.ptr_to.as_ref().unwrap().kind, TypeKind::Int);
+        let input = "int arr[3][5];";
+        let mut ast = preproc(input);
+        let vars = ast.declaration().unwrap();
+        let var = &vars[0];
+        assert_eq!(var.name, "arr");
+        assert_eq!(var.ty.kind, TypeKind::Array);
+        assert_eq!(var.ty.array_size, 3);
+        let inner_ty = var.ty.ptr_to.as_ref().unwrap();
+        assert_eq!(inner_ty.kind, TypeKind::Array);
+        assert_eq!(inner_ty.array_size, 5);
+        assert_eq!(inner_ty.ptr_to.as_ref().unwrap().kind, TypeKind::Int);
 
         let input = "int *arr[10];";
         let mut ast = preproc(input);
