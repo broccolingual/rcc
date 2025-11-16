@@ -59,7 +59,7 @@ pub enum Token {
     Punctuator(String), // 記号トークン
     Keyword(String),    // キーワード
     Identifier(String), // 識別子
-    Number(i64),           // 整数トークン
+    Number(i64),        // 整数トークン
     String(String),     // 文字列リテラルトークン
     EOF,                // 入力の終わりを表すトークン
 }
