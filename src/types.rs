@@ -148,7 +148,7 @@ impl TypeKind {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Type {
     pub kind: TypeKind,
     pub ptr_to: Option<Box<Type>>,

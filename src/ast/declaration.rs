@@ -70,7 +70,7 @@ impl Ast {
                 if let Some(init) = self.initializer() {
                     let mut init = Some(init);
                     self.assign_types(&mut init); // initializerの型を設定
-                    if var.ty.kind != init.as_ref().unwrap().ty.as_ref().unwrap().kind {
+                    if &var.ty != init.as_ref().unwrap().ty.as_ref().unwrap() {
                         panic!(
                             "initializerの型が変数の型と一致しません {:?} <= {:?}",
                             var.ty,

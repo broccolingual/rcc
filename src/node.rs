@@ -79,7 +79,7 @@ impl str::FromStr for NodeKind {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Node {
     pub kind: NodeKind,
     pub lhs: Option<Box<Node>>,

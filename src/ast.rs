@@ -8,7 +8,7 @@ use crate::node::Node;
 use crate::token::Token;
 use crate::types::Type;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Var {
     pub name: String,
     pub offset: i64,
