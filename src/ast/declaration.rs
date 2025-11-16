@@ -351,8 +351,7 @@ mod tests {
         assert_eq!(*var.ty, Type::Int);
         assert!(var.init.is_some());
         let init = var.init.as_ref().unwrap();
-        assert_eq!(init.kind, NodeKind::Number);
-        assert_eq!(init.val, 3);
+        assert_eq!(init.kind, NodeKind::Number { val: 3 });
 
         let input = "int a = 3, b = 5;";
         let mut ast = preproc(input);
@@ -368,9 +367,7 @@ mod tests {
         assert!(var_b.init.is_some());
         let init_a = var_a.init.as_ref().unwrap();
         let init_b = var_b.init.as_ref().unwrap();
-        assert_eq!(init_a.kind, NodeKind::Number);
-        assert_eq!(init_a.val, 3);
-        assert_eq!(init_b.kind, NodeKind::Number);
-        assert_eq!(init_b.val, 5);
+        assert_eq!(init_a.kind, NodeKind::Number { val: 3 });
+        assert_eq!(init_b.kind, NodeKind::Number { val: 5 });
     }
 }

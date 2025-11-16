@@ -119,8 +119,10 @@ impl Generator {
                 // initializerがある場合、初期化コードを生成
                 if let Some(init) = arg.init.as_ref() {
                     self.get_val(&Node {
-                        kind: NodeKind::LVar,
-                        offset: arg.offset,
+                        kind: NodeKind::LVar {
+                            name: arg.name.clone(),
+                            offset: arg.offset,
+                        },
                         ..Default::default()
                     }); // 変数のアドレスをスタックに積む
                     self.gen_asm_from_expr(init); // 初期化式のコードを生成し、スタックに値を積む
@@ -148,18 +150,18 @@ impl Generator {
     }
 
     pub fn get_val(&mut self, node: &Node) {
-        match node.kind {
+        match &node.kind {
             NodeKind::Deref => {
                 self.gen_asm_from_expr(node.lhs.as_ref().unwrap()); // ポインタの値を取得
             }
-            NodeKind::LVar => {
+            NodeKind::LVar { offset, .. } => {
                 self.builder
-                    .add_row(&format!("lea rax, [rbp-{}]", node.offset), true); // ローカル変数のアドレス計算
+                    .add_row(&format!("lea rax, [rbp-{}]", offset), true); // ローカル変数のアドレス計算
                 self.builder.add_row("push rax", true); // 変数のアドレスをスタックに積む
             }
-            NodeKind::GVar => {
+            NodeKind::GVar { name } => {
                 self.builder
-                    .add_row(&format!("lea rax, {}[rip]", node.name), true); // RIP相対アドレッシング
+                    .add_row(&format!("lea rax, {}[rip]", name), true); // RIP相対アドレッシング
                 self.builder.add_row("push rax", true); // 変数のアドレスをスタックに積む
             }
             _ => panic!("代入の左辺値が変数ではありません: {:?}", node.kind),
@@ -236,21 +238,21 @@ impl Generator {
     }
 
     pub fn gen_asm_from_expr(&mut self, node: &Node) {
-        match node.kind {
+        match &node.kind {
             NodeKind::Nop => {
                 return;
             }
-            NodeKind::Number => {
-                self.builder.add_row(&format!("push {}", node.val), true);
+            NodeKind::Number { val } => {
+                self.builder.add_row(&format!("push {}", val), true);
                 return;
             }
-            NodeKind::String => {
+            NodeKind::String { index, .. } => {
                 self.builder
-                    .add_row(&format!("lea rax, .L.str.{}[rip]", node.offset), true); // RIP相対アドレッシング
+                    .add_row(&format!("lea rax, .L.str.{}[rip]", index), true); // RIP相対アドレッシング
                 self.builder.add_row("push rax", true); // 文字列リテラルのアドレスをスタックに積む
                 return;
             }
-            NodeKind::LVar | NodeKind::GVar => {
+            NodeKind::LVar { .. } | NodeKind::GVar { .. } => {
                 self.get_val(node);
                 if !matches!(node.ty.as_ref().unwrap().deref(), Type::Array { .. }) {
                     self.load(node); // 配列型以外は値を読み出す
@@ -263,17 +265,17 @@ impl Generator {
                 self.store(node.lhs.as_ref().unwrap());
                 return;
             }
-            NodeKind::Ternary => {
+            NodeKind::Ternary { cond, then, els } => {
                 let seq = self.label_seq;
                 self.label_seq += 1;
-                self.gen_asm_from_expr(node.cond.as_ref().unwrap());
+                self.gen_asm_from_expr(cond.as_ref().unwrap());
                 self.builder.add_row("pop rax", true);
                 self.builder.add_row("cmp rax, 0", true);
                 self.builder.add_row(&format!("je .L.else.{}", seq), true);
-                self.gen_asm_from_expr(node.then.as_ref().unwrap());
+                self.gen_asm_from_expr(then.as_ref().unwrap());
                 self.builder.add_row(&format!("jmp .L.end.{}", seq), true);
                 self.builder.add_row(&format!(".L.else.{}:", seq), false);
-                self.gen_asm_from_expr(node.els.as_ref().unwrap());
+                self.gen_asm_from_expr(els.as_ref().unwrap());
                 self.builder.add_row(&format!(".L.end.{}:", seq), false);
                 return;
             }
@@ -390,34 +392,34 @@ impl Generator {
                 self.builder.add_row(&format!(".L.end.{}:", seq), false);
                 return;
             }
-            NodeKind::If => {
+            NodeKind::If { cond, then, els } => {
                 let seq = self.label_seq;
                 self.label_seq += 1;
-                if node.els.is_some() {
+                if els.is_some() {
                     // else節あり
-                    self.gen_asm_from_expr(node.cond.as_ref().unwrap());
+                    self.gen_asm_from_expr(cond.as_ref().unwrap());
                     self.builder.add_row("pop rax", true);
                     self.builder.add_row("cmp rax, 0", true);
                     self.builder.add_row(&format!("je .L.else.{}", seq), true);
-                    self.gen_asm_from_expr(node.then.as_ref().unwrap());
+                    self.gen_asm_from_expr(then.as_ref().unwrap());
                     self.builder.add_row(&format!("jmp .L.end.{}", seq), true);
                     self.builder.add_row(&format!(".L.else.{}:", seq), false);
-                    self.gen_asm_from_expr(node.els.as_ref().unwrap());
+                    self.gen_asm_from_expr(els.as_ref().unwrap());
                     self.builder.add_row(&format!(".L.end.{}:", seq), false);
                     self.builder.add_row("push rax", true); // then節またはelse節の結果をスタックに積む
                 } else {
                     // else節なし
-                    self.gen_asm_from_expr(node.cond.as_ref().unwrap());
+                    self.gen_asm_from_expr(cond.as_ref().unwrap());
                     self.builder.add_row("pop rax", true);
                     self.builder.add_row("cmp rax, 0", true);
                     self.builder.add_row(&format!("je .L.end.{}", seq), true);
-                    self.gen_asm_from_expr(node.then.as_ref().unwrap());
+                    self.gen_asm_from_expr(then.as_ref().unwrap());
                     self.builder.add_row(&format!(".L.end.{}:", seq), false);
                     self.builder.add_row("push rax", true); // then節の結果をスタックに積む
                 }
                 return;
             }
-            NodeKind::While => {
+            NodeKind::While { cond, then } => {
                 let seq = self.label_seq;
                 self.label_seq += 1;
                 let current_break_seq = self.break_seq;
@@ -427,11 +429,11 @@ impl Generator {
 
                 self.builder
                     .add_row(&format!(".L.continue.{}:", seq), false);
-                self.gen_asm_from_expr(node.cond.as_ref().unwrap());
+                self.gen_asm_from_expr(cond.as_ref().unwrap());
                 self.builder.add_row("pop rax", true);
                 self.builder.add_row("cmp rax, 0", true);
                 self.builder.add_row(&format!("je .L.break.{}", seq), true);
-                self.gen_asm_from_expr(node.then.as_ref().unwrap());
+                self.gen_asm_from_expr(then.as_ref().unwrap());
                 self.builder
                     .add_row(&format!("jmp .L.continue.{}", seq), true);
                 self.builder.add_row(&format!(".L.break.{}:", seq), false);
@@ -440,7 +442,12 @@ impl Generator {
                 self.continue_seq = current_continue_seq;
                 return;
             }
-            NodeKind::For => {
+            NodeKind::For {
+                init,
+                cond,
+                inc,
+                then,
+            } => {
                 let seq = self.label_seq;
                 self.label_seq += 1;
                 let current_break_seq = self.break_seq;
@@ -448,20 +455,20 @@ impl Generator {
                 self.break_seq = seq;
                 self.continue_seq = seq;
 
-                if let Some(init) = node.init.as_ref() {
+                if let Some(init) = init.as_ref() {
                     self.gen_asm_from_expr(init);
                 }
                 self.builder.add_row(&format!(".L.begin.{}:", seq), false);
-                if let Some(cond) = node.cond.as_ref() {
+                if let Some(cond) = cond.as_ref() {
                     self.gen_asm_from_expr(cond);
                     self.builder.add_row("pop rax", true);
                     self.builder.add_row("cmp rax, 0", true);
                     self.builder.add_row(&format!("je .L.break.{}", seq), true);
                 }
-                self.gen_asm_from_expr(node.then.as_ref().unwrap());
+                self.gen_asm_from_expr(then.as_ref().unwrap());
                 self.builder
                     .add_row(&format!(".L.continue.{}:", seq), false);
-                if let Some(inc) = node.inc.as_ref() {
+                if let Some(inc) = inc.as_ref() {
                     self.gen_asm_from_expr(inc);
                 }
                 self.builder.add_row(&format!("jmp .L.begin.{}", seq), true);
@@ -471,7 +478,7 @@ impl Generator {
                 self.continue_seq = current_continue_seq;
                 return;
             }
-            NodeKind::Do => {
+            NodeKind::Do { cond, then } => {
                 let seq = self.label_seq;
                 self.label_seq += 1;
                 let current_break_seq = self.break_seq;
@@ -480,10 +487,10 @@ impl Generator {
                 self.continue_seq = seq;
 
                 self.builder.add_row(&format!(".L.begin.{}:", seq), false);
-                self.gen_asm_from_expr(node.then.as_ref().unwrap());
+                self.gen_asm_from_expr(then.as_ref().unwrap());
                 self.builder
                     .add_row(&format!(".L.continue.{}:", seq), false);
-                self.gen_asm_from_expr(node.cond.as_ref().unwrap());
+                self.gen_asm_from_expr(cond.as_ref().unwrap());
                 self.builder.add_row("pop rax", true);
                 self.builder.add_row("cmp rax, 0", true);
                 self.builder.add_row(&format!("jne .L.begin.{}", seq), true);
@@ -493,8 +500,8 @@ impl Generator {
                 self.continue_seq = current_continue_seq;
                 return;
             }
-            NodeKind::Block => {
-                for stmt in node.body.iter() {
+            NodeKind::Block { body } => {
+                for stmt in body.iter() {
                     self.gen_asm_from_expr(stmt);
                     self.builder.add_row("pop rax", true); // ブロック内の各文の結果を捨てる
                 }
@@ -510,30 +517,26 @@ impl Generator {
                     .add_row(&format!("jmp .L.continue.{}", self.continue_seq), true);
                 return;
             }
-            NodeKind::Goto => {
-                self.builder.add_row(
-                    &format!("jmp .L.label.{}.{}", self.func_name, node.name),
-                    true,
-                );
+            NodeKind::Goto { name } => {
+                self.builder
+                    .add_row(&format!("jmp .L.label.{}.{}", self.func_name, name), true);
                 return;
             }
-            NodeKind::Label => {
-                self.builder.add_row(
-                    &format!(".L.label.{}.{}:", self.func_name, node.name),
-                    false,
-                );
+            NodeKind::Label { name } => {
+                self.builder
+                    .add_row(&format!(".L.label.{}.{}:", self.func_name, name), false);
                 self.gen_asm_from_expr(node.lhs.as_ref().unwrap());
                 return;
             }
-            NodeKind::Call => {
-                let arg_count = node.args.len();
+            NodeKind::Call { name, args } => {
+                let arg_count = args.len();
 
                 if arg_count > 6 {
                     panic!("6個を超える引数の関数呼び出しには対応していません");
                 }
 
                 // 引数をスタックに積む
-                for arg in node.args.iter() {
+                for arg in args.iter() {
                     self.gen_asm_from_expr(arg);
                 }
 
@@ -544,7 +547,7 @@ impl Generator {
 
                 // 関数呼び出し（アラインメントは揃っているはず）
                 self.builder.add_row("mov al, 0", true); // 浮動小数点は使わないので0に設定
-                self.builder.add_row(&format!("call {}", node.name), true); // 関数呼び出し
+                self.builder.add_row(&format!("call {}", name), true); // 関数呼び出し
                 self.builder.add_row("push rax", true); // 戻り値をスタックに積む
                 return;
             }

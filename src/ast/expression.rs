@@ -37,12 +37,11 @@ impl Ast {
     fn conditional_expr(&mut self) -> Option<Box<Node>> {
         let node = self.logical_or_expr();
         if self.consume_punctuator("?") {
-            let mut ternary_node = Node::from(NodeKind::Ternary);
-            ternary_node.cond = node;
-            ternary_node.then = self.expr();
+            let cond = node;
+            let then = self.expr();
             self.expect_punctuator(":").unwrap();
-            ternary_node.els = self.conditional_expr();
-            return Some(Box::new(ternary_node));
+            let els = self.conditional_expr();
+            return Some(Box::new(Node::from(NodeKind::Ternary { cond, then, els })));
         }
         node
     }
@@ -413,19 +412,15 @@ impl Ast {
         if let Some(name) = self.consume_ident() {
             // 関数呼び出し
             if self.consume_punctuator("(") {
-                let mut node = Node::from(NodeKind::Call);
-                node.name = name;
-
                 // 引数リストをパース
-                match self.argument_expr_list() {
-                    Ok(args) => {
-                        node.args = args; // 逆順で格納されているのでそのまま代入
+                let args = match self.argument_expr_list() {
+                    Ok(params) => {
+                        params // 逆順で格納されているのでそのまま代入
                     }
                     Err(msg) => panic!("{}", msg),
                 };
-
                 self.expect_punctuator(")").unwrap();
-                return Some(Box::new(node));
+                return Some(Box::new(Node::from(NodeKind::Call { name, args })));
             }
 
             // 変数参照
@@ -471,9 +466,10 @@ impl Ast {
         }
 
         if let Ok(string) = self.expect_string() {
-            let mut node = Node::from(NodeKind::String);
-            node.name = string.clone();
-            node.offset = self.string_literals.len() as i64;
+            let node = Node::from(NodeKind::String {
+                val: string.clone(),
+                index: self.string_literals.len() as i64,
+            });
             self.string_literals.push(string);
             return Some(Box::new(node));
         }

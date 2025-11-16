@@ -4,11 +4,12 @@ use crate::node::{Node, NodeKind};
 impl Ast {
     // TODO: case文, default文の実装
     fn labeled_stmt(&mut self) -> Option<Box<Node>> {
-        if let Some(label_name) = self.consume_ident() {
+        if let Some(name) = self.consume_ident() {
             if self.consume_punctuator(":") {
-                let mut node = Node::new_unary(NodeKind::Label, self.stmt());
-                node.name = label_name;
-                return Some(Box::new(node));
+                return Some(Box::new(Node::new_unary(
+                    NodeKind::Label { name },
+                    self.stmt(),
+                )));
             } else {
                 // ラベル名ではなかった場合、トークンを元に戻す
                 self.retreat_token();
@@ -20,7 +21,7 @@ impl Ast {
     // compound_stmt ::= "{" declaration* stmt* "}"
     pub(super) fn compound_stmt(&mut self) -> Option<Box<Node>> {
         if self.consume_punctuator("{") {
-            let mut node = Node::from(NodeKind::Block);
+            let mut body = Vec::new();
             while !self.consume_punctuator("}") {
                 if let Some(vars) = self.declaration() {
                     for var in vars {
@@ -28,12 +29,12 @@ impl Ast {
                     }
                     continue;
                 } else if let Some(stmt) = self.stmt() {
-                    node.body.push(stmt);
+                    body.push(stmt);
                 } else {
                     panic!("ブロック内の文のパースに失敗しました");
                 }
             }
-            return Some(Box::new(node));
+            return Some(Box::new(Node::from(NodeKind::Block { body })));
         }
         None
     }
@@ -42,15 +43,16 @@ impl Ast {
     // selection_stmt ::= "if" "(" expr ")" stmt ("else" stmt)?
     fn selection_stmt(&mut self) -> Option<Box<Node>> {
         if self.consume_keyword("if") {
-            let mut node = Node::from(NodeKind::If);
             self.expect_punctuator("(").unwrap();
-            node.cond = self.expr();
+            let cond = self.expr();
             self.expect_punctuator(")").unwrap();
-            node.then = self.stmt();
-            if self.consume_keyword("else") {
-                node.els = self.stmt();
-            }
-            return Some(Box::new(node));
+            let then = self.stmt();
+            let els = if self.consume_keyword("else") {
+                self.stmt()
+            } else {
+                None
+            };
+            return Some(Box::new(Node::from(NodeKind::If { cond, then, els })));
         }
         None
     }
@@ -60,45 +62,56 @@ impl Ast {
     //                    | "for" "(" expr? ";" expr? ";" expr? ")" stmt
     fn iteration_stmt(&mut self) -> Option<Box<Node>> {
         if self.consume_keyword("while") {
-            let mut node = Node::from(NodeKind::While);
             self.expect_punctuator("(").unwrap();
-            node.cond = self.expr();
+            let cond = self.expr();
             self.expect_punctuator(")").unwrap();
-            node.then = self.stmt();
-            return Some(Box::new(node));
+            let then = self.stmt();
+            return Some(Box::new(Node::from(NodeKind::While { cond, then })));
         }
 
         if self.consume_keyword("do") {
-            let mut node = Node::from(NodeKind::Do);
-            node.then = self.stmt();
+            let then = self.stmt();
             self.expect_reserved("while").unwrap();
             self.expect_punctuator("(").unwrap();
-            node.cond = self.expr();
+            let cond = self.expr();
             self.expect_punctuator(")").unwrap();
             self.expect_punctuator(";").unwrap();
-            return Some(Box::new(node));
+            return Some(Box::new(Node::from(NodeKind::Do { then, cond })));
         }
 
         if self.consume_keyword("for") {
-            let mut node = Node::from(NodeKind::For);
             self.expect_punctuator("(").unwrap();
             // 初期化式
-            if !self.consume_punctuator(";") {
-                node.init = self.expr();
+            let init = if !self.consume_punctuator(";") {
+                let expr = self.expr();
                 self.expect_punctuator(";").unwrap();
-            }
+                expr
+            } else {
+                None
+            };
             // 条件式
-            if !self.consume_punctuator(";") {
-                node.cond = self.expr();
+            let cond = if !self.consume_punctuator(";") {
+                let expr = self.expr();
                 self.expect_punctuator(";").unwrap();
-            }
+                expr
+            } else {
+                None
+            };
             // 更新式
-            if !self.consume_punctuator(")") {
-                node.inc = self.expr();
+            let inc = if !self.consume_punctuator(")") {
+                let expr = self.expr();
                 self.expect_punctuator(")").unwrap();
-            }
-            node.then = self.stmt();
-            return Some(Box::new(node));
+                expr
+            } else {
+                None
+            };
+            let then = self.stmt();
+            return Some(Box::new(Node::from(NodeKind::For {
+                init,
+                cond,
+                inc,
+                then,
+            })));
         }
         None
     }
@@ -109,22 +122,19 @@ impl Ast {
     //               | "return" expr? ";"
     fn jump_stmt(&mut self) -> Option<Box<Node>> {
         if self.consume_keyword("goto") {
-            let mut node = Node::from(NodeKind::Goto);
-            node.name = self.consume_ident().unwrap();
+            let name = self.consume_ident().unwrap();
             self.expect_punctuator(";").unwrap();
-            return Some(Box::new(node));
+            return Some(Box::new(Node::from(NodeKind::Goto { name })));
         }
 
         if self.consume_keyword("continue") {
-            let node = Node::from(NodeKind::Continue);
             self.expect_punctuator(";").unwrap();
-            return Some(Box::new(node));
+            return Some(Box::new(Node::from(NodeKind::Continue)));
         }
 
         if self.consume_keyword("break") {
-            let node = Node::from(NodeKind::Break);
             self.expect_punctuator(";").unwrap();
-            return Some(Box::new(node));
+            return Some(Box::new(Node::from(NodeKind::Break)));
         }
 
         if self.consume_keyword("return") {

@@ -4,7 +4,7 @@ mod declaration;
 mod expression;
 mod statement;
 
-use crate::node::Node;
+use crate::node::{Node, NodeKind};
 use crate::token::Token;
 use crate::types::Type;
 
@@ -281,7 +281,11 @@ impl Ast {
             return Err("関数本体のパースに失敗しました");
         };
         func = self.current_func.take().unwrap();
-        func.body = func_body.body;
+        if let NodeKind::Block { body } = func_body.kind {
+            func.body = body;
+        } else {
+            return Err("関数本体がブロックではありません");
+        }
         Ok(func)
     }
 }

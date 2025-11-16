@@ -2,7 +2,7 @@ use core::{fmt, str};
 
 use crate::types::Type;
 
-#[derive(PartialEq, Eq, Clone, Hash, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub enum NodeKind {
     Add,          // +
     Sub,          // -
@@ -22,7 +22,6 @@ pub enum NodeKind {
     Ne,           // !=
     Lt,           // <
     Le,           // <=
-    Ternary,      // ?:
     Assign,       // =
     AddAssign,    // +=
     SubAssign,    // -=
@@ -40,21 +39,60 @@ pub enum NodeKind {
     PostDec,      // post--
     Addr,         // &
     Deref,        // *
-    If,           // if
-    While,        // while
-    For,          // for
-    Do,           // do
-    Block,        // {}
-    Call,         // 関数呼び出し
-    Label,        // ラベル
-    Goto,         // goto
+    If {
+        cond: Option<Box<Node>>,
+        then: Option<Box<Node>>,
+        els: Option<Box<Node>>,
+    }, // if
+    Ternary {
+        cond: Option<Box<Node>>,
+        then: Option<Box<Node>>,
+        els: Option<Box<Node>>,
+    }, // cond ? then : else
+    While {
+        cond: Option<Box<Node>>,
+        then: Option<Box<Node>>,
+    }, // while
+    For {
+        init: Option<Box<Node>>,
+        cond: Option<Box<Node>>,
+        inc: Option<Box<Node>>,
+        then: Option<Box<Node>>,
+    }, // for
+    Do {
+        cond: Option<Box<Node>>,
+        then: Option<Box<Node>>,
+    }, // do
+    Block {
+        body: Vec<Box<Node>>,
+    }, // {}
+    Call {
+        name: String,
+        args: Vec<Box<Node>>,
+    }, // 関数呼び出し
+    Label {
+        name: String,
+    }, // ラベル
+    Goto {
+        name: String,
+    }, // goto
     Break,        // break
     Continue,     // continue
-    LVar,         // ローカル変数
-    GVar,         // グローバル変数
+    LVar {
+        name: String,
+        offset: i64,
+    }, // ローカル変数
+    GVar {
+        name: String,
+    }, // グローバル変数
     Return,       // return
-    Number,       // 整数
-    String,       // 文字列リテラル
+    Number {
+        val: i64,
+    }, // 整数
+    String {
+        val: String,
+        index: i64,
+    }, // 文字列リテラル
     Nop,          // 空命令
 }
 
@@ -84,17 +122,7 @@ pub struct Node {
     pub kind: NodeKind,
     pub lhs: Option<Box<Node>>,
     pub rhs: Option<Box<Node>>,
-    pub val: i64,                // kindがNumberのときに使う
-    pub offset: i64,             // 変数のオフセット / ストリングリテラルの識別子
-    pub name: String,            // 変数名 / 関数名 / ストリングリテラルの内容 / ラベル名
-    pub ty: Option<Box<Type>>,   // ノードの型情報(kindがLVarのときに使う)
-    pub cond: Option<Box<Node>>, // if, while文の条件式
-    pub then: Option<Box<Node>>, // if, while文のthen節
-    pub els: Option<Box<Node>>,  // if文のelse節
-    pub init: Option<Box<Node>>, // for文の初期化式
-    pub inc: Option<Box<Node>>,  // for文の更新式
-    pub body: Vec<Box<Node>>,    // ブロック内のstatementリスト
-    pub args: Vec<Box<Node>>,    // 関数呼び出しの引数リスト
+    pub ty: Option<Box<Type>>,
 }
 
 impl fmt::Debug for Node {
@@ -106,14 +134,23 @@ impl fmt::Debug for Node {
         if let Some(ref rhs) = self.rhs {
             write!(f, ", rhs: {:?}", rhs)?;
         }
-        if self.kind == NodeKind::Number {
-            write!(f, ", val: {}", self.val)?;
-        }
-        if self.offset != 0 {
-            write!(f, ", offset: {}", self.offset)?;
-        }
-        if !self.name.is_empty() {
-            write!(f, ", name: {}", self.name)?;
+        match self.kind {
+            NodeKind::Number { val } => {
+                write!(f, ", val: {}", val)?;
+            }
+            NodeKind::LVar { ref name, offset } => {
+                write!(f, ", name: {}, offset: {}", name, offset)?;
+            }
+            NodeKind::GVar { ref name } => {
+                write!(f, ", name: {}", name)?;
+            }
+            NodeKind::Call { ref name, ref args } => {
+                write!(f, ", name: {}, args: {:?}", name, args)?;
+            }
+            NodeKind::Label { ref name } => {
+                write!(f, ", name: {}", name)?;
+            }
+            _ => {}
         }
         write!(f, " }}")
     }
@@ -125,17 +162,7 @@ impl Default for Node {
             kind: NodeKind::Nop,
             lhs: None,
             rhs: None,
-            val: 0,
-            offset: 0,
-            name: String::new(),
             ty: None,
-            cond: None,
-            then: None,
-            els: None,
-            init: None,
-            inc: None,
-            body: Vec::new(),
-            args: Vec::new(),
         }
     }
 }
@@ -146,17 +173,7 @@ impl Node {
             kind,
             lhs,
             rhs,
-            val: 0,
-            offset: 0,
-            name: String::new(),
             ty: None,
-            cond: None,
-            then: None,
-            els: None,
-            init: None,
-            inc: None,
-            body: Vec::new(),
-            args: Vec::new(),
         }
     }
 
@@ -169,23 +186,32 @@ impl Node {
     }
 
     pub fn new_num(val: i64) -> Self {
-        let mut node = Node::new(NodeKind::Number, None, None);
-        node.val = val;
+        let mut node = Node::new(NodeKind::Number { val }, None, None);
         node.ty = Some(Box::new(Type::Int));
         node
     }
 
     pub fn new_lvar(name: &str, offset: i64, ty: &Type) -> Self {
-        let mut node = Node::new(NodeKind::LVar, None, None);
-        node.name = name.to_string();
-        node.offset = offset;
+        let mut node = Node::new(
+            NodeKind::LVar {
+                name: name.to_string(),
+                offset,
+            },
+            None,
+            None,
+        );
         node.ty = Some(Box::new(ty.clone()));
         node
     }
 
     pub fn new_gvar(name: &str, ty: &Type) -> Self {
-        let mut node = Node::new(NodeKind::GVar, None, None);
-        node.name = name.to_string();
+        let mut node = Node::new(
+            NodeKind::GVar {
+                name: name.to_string(),
+            },
+            None,
+            None,
+        );
         node.ty = Some(Box::new(ty.clone()));
         node
     }
@@ -199,13 +225,13 @@ impl Node {
         }
 
         match self.kind {
-            NodeKind::Number => {
+            NodeKind::Number { .. } => {
                 // 数値リテラルの型はすでに設定されているはず
             }
-            NodeKind::LVar => {
+            NodeKind::LVar { .. } => {
                 // ローカル変数の型はすでに設定されているはず
             }
-            NodeKind::GVar => {
+            NodeKind::GVar { .. } => {
                 // グローバル変数の型はすでに設定されているはず
             }
             NodeKind::Add
