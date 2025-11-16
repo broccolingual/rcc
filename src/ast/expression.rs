@@ -2,7 +2,6 @@ use core::str::FromStr;
 
 use crate::ast::Ast;
 use crate::node::{Node, NodeKind};
-use crate::types::TypeKind;
 
 impl Ast {
     // constant_expr ::= conditional_expr
@@ -219,15 +218,10 @@ impl Ast {
                 let mut rhs = self.mul_expr();
                 rhs.as_mut().unwrap().assign_types(); // rhs
                 if let Some(ty) = &node.as_ref().unwrap().ty
-                    && matches!(ty.kind, TypeKind::Ptr { .. } | TypeKind::Array { .. })
+                    && ty.is_ptr_or_array()
                 {
-                    let to = match &ty.kind {
-                        TypeKind::Ptr { to } => to,
-                        TypeKind::Array { base, .. } => base,
-                        _ => unreachable!(),
-                    };
                     // ポインタ減算の場合、スケーリングを考慮
-                    let size = to.actual_size_of();
+                    let size = ty.base_type().actual_size_of();
                     rhs = Some(Box::new(Node::new(
                         NodeKind::Mul,
                         rhs,
@@ -241,15 +235,10 @@ impl Ast {
                 let mut rhs = self.mul_expr();
                 rhs.as_mut().unwrap().assign_types(); // rhs
                 if let Some(ty) = &node.as_ref().unwrap().ty
-                    && matches!(ty.kind, TypeKind::Ptr { .. } | TypeKind::Array { .. })
+                    && ty.is_ptr_or_array()
                 {
-                    let to = match &ty.kind {
-                        TypeKind::Ptr { to } => to,
-                        TypeKind::Array { base, .. } => base,
-                        _ => unreachable!(),
-                    };
                     // ポインタ減算の場合、スケーリングを考慮
-                    let size = to.actual_size_of();
+                    let size = ty.base_type().actual_size_of();
                     rhs = Some(Box::new(Node::new(
                         NodeKind::Mul,
                         rhs,

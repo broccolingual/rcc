@@ -1,7 +1,7 @@
 use crate::ast::{Ast, Var};
 use crate::node::Node;
 use crate::types::{
-    DeclarationSpecifier, FunctionKind, StorageClassKind, Type, TypeKind, TypeQualifierKind,
+    DeclarationSpecifier, FunctionKind, StorageClassKind, Type, TypeQualifierKind,
     TypeSpecifierQualifier,
 };
 
@@ -12,8 +12,8 @@ impl Ast {
         if specifiers.is_empty() {
             return None;
         }
-        let base_kind = Type::from(&specifiers).unwrap().kind;
-        let vars = self.init_declarator_list(base_kind);
+        let base_type = Type::from(&specifiers).unwrap();
+        let vars = self.init_declarator_list(base_type);
         if vars.is_empty() {
             return None;
         }
@@ -49,13 +49,13 @@ impl Ast {
     }
 
     // init_declarator_list ::= init_declarator ("," init_declarator)*
-    fn init_declarator_list(&mut self, base_kind: TypeKind) -> Vec<Var> {
+    fn init_declarator_list(&mut self, base_type: Type) -> Vec<Var> {
         let mut vars = Vec::new();
-        if let Some(var) = self.init_declarator(base_kind.clone()) {
+        if let Some(var) = self.init_declarator(base_type.clone()) {
             vars.push(*var);
         }
         while self.consume_punctuator(",") {
-            if let Some(var) = self.init_declarator(base_kind.clone()) {
+            if let Some(var) = self.init_declarator(base_type.clone()) {
                 vars.push(*var);
             }
         }
@@ -64,8 +64,8 @@ impl Ast {
 
     // init_declarator ::= declarator
     //                     | declarator "=" initializer
-    fn init_declarator(&mut self, base_kind: TypeKind) -> Option<Box<Var>> {
-        if let Ok(mut var) = self.declarator(base_kind) {
+    fn init_declarator(&mut self, base_type: Type) -> Option<Box<Var>> {
+        if let Ok(mut var) = self.declarator(base_type) {
             if self.consume_punctuator("=") {
                 if let Some(init) = self.initializer() {
                     let mut init = Some(init);
@@ -73,8 +73,8 @@ impl Ast {
                     if &var.ty != init.as_ref().unwrap().ty.as_ref().unwrap() {
                         panic!(
                             "initializerの型が変数の型と一致しません {:?} <= {:?}",
-                            var.ty,
-                            init.as_ref().unwrap().ty.as_ref().unwrap(),
+                            *var.ty,
+                            *init.as_ref().unwrap().ty.as_ref().unwrap(),
                         );
                     } // 型チェック
                     var.init = init; // initializerを設定
@@ -95,8 +95,8 @@ impl Ast {
     }
 
     // type_specifier ::= "void" | "char" | "short" | "int" | "long" | "float" | "double" | "bool"
-    fn type_specifier(&mut self) -> Option<TypeKind> {
-        TypeKind::all()
+    fn type_specifier(&mut self) -> Option<Type> {
+        Type::all()
             .into_iter()
             .find(|specifier| self.consume_keyword(&specifier.to_string()))
     }
@@ -149,15 +149,15 @@ impl Ast {
     #[allow(clippy::never_loop)]
     fn pointer(&mut self, base_ty: Box<Type>) -> Box<Type> {
         while self.consume_punctuator("*") {
-            return self.pointer(Box::new(Type::new_ptr(&base_ty)));
+            return self.pointer(Box::new(Type::Ptr { to: base_ty }));
         }
         self.type_qualifier_list(); // 現状は型修飾子を無視
         base_ty
     }
 
     // declarator ::= pointer? direct_declarator
-    pub(super) fn declarator(&mut self, base_kind: TypeKind) -> Result<Box<Var>, &str> {
-        let ty = self.pointer(Box::new(Type::new(base_kind)));
+    pub(super) fn declarator(&mut self, base_type: Type) -> Result<Box<Var>, &str> {
+        let ty = self.pointer(Box::new(base_type));
         self.direct_declarator(ty)
     }
 
@@ -167,7 +167,7 @@ impl Ast {
     //                       | function_declarator
     fn direct_declarator(&mut self, ty: Box<Type>) -> Result<Box<Var>, &str> {
         let mut var = if self.consume_punctuator("(") {
-            if let Ok(v) = self.declarator(ty.kind.clone()) {
+            if let Ok(v) = self.declarator(*ty.clone()) {
                 self.expect_punctuator(")").unwrap();
                 v
             } else {
@@ -185,7 +185,10 @@ impl Ast {
                 let array_size = self.expect_number().unwrap() as usize;
                 self.expect_punctuator("]").unwrap();
                 // TODO: 多次元配列の場合，逆順で定義されてしまう
-                let array_ty = Type::new_array(&var.ty, array_size);
+                let array_ty = Type::Array {
+                    base: var.ty,
+                    size: array_size,
+                };
                 var = Box::new(Var::new(&var.name, array_ty));
                 continue;
             }
@@ -193,7 +196,10 @@ impl Ast {
             if self.consume_punctuator("(") {
                 let params = self.parameter_type_list();
                 self.expect_punctuator(")").unwrap();
-                let func_ty = Type::new_func(&var.ty, params.to_vec());
+                let func_ty = Type::Func {
+                    return_ty: var.ty,
+                    params,
+                };
                 var = Box::new(Var::new(&var.name, func_ty));
                 continue;
             }
@@ -225,7 +231,7 @@ impl Ast {
     fn parameter_declaration(&mut self) -> Result<Box<Var>, &str> {
         let specifiers = self.declaration_specifiers();
         if !specifiers.is_empty() {
-            let base_kind = Type::from(&specifiers).unwrap().kind;
+            let base_kind = Type::from(&specifiers).unwrap();
             if let Ok(var) = self.declarator(base_kind) {
                 return Ok(var);
             }
@@ -259,7 +265,7 @@ mod tests {
         let vars = ast.declaration().unwrap();
         let var = &vars[0];
         assert_eq!(var.name, "a");
-        assert_eq!(var.ty.kind, TypeKind::Int);
+        assert_eq!(*var.ty, Type::Int);
 
         let input = "int *p;";
         let mut ast = preproc(input);
@@ -267,9 +273,9 @@ mod tests {
         let var = &vars[0];
         assert_eq!(var.name, "p");
         assert_eq!(
-            var.ty.kind,
-            TypeKind::Ptr {
-                to: Box::new(Type::new(TypeKind::Int))
+            *var.ty,
+            Type::Ptr {
+                to: Box::new(Type::Int)
             }
         );
 
@@ -279,11 +285,11 @@ mod tests {
         let var = &vars[0];
         assert_eq!(var.name, "p");
         assert_eq!(
-            var.ty.kind,
-            TypeKind::Ptr {
-                to: Box::new(Type::new(TypeKind::Ptr {
-                    to: Box::new(Type::new(TypeKind::Int))
-                }))
+            *var.ty,
+            Type::Ptr {
+                to: Box::new(Type::Ptr {
+                    to: Box::new(Type::Int)
+                })
             }
         );
 
@@ -293,9 +299,9 @@ mod tests {
         let var = &vars[0];
         assert_eq!(var.name, "arr");
         assert_eq!(
-            var.ty.kind,
-            TypeKind::Array {
-                base: Box::new(Type::new(TypeKind::Int)),
+            *var.ty,
+            Type::Array {
+                base: Box::new(Type::Int),
                 size: 10
             }
         );
@@ -319,11 +325,11 @@ mod tests {
         let var = &vars[0];
         assert_eq!(var.name, "arr");
         assert_eq!(
-            var.ty.kind,
-            TypeKind::Array {
-                base: Box::new(Type::new(TypeKind::Ptr {
-                    to: Box::new(Type::new(TypeKind::Int))
-                })),
+            *var.ty,
+            Type::Array {
+                base: Box::new(Type::Ptr {
+                    to: Box::new(Type::Int)
+                }),
                 size: 10
             }
         );
@@ -334,15 +340,15 @@ mod tests {
         assert!(vars.len() == 2);
         assert_eq!(vars[0].name, "a");
         assert_eq!(vars[1].name, "b");
-        assert_eq!(vars[0].ty.kind, TypeKind::Int);
-        assert_eq!(vars[1].ty.kind, TypeKind::Int);
+        assert_eq!(*vars[0].ty, Type::Int);
+        assert_eq!(*vars[1].ty, Type::Int);
 
         let input = "int a = 3;";
         let mut ast = preproc(input);
         let vars = ast.declaration().unwrap();
         let var = &vars[0];
         assert_eq!(var.name, "a");
-        assert_eq!(var.ty.kind, TypeKind::Int);
+        assert_eq!(*var.ty, Type::Int);
         assert!(var.init.is_some());
         let init = var.init.as_ref().unwrap();
         assert_eq!(init.kind, NodeKind::Number);
@@ -356,8 +362,8 @@ mod tests {
         let var_b = &vars[1];
         assert_eq!(var_a.name, "a");
         assert_eq!(var_b.name, "b");
-        assert_eq!(var_a.ty.kind, TypeKind::Int);
-        assert_eq!(var_b.ty.kind, TypeKind::Int);
+        assert_eq!(*var_a.ty, Type::Int);
+        assert_eq!(*var_b.ty, Type::Int);
         assert!(var_a.init.is_some());
         assert!(var_b.init.is_some());
         let init_a = var_a.init.as_ref().unwrap();

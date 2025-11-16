@@ -11,7 +11,7 @@ pub enum DeclarationSpecifier {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TypeSpecifierQualifier {
-    TypeSpecifier(TypeKind),
+    TypeSpecifier(Type),
     TypeQualifier(TypeQualifierKind),
 }
 
@@ -101,7 +101,7 @@ impl TypeQualifierKind {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum TypeKind {
+pub enum Type {
     Void,
     Char,
     Short,
@@ -123,132 +123,88 @@ pub enum TypeKind {
     }, // return_ty: 戻り値の型, params: パラメータリスト
 }
 
-impl fmt::Display for TypeKind {
+impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            TypeKind::Void => write!(f, "void"),
-            TypeKind::Char => write!(f, "char"),
-            TypeKind::Short => write!(f, "short"),
-            TypeKind::Int => write!(f, "int"),
-            TypeKind::Long => write!(f, "long"),
-            TypeKind::Float => write!(f, "float"),
-            TypeKind::Double => write!(f, "double"),
-            TypeKind::Bool => write!(f, "bool"),
-            TypeKind::Ptr { to } => write!(f, "ptr to {:?}", to),
-            TypeKind::Array { base, size } => write!(f, "array[{}] of {:?}", size, base),
-            TypeKind::Func { return_ty, params } => {
+            Type::Void => write!(f, "void"),
+            Type::Char => write!(f, "char"),
+            Type::Short => write!(f, "short"),
+            Type::Int => write!(f, "int"),
+            Type::Long => write!(f, "long"),
+            Type::Float => write!(f, "float"),
+            Type::Double => write!(f, "double"),
+            Type::Bool => write!(f, "bool"),
+            Type::Ptr { to } => write!(f, "ptr to {:?}", to),
+            Type::Array { base, size } => write!(f, "array[{}] of {:?}", size, base),
+            Type::Func { return_ty, params } => {
                 write!(f, "func({:?}) -> {:?}", params, return_ty)
             }
         }
     }
 }
 
-impl TypeKind {
-    pub fn all() -> Vec<TypeKind> {
-        vec![
-            TypeKind::Void,
-            TypeKind::Char,
-            TypeKind::Short,
-            TypeKind::Int,
-            TypeKind::Long,
-            TypeKind::Float,
-            TypeKind::Double,
-            TypeKind::Bool,
-        ]
-    }
-}
-
-#[derive(Clone, PartialEq, Eq)]
-pub struct Type {
-    pub kind: TypeKind,
-}
-
-impl fmt::Debug for Type {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.kind {
-            TypeKind::Ptr { to } => {
-                write!(f, "*{:?}", to)
-            }
-            TypeKind::Array { base, size } => {
-                write!(f, "[{:?}; {}]", base, size)
-            }
-            TypeKind::Func { return_ty, params } => {
-                write!(f, "fn({:?}) -> {:?}", params, return_ty)
-            }
-            _ => write!(f, "{:?}", self.kind),
-        }
-    }
-}
-
 impl Type {
-    pub fn new(kind: TypeKind) -> Self {
-        Type { kind }
+    pub fn all() -> Vec<Type> {
+        vec![
+            Type::Void,
+            Type::Char,
+            Type::Short,
+            Type::Int,
+            Type::Long,
+            Type::Float,
+            Type::Double,
+            Type::Bool,
+        ]
     }
 
     // TODO: constやvolatileの情報も扱う
     pub fn from(declaration_specifiers: &Vec<DeclarationSpecifier>) -> Option<Self> {
         for specifier in declaration_specifiers {
             if let DeclarationSpecifier::TypeSpecifierQualifier(tsq) = specifier
-                && let TypeSpecifierQualifier::TypeSpecifier(type_kind) = tsq
+                && let TypeSpecifierQualifier::TypeSpecifier(ty) = tsq
             {
-                return Some(Type::new(type_kind.clone()));
+                return Some(ty.clone());
             }
         }
         None
     }
 
-    pub fn new_ptr(to: &Type) -> Self {
-        Type {
-            kind: TypeKind::Ptr {
-                to: Box::new(to.clone()),
-            },
+    // ポインタもしくは配列の基底型を取得
+    pub fn base_type(&self) -> &Type {
+        match &self {
+            Type::Ptr { to } => to.base_type(),
+            Type::Array { base, .. } => base.base_type(),
+            _ => self,
         }
     }
 
-    pub fn new_array(of: &Type, size: usize) -> Self {
-        Type {
-            kind: TypeKind::Array {
-                base: Box::new(of.clone()),
-                size,
-            },
-        }
-    }
-
-    pub fn new_func(return_ty: &Type, params: Vec<Var>) -> Self {
-        Type {
-            kind: TypeKind::Func {
-                return_ty: Box::new(return_ty.clone()),
-                params,
-            },
-        }
-    }
-
-    pub fn is_ptr(&self) -> bool {
-        matches!(self.kind, TypeKind::Ptr { .. })
+    // 型がポインタもしくは配列かどうか
+    pub fn is_ptr_or_array(&self) -> bool {
+        matches!(self, Type::Ptr { .. } | Type::Array { .. })
     }
 
     // 実際のサイズ（配列の場合は要素数を考慮）
     pub fn actual_size_of(&self) -> i64 {
-        match &self.kind {
-            TypeKind::Array { base, size } => base.actual_size_of() * *size as i64,
+        match &self {
+            Type::Array { base, size } => base.actual_size_of() * *size as i64,
             _ => self.size_of(),
         }
     }
 
-    // 型のサイズ（配列の場合は要素のサイズ）
+    // 型のサイズ（配列の場合はポインタ先のサイズ）
     pub fn size_of(&self) -> i64 {
-        match &self.kind {
-            TypeKind::Void => 0,
-            TypeKind::Char => 1,
-            TypeKind::Short => 2,
-            TypeKind::Int => 4,
-            TypeKind::Long => 8,
-            TypeKind::Float => 4,
-            TypeKind::Double => 8,
-            TypeKind::Bool => 1,
-            TypeKind::Ptr { .. } => 8,
-            TypeKind::Array { base, .. } => base.size_of(),
-            TypeKind::Func { .. } => 8, // TODO: 一旦8バイト固定
+        match &self {
+            Type::Void => 0,
+            Type::Char => 1,
+            Type::Short => 2,
+            Type::Int => 4,
+            Type::Long => 8,
+            Type::Float => 4,
+            Type::Double => 8,
+            Type::Bool => 1,
+            Type::Ptr { .. } => 8,
+            Type::Array { base, .. } => base.size_of(),
+            Type::Func { .. } => 8, // TODO: 一旦8バイト固定
         }
     }
 }

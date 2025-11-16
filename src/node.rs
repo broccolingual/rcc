@@ -1,6 +1,6 @@
 use core::{fmt, str};
 
-use crate::types::{Type, TypeKind};
+use crate::types::Type;
 
 #[derive(PartialEq, Eq, Clone, Hash, Debug)]
 pub enum NodeKind {
@@ -171,7 +171,7 @@ impl Node {
     pub fn new_num(val: i64) -> Self {
         let mut node = Node::new(NodeKind::Number, None, None);
         node.val = val;
-        node.ty = Some(Box::new(Type::new(TypeKind::Int)));
+        node.ty = Some(Box::new(Type::Int));
         node
     }
 
@@ -224,21 +224,20 @@ impl Node {
             NodeKind::Addr => {
                 // アドレス演算子の型はポインタ型にする
                 let base_ty = self.lhs.as_ref().unwrap().ty.as_ref().unwrap();
-                let ptr_ty = Type::new_ptr(base_ty);
-                self.ty = Some(Box::new(ptr_ty));
+                self.ty = Some(Box::new(Type::Ptr {
+                    to: base_ty.clone(),
+                }));
             }
             NodeKind::Deref => {
                 // デリファレンス演算子の型はポインタの指す型にする
                 let ptr_ty = self.lhs.as_ref().unwrap().ty.as_ref().unwrap();
-                let to = match &ptr_ty.kind {
-                    TypeKind::Ptr { to } => to,
-                    TypeKind::Array { base, .. } => base,
-                    _ => panic!(
+                if !ptr_ty.is_ptr_or_array() {
+                    panic!(
                         "ポインタ型ではないものをデリファレンスしようとしました: {:?}",
                         self
-                    ),
-                };
-                self.ty = Some(to.clone());
+                    );
+                }
+                self.ty = Some(Box::new(ptr_ty.base_type().clone()));
             }
             _ => {
                 // その他のノードはとりあえずNoneにする
