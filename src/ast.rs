@@ -168,6 +168,17 @@ impl Ast {
         }
     }
 
+    fn consume_number(&mut self) -> Option<i64> {
+        match self.get_token() {
+            Some(Token::Number(val)) => {
+                let val_clone = *val;
+                self.advance_token();
+                Some(val_clone)
+            }
+            _ => None,
+        }
+    }
+
     fn expect(&mut self, token: &Token) -> Result<(), &str> {
         match self.get_token() {
             Some(t) if t == token => {

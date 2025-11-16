@@ -222,7 +222,7 @@ impl Ast {
                     && (ty.kind == TypeKind::Ptr || ty.kind == TypeKind::Array)
                 {
                     // ポインタ加算の場合、スケーリングを考慮
-                    let size = ty.ptr_to.as_ref().unwrap().size_of();
+                    let size = ty.ptr_to.as_ref().unwrap().actual_size_of();
                     rhs = Some(Box::new(Node::new(
                         NodeKind::Mul,
                         rhs,
@@ -239,7 +239,7 @@ impl Ast {
                     && (ty.kind == TypeKind::Ptr || ty.kind == TypeKind::Array)
                 {
                     // ポインタ減算の場合、スケーリングを考慮
-                    let size = ty.ptr_to.as_ref().unwrap().size_of();
+                    let size = ty.ptr_to.as_ref().unwrap().actual_size_of();
                     rhs = Some(Box::new(Node::new(
                         NodeKind::Mul,
                         rhs,
@@ -378,45 +378,54 @@ impl Ast {
         }
     }
 
+    // argument_expr_list ::= assign_expr ("," assign_expr)*
+    #[allow(clippy::vec_box)]
+    fn argument_expr_list(&mut self) -> Result<Vec<Box<Node>>, &str> {
+        let mut args = Vec::new();
+        if let Some(arg) = self.assign_expr() {
+            args.insert(0, arg); // 逆順で格納
+        } else {
+            return Ok(args);
+        }
+
+        while self.consume_punctuator(",") {
+            if let Some(arg) = self.assign_expr() {
+                args.insert(0, arg); // 逆順で格納
+            } else {
+                return Err("関数呼び出しの引数のパースに失敗しました");
+            }
+        }
+        Ok(args)
+    }
+
     // primary_expr ::= "(" expr ")"
-    //                  | ident "(" (assign_expr ("," assign_expr)*)? ")"
-    //                  | ident
+    //                  | ident "(" argument_expr_list? ")"
+    //                  | ident ("[" expr "]")*
     //                  | string
     //                  | number
     fn primary_expr(&mut self) -> Option<Box<Node>> {
+        // "(" expr ")"
         if self.consume_punctuator("(") {
             let node = self.expr();
             self.expect_punctuator(")").unwrap();
             return node;
         }
-        let token = self.consume_ident();
-        if let Some(name) = token {
+
+        if let Some(name) = self.consume_ident() {
             // 関数呼び出し
             if self.consume_punctuator("(") {
                 let mut node = Node::from(NodeKind::Call);
                 node.name = name;
 
                 // 引数リストをパース
-                if self.consume_punctuator(")") {
-                    // 引数なし
-                } else {
-                    // 引数あり
-                    loop {
-                        if let Some(arg) = self.assign_expr() {
-                            node.args.insert(0, arg);
-                        } else {
-                            panic!("関数呼び出しの引数のパースに失敗しました");
-                        }
-
-                        if self.consume_punctuator(",") {
-                            continue;
-                        } else {
-                            break;
-                        }
+                match self.argument_expr_list() {
+                    Ok(args) => {
+                        node.args = args; // 逆順で格納されているのでそのまま代入
                     }
-                    self.expect_punctuator(")").unwrap();
-                }
+                    Err(msg) => panic!("{}", msg),
+                };
 
+                self.expect_punctuator(")").unwrap();
                 return Some(Box::new(node));
             }
 
@@ -426,8 +435,10 @@ impl Ast {
                 // ローカル変数ノードを作成
                 let node = Node::new_lvar(&lvar.name, lvar.offset, &lvar.ty);
 
+                // 配列の場合は自動的にアドレスに変換
+                // 例: a[0] -> *(a + 0)
+                // 例: a[1][2] -> *(*(a + 1) + 2)
                 // TODO: 多次元配列への対応
-                // 配列の場合はポインタ型に変換
                 if self.consume_punctuator("[") {
                     let add = Node::new(NodeKind::Add, Some(Box::new(node)), self.expr());
                     let mut n = Some(Box::new(Node::new_unary(
@@ -443,8 +454,8 @@ impl Ast {
                 // グローバル変数ノードを作成
                 let node = Node::new_gvar(&gvar.name, &gvar.ty);
 
+                // 配列の場合は自動的にアドレスに変換
                 // TODO: 多次元配列への対応
-                // 配列の場合はポインタ型に変換
                 if self.consume_punctuator("[") {
                     let add = Node::new(NodeKind::Add, Some(Box::new(node)), self.expr());
                     let mut n = Some(Box::new(Node::new_unary(
@@ -468,6 +479,10 @@ impl Ast {
             return Some(Box::new(node));
         }
 
-        Some(Box::new(Node::new_num(self.expect_number().unwrap())))
+        if let Some(num) = self.consume_number() {
+            return Some(Box::new(Node::new_num(num)));
+        }
+
+        None
     }
 }

@@ -114,6 +114,14 @@ int main() {
     p = a;
     return p[0] + p[1];
 }'
+# TODO: 多次元配列対応
+# assert 3 '
+# int main() {
+#     int a[3][3];
+#     a[0][0] = 1;
+#     a[0][1] = 2;
+#     return a[0][0] + a[0][1];
+# }'
 assert 6 '
 int main() {
     char x[20];

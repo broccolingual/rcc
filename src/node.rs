@@ -106,7 +106,7 @@ impl fmt::Debug for Node {
         if let Some(ref rhs) = self.rhs {
             write!(f, ", rhs: {:?}", rhs)?;
         }
-        if self.val != 0 {
+        if self.kind == NodeKind::Number {
             write!(f, ", val: {}", self.val)?;
         }
         if self.offset != 0 {
