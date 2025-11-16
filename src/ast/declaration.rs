@@ -239,3 +239,125 @@ impl Ast {
         self.assign_expr()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::node::NodeKind;
+    use crate::parser::Tokenizer;
+
+    fn preproc(input: &str) -> Ast {
+        let tokenizer = Tokenizer::new();
+        let tokens = tokenizer.tokenize(input).unwrap();
+        Ast::new(&tokens)
+    }
+
+    #[test]
+    fn test_declaration() {
+        let input = "int a;";
+        let mut ast = preproc(input);
+        let vars = ast.declaration().unwrap();
+        let var = &vars[0];
+        assert_eq!(var.name, "a");
+        assert_eq!(var.ty.kind, TypeKind::Int);
+
+        let input = "int *p;";
+        let mut ast = preproc(input);
+        let vars = ast.declaration().unwrap();
+        let var = &vars[0];
+        assert_eq!(var.name, "p");
+        assert_eq!(var.ty.kind, TypeKind::Ptr);
+        assert_eq!(var.ty.ptr_to.as_ref().unwrap().kind, TypeKind::Int);
+
+        let input = "int **p;";
+        let mut ast = preproc(input);
+        let vars = ast.declaration().unwrap();
+        let var = &vars[0];
+        assert_eq!(var.name, "p");
+        assert_eq!(var.ty.kind, TypeKind::Ptr);
+        assert_eq!(var.ty.ptr_to.as_ref().unwrap().kind, TypeKind::Ptr);
+        assert_eq!(
+            var.ty
+                .ptr_to
+                .as_ref()
+                .unwrap()
+                .ptr_to
+                .as_ref()
+                .unwrap()
+                .kind,
+            TypeKind::Int
+        );
+
+        let input = "int arr[10];";
+        let mut ast = preproc(input);
+        let vars = ast.declaration().unwrap();
+        let var = &vars[0];
+        assert_eq!(var.name, "arr");
+        assert_eq!(var.ty.kind, TypeKind::Array);
+        assert_eq!(var.ty.array_size, 10);
+        assert_eq!(var.ty.ptr_to.as_ref().unwrap().kind, TypeKind::Int);
+
+        // TODO: 多次元配列の要素数の宣言が逆順になる問題の修正
+        // let input = "int arr[3][5];";
+        // let mut ast = preproc(input);
+        // let vars = ast.declaration().unwrap();
+        // let var = &vars[0];
+        // assert_eq!(var.name, "arr");
+        // assert_eq!(var.ty.kind, TypeKind::Array);
+        // assert_eq!(var.ty.array_size, 3);
+        // let inner_ty = var.ty.ptr_to.as_ref().unwrap();
+        // assert_eq!(inner_ty.kind, TypeKind::Array);
+        // assert_eq!(inner_ty.array_size, 5);
+        // assert_eq!(inner_ty.ptr_to.as_ref().unwrap().kind, TypeKind::Int);
+
+        let input = "int *arr[10];";
+        let mut ast = preproc(input);
+        let vars = ast.declaration().unwrap();
+        let var = &vars[0];
+        assert_eq!(var.name, "arr");
+        assert_eq!(var.ty.kind, TypeKind::Array);
+        assert_eq!(var.ty.array_size, 10);
+        let inner_ty = var.ty.ptr_to.as_ref().unwrap();
+        assert_eq!(inner_ty.kind, TypeKind::Ptr);
+        assert_eq!(inner_ty.ptr_to.as_ref().unwrap().kind, TypeKind::Int);
+
+        let input = "int a, b;";
+        let mut ast = preproc(input);
+        let vars = ast.declaration().unwrap();
+        assert!(vars.len() == 2);
+        assert_eq!(vars[0].name, "a");
+        assert_eq!(vars[1].name, "b");
+        assert_eq!(vars[0].ty.kind, TypeKind::Int);
+        assert_eq!(vars[1].ty.kind, TypeKind::Int);
+
+        let input = "int a = 3;";
+        let mut ast = preproc(input);
+        let vars = ast.declaration().unwrap();
+        let var = &vars[0];
+        assert_eq!(var.name, "a");
+        assert_eq!(var.ty.kind, TypeKind::Int);
+        assert!(var.init.is_some());
+        let init = var.init.as_ref().unwrap();
+        assert_eq!(init.kind, NodeKind::Number);
+        assert_eq!(init.val, 3);
+
+        let input = "int a = 3, b = 5;";
+        let mut ast = preproc(input);
+        let vars = ast.declaration().unwrap();
+        assert!(vars.len() == 2);
+        let var_a = &vars[0];
+        let var_b = &vars[1];
+        assert_eq!(var_a.name, "a");
+        assert_eq!(var_b.name, "b");
+        assert_eq!(var_a.ty.kind, TypeKind::Int);
+        assert_eq!(var_b.ty.kind, TypeKind::Int);
+        assert!(var_a.init.is_some());
+        assert!(var_b.init.is_some());
+        let init_a = var_a.init.as_ref().unwrap();
+        let init_b = var_b.init.as_ref().unwrap();
+        assert_eq!(init_a.kind, NodeKind::Number);
+        assert_eq!(init_a.val, 3);
+        assert_eq!(init_b.kind, NodeKind::Number);
+        assert_eq!(init_b.val, 5);
+    }
+}

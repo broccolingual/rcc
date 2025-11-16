@@ -471,7 +471,7 @@ impl Ast {
         Some(Box::new(Node::new_num(self.expect_number().unwrap())))
     }
 
-    pub(super) fn assign_types(&mut self, node: &mut Option<Box<Node>>) {
+    pub(super) fn assign_types(&self, node: &mut Option<Box<Node>>) {
         if node.is_none() {
             return;
         }
