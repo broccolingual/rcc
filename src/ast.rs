@@ -13,7 +13,7 @@ pub struct Var {
     pub name: String,
     pub offset: i64,
     pub ty: Box<Type>,
-    pub initializer: Option<Box<Node>>,
+    pub init: Option<Box<Node>>,
 }
 
 impl Var {
@@ -22,7 +22,7 @@ impl Var {
             name: name.to_string(),
             offset: 0,
             ty: Box::new(ty),
-            initializer: None,
+            init: None,
         }
     }
 }

@@ -84,7 +84,7 @@ impl Generator {
                     .add_row(&format!("sub rsp, {}", stack_size), true);
             }
 
-            // 引数を逆順でスタックから読み出し
+            // ローカル変数を逆順でスタックから読み出し
             for (i, arg) in func.locals.iter().rev().enumerate() {
                 match arg.ty.size_of() {
                     1 => {
@@ -113,6 +113,20 @@ impl Generator {
                     }
                     _ => panic!("未対応の引数サイズ: {}", arg.ty.size_of()),
                 }
+
+                // initializerがある場合、初期化コードを生成
+                if let Some(init) = arg.init.as_ref() {
+                    self.get_val(&Node {
+                        kind: NodeKind::LVar,
+                        offset: arg.offset,
+                        ..Default::default()
+                    }); // 変数のアドレスをスタックに積む
+                    self.gen_asm_from_expr(init); // 初期化式のコードを生成し、スタックに値を積む
+                    self.store(&Node {
+                        ty: Some(arg.ty.clone()),
+                        ..Default::default()
+                    }); // スタックトップの値を変数に格納
+                }
             }
 
             // 関数本体のコード生成
@@ -134,17 +148,17 @@ impl Generator {
     pub fn get_val(&mut self, node: &Node) {
         match node.kind {
             NodeKind::Deref => {
-                self.gen_asm_from_expr(node.lhs.as_ref().unwrap());
+                self.gen_asm_from_expr(node.lhs.as_ref().unwrap()); // ポインタの値を取得
             }
             NodeKind::LVar => {
                 self.builder
-                    .add_row(&format!("lea rax, [rbp-{}]", node.offset), true);
-                self.builder.add_row("push rax", true);
+                    .add_row(&format!("lea rax, [rbp-{}]", node.offset), true); // ローカル変数のアドレス計算
+                self.builder.add_row("push rax", true); // 変数のアドレスをスタックに積む
             }
             NodeKind::GVar => {
                 self.builder
-                    .add_row(&format!("lea rax, {}[rip]", node.name), true);
-                self.builder.add_row("push rax", true);
+                    .add_row(&format!("lea rax, {}[rip]", node.name), true); // RIP相対アドレッシング
+                self.builder.add_row("push rax", true); // 変数のアドレスをスタックに積む
             }
             _ => panic!("代入の左辺値が変数ではありません: {:?}", node.kind),
         }
@@ -152,7 +166,7 @@ impl Generator {
 
     // スタックトップのアドレスから値を読み出してスタックに積む
     fn load(&mut self, node: &Node) {
-        self.builder.add_row("pop rax", true);
+        self.builder.add_row("pop rax", true); // ロード先のアドレス
         if node.ty.is_none() {
             panic!("load先の型情報がありません: {:?}", node);
         }
@@ -174,13 +188,13 @@ impl Generator {
                 node.ty.as_ref().unwrap().size_of()
             ),
         }
-        self.builder.add_row("push rax", true);
+        self.builder.add_row("push rax", true); // 読み出した値をスタックに積む
     }
 
     // スタックトップの値をアドレスに格納する
     fn store(&mut self, node: &Node) {
-        self.builder.add_row("pop rdi", true);
-        self.builder.add_row("pop rax", true);
+        self.builder.add_row("pop rdi", true); // ストアする値
+        self.builder.add_row("pop rax", true); // ストア先のアドレス
         if node.ty.is_none() {
             panic!("store先の型情報がありません: {:?}", node);
         }
@@ -202,7 +216,7 @@ impl Generator {
                 node.ty.as_ref().unwrap().size_of()
             ),
         }
-        self.builder.add_row("push rdi", true);
+        self.builder.add_row("push rdi", true); // ストアした値をスタックに戻す
     }
 
     // int を 1 加算
@@ -230,8 +244,8 @@ impl Generator {
             }
             NodeKind::String => {
                 self.builder
-                    .add_row(&format!("lea rax, .L.str.{}[rip]", node.offset), true);
-                self.builder.add_row("push rax", true);
+                    .add_row(&format!("lea rax, .L.str.{}[rip]", node.offset), true); // RIP相対アドレッシング
+                self.builder.add_row("push rax", true); // 文字列リテラルのアドレスをスタックに積む
                 return;
             }
             NodeKind::LVar | NodeKind::GVar => {
@@ -550,8 +564,8 @@ impl Generator {
     }
 
     fn gen_asm_from_binary_op(&mut self, node: &Node) {
-        self.builder.add_row("pop rdi", true);
-        self.builder.add_row("pop rax", true);
+        self.builder.add_row("pop rdi", true); // 右オペランド
+        self.builder.add_row("pop rax", true); // 左オペランド
 
         match node.kind {
             NodeKind::Add | NodeKind::AddAssign => self.builder.add_row("add rax, rdi", true),
@@ -605,6 +619,6 @@ impl Generator {
             }
             _ => {}
         }
-        self.builder.add_row("push rax", true);
+        self.builder.add_row("push rax", true); // 演算結果をスタックに積む
     }
 }

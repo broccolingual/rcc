@@ -18,7 +18,7 @@ impl Ast {
 
     // assign_expr ::= conditional_expr
     //                 | ("=" | "*=" | "/=" | "%=" | "+=" | "-=" | "<<=" | ">>=" | "&=" | "^=" | "|=") assign_expr
-    fn assign_expr(&mut self) -> Option<Box<Node>> {
+    pub(super) fn assign_expr(&mut self) -> Option<Box<Node>> {
         let mut node = self.conditional_expr();
         let assignment_ops = [
             "=", "*=", "/=", "%=", "+=", "-=", "<<=", ">>=", "&=", "^=", "|=",
@@ -471,7 +471,7 @@ impl Ast {
         Some(Box::new(Node::new_num(self.expect_number().unwrap())))
     }
 
-    fn assign_types(&mut self, node: &mut Option<Box<Node>>) {
+    pub(super) fn assign_types(&mut self, node: &mut Option<Box<Node>>) {
         if node.is_none() {
             return;
         }

@@ -135,5 +135,12 @@ int main() {
     printf("Hello, World! %d\n", 3);
     return 0;
 }'
+assert 15 '
+int main() {
+    int a = 3;
+    int b = a * 5;
+    int *c = &b;
+    return b;
+}'
 
 echo OK

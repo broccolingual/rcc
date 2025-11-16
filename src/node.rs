@@ -119,6 +119,27 @@ impl fmt::Debug for Node {
     }
 }
 
+impl Default for Node {
+    fn default() -> Self {
+        Node {
+            kind: NodeKind::Nop,
+            lhs: None,
+            rhs: None,
+            val: 0,
+            offset: 0,
+            name: String::new(),
+            ty: None,
+            cond: None,
+            then: None,
+            els: None,
+            init: None,
+            inc: None,
+            body: Vec::new(),
+            args: Vec::new(),
+        }
+    }
+}
+
 impl Node {
     pub fn new(kind: NodeKind, lhs: Option<Box<Node>>, rhs: Option<Box<Node>>) -> Self {
         Node {

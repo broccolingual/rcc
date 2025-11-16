@@ -1,4 +1,5 @@
 use crate::ast::{Ast, Var};
+use crate::node::Node;
 use crate::types::{
     DeclarationSpecifier, FunctionKind, StorageClassKind, Type, TypeKind, TypeQualifierKind,
     TypeSpecifierQualifier,
@@ -62,8 +63,25 @@ impl Ast {
     }
 
     // init_declarator ::= declarator
+    //                     | declarator "=" initializer
     fn init_declarator(&mut self, base_kind: TypeKind) -> Option<Box<Var>> {
-        if let Ok(var) = self.declarator(base_kind) {
+        if let Ok(mut var) = self.declarator(base_kind) {
+            if self.consume_punctuator("=") {
+                if let Some(init) = self.initializer() {
+                    let mut init = Some(init);
+                    self.assign_types(&mut init); // initializerの型を設定
+                    if var.ty.kind != init.as_ref().unwrap().ty.as_ref().unwrap().kind {
+                        panic!(
+                            "initializerの型が変数の型と一致しません {:?} <= {:?}",
+                            var.ty,
+                            init.as_ref().unwrap().ty.as_ref().unwrap(),
+                        );
+                    } // 型チェック
+                    var.init = init; // initializerを設定
+                } else {
+                    panic!("initializerのパースに失敗しました");
+                }
+            }
             return Some(var);
         }
         None
@@ -213,5 +231,11 @@ impl Ast {
             }
         }
         Err("parameter_declarationのパースに失敗しました")
+    }
+
+    // initializer ::= assignment_expr
+    //                 | braced_initializer // TODO: 未実装
+    fn initializer(&mut self) -> Option<Box<Node>> {
+        self.assign_expr()
     }
 }
