@@ -219,10 +219,15 @@ impl Ast {
                 let mut rhs = self.mul_expr();
                 rhs.as_mut().unwrap().assign_types(); // rhs
                 if let Some(ty) = &node.as_ref().unwrap().ty
-                    && (ty.kind == TypeKind::Ptr || ty.kind == TypeKind::Array)
+                    && matches!(ty.kind, TypeKind::Ptr { .. } | TypeKind::Array { .. })
                 {
-                    // ポインタ加算の場合、スケーリングを考慮
-                    let size = ty.ptr_to.as_ref().unwrap().actual_size_of();
+                    let to = match &ty.kind {
+                        TypeKind::Ptr { to } => to,
+                        TypeKind::Array { base, .. } => base,
+                        _ => unreachable!(),
+                    };
+                    // ポインタ減算の場合、スケーリングを考慮
+                    let size = to.actual_size_of();
                     rhs = Some(Box::new(Node::new(
                         NodeKind::Mul,
                         rhs,
@@ -236,10 +241,15 @@ impl Ast {
                 let mut rhs = self.mul_expr();
                 rhs.as_mut().unwrap().assign_types(); // rhs
                 if let Some(ty) = &node.as_ref().unwrap().ty
-                    && (ty.kind == TypeKind::Ptr || ty.kind == TypeKind::Array)
+                    && matches!(ty.kind, TypeKind::Ptr { .. } | TypeKind::Array { .. })
                 {
+                    let to = match &ty.kind {
+                        TypeKind::Ptr { to } => to,
+                        TypeKind::Array { base, .. } => base,
+                        _ => unreachable!(),
+                    };
                     // ポインタ減算の場合、スケーリングを考慮
-                    let size = ty.ptr_to.as_ref().unwrap().actual_size_of();
+                    let size = to.actual_size_of();
                     rhs = Some(Box::new(Node::new(
                         NodeKind::Mul,
                         rhs,

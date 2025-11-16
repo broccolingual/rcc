@@ -250,7 +250,7 @@ impl Generator {
             }
             NodeKind::LVar | NodeKind::GVar => {
                 self.get_val(node);
-                if node.ty.as_ref().unwrap().kind != TypeKind::Array {
+                if !matches!(node.ty.as_ref().unwrap().kind, TypeKind::Array { .. }) {
                     self.load(node); // 配列型以外は値を読み出す
                 }
                 return;

@@ -110,9 +110,17 @@ pub enum TypeKind {
     Float,
     Double,
     Bool,
-    Ptr,
-    Array,
-    Func,
+    Ptr {
+        to: Box<Type>,
+    }, // to: ポインタの指す型
+    Array {
+        base: Box<Type>,
+        size: usize,
+    }, // base: 配列の要素型, size: 要素数
+    Func {
+        return_ty: Box<Type>,
+        params: Vec<Var>,
+    }, // return_ty: 戻り値の型, params: パラメータリスト
 }
 
 impl fmt::Display for TypeKind {
@@ -126,9 +134,11 @@ impl fmt::Display for TypeKind {
             TypeKind::Float => write!(f, "float"),
             TypeKind::Double => write!(f, "double"),
             TypeKind::Bool => write!(f, "bool"),
-            TypeKind::Ptr => write!(f, "ptr"),
-            TypeKind::Array => write!(f, "array"),
-            TypeKind::Func => write!(f, "func"),
+            TypeKind::Ptr { to } => write!(f, "ptr to {:?}", to),
+            TypeKind::Array { base, size } => write!(f, "array[{}] of {:?}", size, base),
+            TypeKind::Func { return_ty, params } => {
+                write!(f, "func({:?}) -> {:?}", params, return_ty)
+            }
         }
     }
 }
@@ -151,45 +161,19 @@ impl TypeKind {
 #[derive(Clone, PartialEq, Eq)]
 pub struct Type {
     pub kind: TypeKind,
-    pub ptr_to: Option<Box<Type>>,
-    pub array_size: usize,            // 配列の要素数（配列型の場合）
-    pub params: Option<Vec<Var>>,     // 関数型の場合のパラメータリスト
-    pub return_ty: Option<Box<Type>>, // 関数型の場合の戻り値の型
 }
 
 impl fmt::Debug for Type {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.kind {
-            TypeKind::Ptr => {
-                let mut cur = self;
-                let mut depth = 0;
-                while let Some(ref to) = cur.ptr_to {
-                    depth += 1;
-                    cur = to;
-                }
-                write!(f, "{}{:?}", "*".repeat(depth), cur.kind)
+        match &self.kind {
+            TypeKind::Ptr { to } => {
+                write!(f, "*{:?}", to)
             }
-            TypeKind::Array => {
-                if let Some(ref to) = self.ptr_to {
-                    write!(f, "[{:?}; {}]", to, self.array_size)
-                } else {
-                    write!(f, "[Unknown; {}]", self.array_size)
-                }
+            TypeKind::Array { base, size } => {
+                write!(f, "[{:?}; {}]", base, size)
             }
-            TypeKind::Func => {
-                let return_ty = if let Some(ref ret_ty) = self.return_ty {
-                    format!("{:?}", ret_ty)
-                } else {
-                    "Unknown".to_string()
-                };
-                let params = if let Some(ref params) = self.params {
-                    let param_strs: Vec<String> =
-                        params.iter().map(|p| format!("{:?}", p.ty)).collect();
-                    param_strs.join(", ")
-                } else {
-                    "Unknown".to_string()
-                };
-                write!(f, "func({}) -> {}", params, return_ty)
+            TypeKind::Func { return_ty, params } => {
+                write!(f, "fn({:?}) -> {:?}", params, return_ty)
             }
             _ => write!(f, "{:?}", self.kind),
         }
@@ -198,13 +182,7 @@ impl fmt::Debug for Type {
 
 impl Type {
     pub fn new(kind: TypeKind) -> Self {
-        Type {
-            kind,
-            ptr_to: None,
-            array_size: 0,
-            params: None,
-            return_ty: None,
-        }
+        Type { kind }
     }
 
     // TODO: constやvolatileの情報も扱う
@@ -221,55 +199,45 @@ impl Type {
 
     pub fn new_ptr(to: &Type) -> Self {
         Type {
-            kind: TypeKind::Ptr,
-            ptr_to: Some(Box::new(to.clone())),
-            array_size: 0,
-            params: None,
-            return_ty: None,
+            kind: TypeKind::Ptr {
+                to: Box::new(to.clone()),
+            },
         }
     }
 
     pub fn new_array(of: &Type, size: usize) -> Self {
         Type {
-            kind: TypeKind::Array,
-            ptr_to: Some(Box::new(of.clone())),
-            array_size: size,
-            params: None,
-            return_ty: None,
+            kind: TypeKind::Array {
+                base: Box::new(of.clone()),
+                size,
+            },
         }
     }
 
     pub fn new_func(return_ty: &Type, params: Vec<Var>) -> Self {
         Type {
-            kind: TypeKind::Func,
-            ptr_to: None,
-            array_size: params.len(),
-            params: Some(params),
-            return_ty: Some(Box::new(return_ty.clone())),
+            kind: TypeKind::Func {
+                return_ty: Box::new(return_ty.clone()),
+                params,
+            },
         }
     }
 
     pub fn is_ptr(&self) -> bool {
-        matches!(self.kind, TypeKind::Ptr)
+        matches!(self.kind, TypeKind::Ptr { .. })
     }
 
     // 実際のサイズ（配列の場合は要素数を考慮）
     pub fn actual_size_of(&self) -> i64 {
-        match self.kind {
-            TypeKind::Array => {
-                if let Some(ref to) = self.ptr_to {
-                    to.actual_size_of() * self.array_size as i64
-                } else {
-                    0
-                }
-            }
+        match &self.kind {
+            TypeKind::Array { base, size } => base.actual_size_of() * *size as i64,
             _ => self.size_of(),
         }
     }
 
     // 型のサイズ（配列の場合は要素のサイズ）
     pub fn size_of(&self) -> i64 {
-        match self.kind {
+        match &self.kind {
             TypeKind::Void => 0,
             TypeKind::Char => 1,
             TypeKind::Short => 2,
@@ -278,15 +246,9 @@ impl Type {
             TypeKind::Float => 4,
             TypeKind::Double => 8,
             TypeKind::Bool => 1,
-            TypeKind::Ptr => 8,
-            TypeKind::Array => {
-                if let Some(ref to) = self.ptr_to {
-                    to.size_of()
-                } else {
-                    0
-                }
-            }
-            TypeKind::Func => 8, // TODO: 一旦8バイト固定
+            TypeKind::Ptr { .. } => 8,
+            TypeKind::Array { base, .. } => base.size_of(),
+            TypeKind::Func { .. } => 8, // TODO: 一旦8バイト固定
         }
     }
 }

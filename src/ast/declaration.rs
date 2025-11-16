@@ -266,26 +266,25 @@ mod tests {
         let vars = ast.declaration().unwrap();
         let var = &vars[0];
         assert_eq!(var.name, "p");
-        assert_eq!(var.ty.kind, TypeKind::Ptr);
-        assert_eq!(var.ty.ptr_to.as_ref().unwrap().kind, TypeKind::Int);
+        assert_eq!(
+            var.ty.kind,
+            TypeKind::Ptr {
+                to: Box::new(Type::new(TypeKind::Int))
+            }
+        );
 
         let input = "int **p;";
         let mut ast = preproc(input);
         let vars = ast.declaration().unwrap();
         let var = &vars[0];
         assert_eq!(var.name, "p");
-        assert_eq!(var.ty.kind, TypeKind::Ptr);
-        assert_eq!(var.ty.ptr_to.as_ref().unwrap().kind, TypeKind::Ptr);
         assert_eq!(
-            var.ty
-                .ptr_to
-                .as_ref()
-                .unwrap()
-                .ptr_to
-                .as_ref()
-                .unwrap()
-                .kind,
-            TypeKind::Int
+            var.ty.kind,
+            TypeKind::Ptr {
+                to: Box::new(Type::new(TypeKind::Ptr {
+                    to: Box::new(Type::new(TypeKind::Int))
+                }))
+            }
         );
 
         let input = "int arr[10];";
@@ -293,9 +292,13 @@ mod tests {
         let vars = ast.declaration().unwrap();
         let var = &vars[0];
         assert_eq!(var.name, "arr");
-        assert_eq!(var.ty.kind, TypeKind::Array);
-        assert_eq!(var.ty.array_size, 10);
-        assert_eq!(var.ty.ptr_to.as_ref().unwrap().kind, TypeKind::Int);
+        assert_eq!(
+            var.ty.kind,
+            TypeKind::Array {
+                base: Box::new(Type::new(TypeKind::Int)),
+                size: 10
+            }
+        );
 
         // TODO: 多次元配列の要素数の宣言が逆順になる問題の修正
         // let input = "int arr[3][5];";
@@ -315,11 +318,15 @@ mod tests {
         let vars = ast.declaration().unwrap();
         let var = &vars[0];
         assert_eq!(var.name, "arr");
-        assert_eq!(var.ty.kind, TypeKind::Array);
-        assert_eq!(var.ty.array_size, 10);
-        let inner_ty = var.ty.ptr_to.as_ref().unwrap();
-        assert_eq!(inner_ty.kind, TypeKind::Ptr);
-        assert_eq!(inner_ty.ptr_to.as_ref().unwrap().kind, TypeKind::Int);
+        assert_eq!(
+            var.ty.kind,
+            TypeKind::Array {
+                base: Box::new(Type::new(TypeKind::Ptr {
+                    to: Box::new(Type::new(TypeKind::Int))
+                })),
+                size: 10
+            }
+        );
 
         let input = "int a, b;";
         let mut ast = preproc(input);

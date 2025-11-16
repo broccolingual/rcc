@@ -6,7 +6,7 @@ mod statement;
 
 use crate::node::Node;
 use crate::token::Token;
-use crate::types::Type;
+use crate::types::{Type, TypeKind};
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Var {
@@ -267,8 +267,12 @@ impl Ast {
             return Err("関数の引数定義のパースに失敗しました");
         };
         let mut func = Box::new(Function::new(&func_decl.name));
-        for param in func_decl.ty.params.unwrap_or_default() {
-            func.gen_lvar(param).unwrap();
+        if let TypeKind::Func { params, .. } = &func_decl.ty.kind {
+            for param in params {
+                func.gen_lvar(param.clone()).unwrap();
+            }
+        } else {
+            return Err("関数型ではないものを関数定義しようとしました");
         }
         self.current_func = Some(func);
         let func_body = if let Some(func_body) = self.compound_stmt() {

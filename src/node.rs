@@ -230,14 +230,15 @@ impl Node {
             NodeKind::Deref => {
                 // デリファレンス演算子の型はポインタの指す型にする
                 let ptr_ty = self.lhs.as_ref().unwrap().ty.as_ref().unwrap();
-                if let Some(pointee_ty) = &ptr_ty.ptr_to {
-                    self.ty = Some(Box::new((**pointee_ty).clone()));
-                } else {
-                    panic!(
+                let to = match &ptr_ty.kind {
+                    TypeKind::Ptr { to } => to,
+                    TypeKind::Array { base, .. } => base,
+                    _ => panic!(
                         "ポインタ型ではないものをデリファレンスしようとしました: {:?}",
                         self
-                    );
-                }
+                    ),
+                };
+                self.ty = Some(to.clone());
             }
             _ => {
                 // その他のノードはとりあえずNoneにする
