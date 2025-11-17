@@ -132,7 +132,7 @@ int main() {
     return x[17] + y;
 }'
 assert 98 '
-int main() {
+char main() {
     char *a;
     a = "abc";
     return a[1];

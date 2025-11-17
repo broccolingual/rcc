@@ -1,5 +1,9 @@
+use core::panic;
+use std::ops::Deref;
+
 use crate::ast::Ast;
 use crate::node::{Node, NodeKind};
+use crate::types::Type;
 
 impl Ast {
     // TODO: case文, default文の実装
@@ -139,12 +143,26 @@ impl Ast {
 
         if self.consume_keyword("return") {
             if self.consume_punctuator(";") {
+                if Type::Void != self.current_func.as_ref().unwrap().return_ty {
+                    panic!("return文は値を返す必要があります");
+                }
                 return Some(Box::new(Node::from(NodeKind::Return)));
             }
-
-            let node = Node::new_unary(NodeKind::Return, self.expr());
+            let mut node = self.expr();
+            if let Some(n) = &mut node {
+                n.assign_types();
+                if let Some(ret_ty) = &n.ty {
+                    let func_ret_ty = &self.current_func.as_ref().unwrap().return_ty;
+                    if ret_ty.deref() != func_ret_ty {
+                        panic!(
+                            "関数の戻り値の型とreturn文の型が一致しません: 関数の戻り値の型は{:?}ですが、return文の型は{:?}です",
+                            func_ret_ty, ret_ty
+                        );
+                    }
+                }
+            }
             self.expect_punctuator(";").unwrap();
-            return Some(Box::new(node));
+            return Some(Box::new(Node::new_unary(NodeKind::Return, node)));
         }
         None
     }

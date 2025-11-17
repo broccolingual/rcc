@@ -337,6 +337,43 @@ impl Node {
                     );
                 }
             }
+            NodeKind::Ternary {
+                ref mut cond,
+                ref mut then,
+                ref mut els,
+            } => {
+                cond.as_mut().unwrap().assign_types();
+                then.as_mut().unwrap().assign_types();
+                els.as_mut().unwrap().assign_types();
+
+                let cond_ty = cond.as_ref().unwrap().ty.as_ref().unwrap();
+                let then_ty = then.as_ref().unwrap().ty.as_ref().unwrap();
+                let els_ty = els.as_ref().unwrap().ty.as_ref().unwrap();
+
+                if cond_ty.is_scalar() || cond_ty.is_ptr_or_array() {
+                    if then_ty == els_ty {
+                        // then節とelse節の型が同じ場合、その型を結果型とする
+                        self.ty = Some(then_ty.clone());
+                    } else if then_ty.is_scalar() && els_ty.is_scalar() {
+                        // 両方ともスカラー型の場合、大きい方の型に合わせる
+                        if then_ty.size_of() >= els_ty.size_of() {
+                            self.ty = Some(then_ty.clone());
+                        } else {
+                            self.ty = Some(els_ty.clone());
+                        }
+                    } else {
+                        panic!(
+                            "条件演算子のthen節とelse節の型が一致しません: {:?} と {:?}",
+                            then_ty, els_ty
+                        );
+                    }
+                } else {
+                    panic!(
+                        "条件演算子の条件式はスカラー型にのみ適用可能です: {:?}",
+                        cond_ty
+                    );
+                }
+            }
             NodeKind::Assign
             | NodeKind::AddAssign
             | NodeKind::SubAssign

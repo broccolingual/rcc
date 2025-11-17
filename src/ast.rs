@@ -41,6 +41,7 @@ pub struct Function {
     pub name: String,
     pub body: Vec<Box<Node>>,
     pub locals: Vec<Var>,
+    pub return_ty: Type,
 }
 
 impl Function {
@@ -49,6 +50,7 @@ impl Function {
             name: name.to_string(),
             body: Vec::new(),
             locals: Vec::new(),
+            return_ty: Type::Void,
         }
     }
 }
@@ -267,10 +269,11 @@ impl Ast {
             return Err("関数の引数定義のパースに失敗しました");
         };
         let mut func = Box::new(Function::new(&func_decl.name));
-        if let Type::Func { params, .. } = *func_decl.ty {
+        if let Type::Func { params, return_ty } = *func_decl.ty {
             for param in params {
                 func.gen_lvar(param.clone()).unwrap();
             }
+            func.return_ty = *return_ty;
         } else {
             return Err("関数型ではないものを関数定義しようとしました");
         }
