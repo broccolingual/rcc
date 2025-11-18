@@ -29,7 +29,22 @@ struct Args {
 }
 
 fn main() {
-    let args = Args::parse();
+    let mut args = Args::parse();
+
+    if args.file != "" {
+        match std::fs::read_to_string(&args.file) {
+            Ok(content) => {
+                if args.input != "" {
+                    eprintln!("Warning: Both input string and file provided. Using file content.");
+                }
+                args.input = content;
+            }
+            Err(e) => {
+                eprintln!("File Read Error: {}", e);
+                return;
+            }
+        }
+    }
 
     let tokenizer = Tokenizer::default();
     let tokens = match tokenizer.tokenize(&args.input) {
