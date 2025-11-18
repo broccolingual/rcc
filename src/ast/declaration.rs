@@ -70,13 +70,13 @@ impl Ast {
                 if let Some(mut init) = self.initializer()? {
                     // let mut init = Some(init);
                     init.assign_types()?; // initializerの型を設定
-                    if let Some(ty) = &init.ty {
-                        if ty != &var.ty {
-                            return Err(AstError::TypeError(format!(
-                                "initializerの型が変数の型と一致しません {} != {}",
-                                var.ty, ty
-                            )));
-                        }
+                    if let Some(ty) = &init.ty
+                        && ty != &var.ty
+                    {
+                        return Err(AstError::TypeError(format!(
+                            "initializerの型が変数の型と一致しません {} != {}",
+                            var.ty, ty
+                        )));
                     }
                     var.init = Some(init); // initializerを設定
                 } else {

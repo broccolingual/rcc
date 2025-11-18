@@ -23,11 +23,11 @@ impl Ast {
             "=", "*=", "/=", "%=", "+=", "-=", "<<=", ">>=", "&=", "^=", "|=",
         ];
         for op in &assignment_ops {
-            if self.consume_punctuator(op) {
-                if let Ok(kind) = NodeKind::from_str(op) {
-                    node = Some(Box::new(Node::new(kind, node, self.assign_expr()?)));
-                    break;
-                }
+            if self.consume_punctuator(op)
+                && let Ok(kind) = NodeKind::from_str(op)
+            {
+                node = Some(Box::new(Node::new(kind, node, self.assign_expr()?)));
+                break;
             }
         }
         Ok(node)
@@ -428,11 +428,11 @@ impl Ast {
     //                  | number
     fn primary_expr(&mut self) -> Result<Option<Box<Node>>, AstError> {
         // "(" expr ")"
-        if self.consume_punctuator("(") {
-            if let Some(node) = self.expr()? {
-                self.expect_punctuator(")")?;
-                return Ok(Some(node));
-            }
+        if self.consume_punctuator("(")
+            && let Some(node) = self.expr()?
+        {
+            self.expect_punctuator(")")?;
+            return Ok(Some(node));
         }
 
         if let Some(name) = self.consume_ident() {

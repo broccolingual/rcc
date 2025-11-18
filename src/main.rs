@@ -31,10 +31,10 @@ struct Args {
 fn main() {
     let mut args = Args::parse();
 
-    if args.file != "" {
+    if !args.file.is_empty() {
         match std::fs::read_to_string(&args.file) {
             Ok(content) => {
-                if args.input != "" {
+                if !args.input.is_empty() {
                     eprintln!("Warning: Both input string and file provided. Using file content.");
                 }
                 args.input = content;
