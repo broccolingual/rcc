@@ -55,7 +55,7 @@ fn main() {
         }
     };
     let mut ast = Ast::new(&tokens);
-    ast.translation_unit();
+    ast.translation_unit().unwrap();
 
     let mut generator = Generator::default();
     generator.gen_asm(&ast);

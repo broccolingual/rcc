@@ -5,7 +5,7 @@ mod expression;
 mod statement;
 
 use crate::node::{Node, NodeKind};
-use crate::token::Token;
+use crate::token::{Token, TokenKind};
 use crate::types::Type;
 
 #[derive(Clone, PartialEq, Eq)]
@@ -56,9 +56,9 @@ impl Function {
 }
 
 impl Function {
-    fn gen_lvar(&mut self, mut var: Var) -> Result<(), &str> {
+    fn gen_lvar(&mut self, mut var: Var) -> Result<(), AstError> {
         if self.find_lvar(&var.name).is_some() {
-            return Err("同じ名前のローカル変数が既に存在します");
+            return Err(AstError::DuplicateVariable(var));
         }
         var.offset = if let Some(first_var) = self.locals.first() {
             first_var.offset + var.ty.actual_size_of()
@@ -87,6 +87,17 @@ impl fmt::Debug for Function {
     }
 }
 
+#[derive(Debug)]
+pub enum AstError {
+    UnexpectedToken(Token),
+    UndefinedVariable(String),
+    DuplicateVariable(Var),
+    ParseError(String),
+    SemanticError(String),
+    TypeError(String),
+    Other(String),
+}
+
 pub struct Ast {
     tokens: Vec<Token>,
     token_pos: usize,
@@ -108,9 +119,15 @@ impl Ast {
         }
     }
 
-    fn gen_gvar(&mut self, var: Var) -> Result<(), &str> {
+    fn get_current_func(&mut self) -> Result<&mut Box<Function>, AstError> {
+        self.current_func
+            .as_mut()
+            .ok_or_else(|| AstError::Other("現在の関数が設定されていません".to_string()))
+    }
+
+    fn gen_gvar(&mut self, var: Var) -> Result<(), AstError> {
         if self.find_gvar(&var.name).is_some() {
-            return Err("同じ名前のグローバル変数が既に存在します");
+            return Err(AstError::DuplicateVariable(var));
         }
         self.globals.push(var);
         Ok(())
@@ -141,9 +158,9 @@ impl Ast {
         }
     }
 
-    fn consume(&mut self, token: &Token) -> bool {
+    fn consume(&mut self, kind: &TokenKind) -> bool {
         match self.get_token() {
-            Some(t) if t == token => {
+            Some(t) if &t.kind == kind => {
                 self.advance_token();
                 true
             }
@@ -152,16 +169,19 @@ impl Ast {
     }
 
     fn consume_punctuator(&mut self, sym: &str) -> bool {
-        self.consume(&Token::Punctuator(sym.to_string()))
+        self.consume(&TokenKind::Punctuator(sym.to_string()))
     }
 
     fn consume_keyword(&mut self, word: &str) -> bool {
-        self.consume(&Token::Keyword(word.to_string()))
+        self.consume(&TokenKind::Keyword(word.to_string()))
     }
 
     fn consume_ident(&mut self) -> Option<String> {
         match self.get_token() {
-            Some(Token::Identifier(name)) => {
+            Some(Token {
+                kind: TokenKind::Identifier(name),
+                ..
+            }) => {
                 let name_clone = name.clone();
                 self.advance_token();
                 Some(name_clone)
@@ -172,7 +192,10 @@ impl Ast {
 
     fn consume_number(&mut self) -> Option<i64> {
         match self.get_token() {
-            Some(Token::Number(val)) => {
+            Some(Token {
+                kind: TokenKind::Number(val),
+                ..
+            }) => {
                 let val_clone = *val;
                 self.advance_token();
                 Some(val_clone)
@@ -181,114 +204,140 @@ impl Ast {
         }
     }
 
-    fn expect(&mut self, token: &Token) -> Result<(), &str> {
+    fn expect(&mut self, kind: &TokenKind) -> Result<(), AstError> {
         match self.get_token() {
-            Some(t) if t == token => {
-                self.advance_token();
-                Ok(())
+            Some(t) => {
+                if &t.kind == kind {
+                    self.advance_token();
+                    return Ok(());
+                }
+                Err(AstError::UnexpectedToken(t.clone()))
             }
-            _ => Err("期待されたトークンではありません"),
+            _ => Err(AstError::Other("予期しないEOFに到達しました".to_string())),
         }
     }
 
-    fn expect_punctuator(&mut self, sym: &str) -> Result<(), &str> {
-        self.expect(&Token::Punctuator(sym.to_string()))
+    fn expect_punctuator(&mut self, sym: &str) -> Result<(), AstError> {
+        self.expect(&TokenKind::Punctuator(sym.to_string()))
     }
 
-    fn expect_reserved(&mut self, word: &str) -> Result<(), &str> {
-        self.expect(&Token::Keyword(word.to_string()))
+    fn expect_reserved(&mut self, word: &str) -> Result<(), AstError> {
+        self.expect(&TokenKind::Keyword(word.to_string()))
     }
 
-    fn expect_string(&mut self) -> Result<String, &str> {
+    fn expect_string(&mut self) -> Result<String, AstError> {
         match self.get_token() {
-            Some(Token::String(s)) => {
-                let s_clone = s.clone();
-                self.advance_token();
-                Ok(s_clone)
+            Some(token) => {
+                if let TokenKind::String(s) = &token.kind {
+                    let s_clone = s.clone();
+                    self.advance_token();
+                    return Ok(s_clone);
+                }
+                Err(AstError::UnexpectedToken(token.clone()))
             }
-            _ => Err("文字列リテラルトークンではありません"),
+            _ => Err(AstError::Other("予期しないEOFに到達しました".to_string())),
         }
     }
 
-    fn expect_number(&mut self) -> Result<i64, &str> {
+    fn expect_number(&mut self) -> Result<i64, AstError> {
         match self.get_token() {
-            Some(Token::Number(val)) => {
-                let val_clone = *val;
-                self.advance_token();
-                Ok(val_clone)
+            Some(token) => {
+                if let TokenKind::Number(val) = &token.kind {
+                    let val_clone = *val;
+                    self.advance_token();
+                    return Ok(val_clone);
+                }
+                Err(AstError::UnexpectedToken(token.clone()))
             }
-            _ => Err("数値トークンではありません"),
+            _ => Err(AstError::Other("予期しないEOFに到達しました".to_string())),
         }
     }
 
     fn at_eof(&self) -> bool {
-        self.tokens.is_empty() || matches!(self.get_token(), Some(Token::EOF))
+        self.tokens.is_empty()
+            || matches!(
+                self.get_token(),
+                Some(Token {
+                    kind: TokenKind::EOF,
+                    ..
+                })
+            )
     }
 
     // translation_unit ::= external_declaration*
-    pub fn translation_unit(&mut self) {
+    pub fn translation_unit(&mut self) -> Result<(), AstError> {
         while !self.at_eof() {
-            if self.external_declaration().is_ok() {
-                continue;
-            }
+            self.external_declaration()?;
         }
+        Ok(())
     }
 
     // external_declaration ::= func_def
     //                          | declaration
-    fn external_declaration(&mut self) -> Result<(), &str> {
+    fn external_declaration(&mut self) -> Result<(), AstError> {
         // 関数定義
         let token_pos = self.token_pos;
-        if let Ok(func) = self.func_def() {
+        if let Some(func) = self.func_def()? {
             self.funcs.push(func);
             return Ok(());
         }
 
         self.token_pos = token_pos;
         // グローバル変数宣言
-        if let Some(vars) = self.declaration() {
+        if let Some(vars) = self.declaration()? {
             for var in vars {
-                self.gen_gvar(var).unwrap();
+                self.gen_gvar(var)?;
             }
             return Ok(());
         }
-        Err("external_declarationのパースに失敗しました")
+        Err(AstError::ParseError(
+            "外部宣言のパースに失敗しました".to_string(),
+        ))
     }
 
     // func_def ::= declaration_specifier declarator compound_stmt
-    fn func_def(&mut self) -> Result<Box<Function>, &str> {
+    fn func_def(&mut self) -> Result<Option<Box<Function>>, AstError> {
         let specifier = self.declaration_specifier();
         let base_kind = if let Some(specifier) = specifier {
             Type::from(&vec![specifier]).unwrap()
         } else {
-            return Err("関数定義のパースに失敗しました");
+            return Err(AstError::ParseError(
+                "関数定義の型指定子のパースに失敗しました".to_string(),
+            ));
         };
         let func_decl = if let Ok(var) = self.declarator(base_kind) {
             var
         } else {
-            return Err("関数の引数定義のパースに失敗しました");
+            return Err(AstError::ParseError(
+                "関数定義のパースに失敗しました".to_string(),
+            ));
         };
         let mut func = Box::new(Function::new(&func_decl.name));
         if let Type::Func { params, return_ty } = *func_decl.ty {
             for param in params {
-                func.gen_lvar(param.clone()).unwrap();
+                func.gen_lvar(param.clone())?;
             }
             func.return_ty = *return_ty;
         } else {
-            return Err("関数型ではないものを関数定義しようとしました");
+            return Ok(None);
         }
         self.current_func = Some(func);
-        let func_body = if let Some(func_body) = self.compound_stmt() {
+        let func_body = if let Some(func_body) = self.compound_stmt()? {
             func_body
         } else {
-            return Err("関数本体のパースに失敗しました");
+            return Ok(None);
         };
-        func = self.current_func.take().unwrap();
+        func = self
+            .current_func
+            .take()
+            .ok_or_else(|| AstError::Other("現在の関数が設定されていません".to_string()))?;
         if let NodeKind::Block { body } = func_body.kind {
             func.body = body;
         } else {
-            return Err("関数本体がブロックではありません");
+            return Err(AstError::SemanticError(
+                "関数本体がブロックではありません".to_string(),
+            ));
         }
-        Ok(func)
+        Ok(Some(func))
     }
 }

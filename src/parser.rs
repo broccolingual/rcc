@@ -1,5 +1,5 @@
-use crate::token::Token;
 use crate::token::{KEYWORDS, PUNCTUATORS};
+use crate::token::{Token, TokenKind};
 
 pub struct Tokenizer {}
 
@@ -65,7 +65,10 @@ impl Tokenizer {
                 if pos + symbol_len <= chars.len() {
                     let candidate: String = chars[pos..pos + symbol_len].iter().collect();
                     if candidate == *symbol {
-                        tokens.push(Token::Punctuator(symbol.to_string()));
+                        tokens.push(Token::new(
+                            TokenKind::Punctuator(symbol.to_string()),
+                            (pos, pos + symbol_len),
+                        ));
                         pos += symbol_len;
                         matched = true;
                         break;
@@ -90,7 +93,10 @@ impl Tokenizer {
                         pos += 1;
                     }
                 }
-                tokens.push(Token::String(str_lit));
+                tokens.push(Token::new(
+                    TokenKind::String(str_lit.clone()),
+                    (pos - str_lit.len() - 2, pos),
+                ));
                 continue;
             }
 
@@ -109,7 +115,10 @@ impl Tokenizer {
                     }
                 }
                 let val = num_str.parse::<i64>().unwrap();
-                tokens.push(Token::Number(val));
+                tokens.push(Token::new(
+                    TokenKind::Number(val),
+                    (pos - num_str.len(), pos),
+                ));
                 continue;
             }
 
@@ -128,17 +137,23 @@ impl Tokenizer {
                 }
                 if KEYWORDS.contains(&ident.as_str()) {
                     // 予約語はKeywordトークンとして扱う
-                    tokens.push(Token::Keyword(ident));
+                    tokens.push(Token::new(
+                        TokenKind::Keyword(ident.clone()),
+                        (pos - ident.len(), pos),
+                    ));
                     continue;
                 } else {
                     // それ以外は識別子トークン
-                    tokens.push(Token::Identifier(ident));
+                    tokens.push(Token::new(
+                        TokenKind::Identifier(ident.clone()),
+                        (pos - ident.len(), pos),
+                    ));
                     continue;
                 }
             }
             return Err(format!("不明な文字が含まれています: {}", c));
         }
-        tokens.push(Token::EOF);
+        tokens.push(Token::new(TokenKind::EOF, (pos, pos)));
         Ok(tokens)
     }
 }

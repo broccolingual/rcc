@@ -53,6 +53,8 @@ impl Generator {
             self.builder.add_row(&format!("{}:", gvar.name), false);
             self.builder
                 .add_row(&format!(".zero {}", gvar.ty.actual_size_of()), true);
+
+            // TODO: initializeがある場合の初期化コード生成
         }
 
         // 文字列リテラルの定義
@@ -91,25 +93,25 @@ impl Generator {
                 match arg.ty.size_of() {
                     1 => {
                         self.builder.add_row(
-                            &format!("  mov [rbp-{}], {}", arg.offset, ARG_BYTE_REGS[i]),
+                            &format!("  mov [rbp-{}], {}", arg.offset, ARG_BYTE_REGS[i]), // 1バイト
                             true,
                         );
                     }
                     2 => {
                         self.builder.add_row(
-                            &format!("  mov [rbp-{}], {}", arg.offset, ARG_WORD_REGS[i]),
+                            &format!("  mov [rbp-{}], {}", arg.offset, ARG_WORD_REGS[i]), // 2バイト
                             true,
                         );
                     }
                     4 => {
                         self.builder.add_row(
-                            &format!("  mov [rbp-{}], {}", arg.offset, ARG_DWORD_REGS[i]),
+                            &format!("  mov [rbp-{}], {}", arg.offset, ARG_DWORD_REGS[i]), // 4バイト
                             true,
                         );
                     }
                     8 => {
                         self.builder.add_row(
-                            &format!("  mov [rbp-{}], {}", arg.offset, ARG_QWORD_REGS[i]),
+                            &format!("  mov [rbp-{}], {}", arg.offset, ARG_QWORD_REGS[i]), // 8バイト
                             true,
                         );
                     }
@@ -156,12 +158,12 @@ impl Generator {
             }
             NodeKind::LVar { offset, .. } => {
                 self.builder
-                    .add_row(&format!("lea rax, [rbp-{}]", offset), true); // ローカル変数のアドレス計算
+                    .add_row(&format!("lea rax, [rbp-{}]", offset), true); // ローカル変数のアドレスを計算して取得
                 self.builder.add_row("push rax", true); // 変数のアドレスをスタックに積む
             }
             NodeKind::GVar { name } => {
                 self.builder
-                    .add_row(&format!("lea rax, {}[rip]", name), true); // RIP相対アドレッシング
+                    .add_row(&format!("lea rax, {}[rip]", name), true); // RIP相対アドレッシングでアドレスを取得
                 self.builder.add_row("push rax", true); // 変数のアドレスをスタックに積む
             }
             _ => panic!("代入の左辺値が変数ではありません: {:?}", node.kind),
@@ -176,16 +178,16 @@ impl Generator {
         }
         match node.ty.as_ref().unwrap().size_of() {
             1 => {
-                self.builder.add_row("movsx rax, BYTE PTR [rax]", true);
+                self.builder.add_row("movsx rax, BYTE PTR [rax]", true); // 1バイト
             }
             2 => {
-                self.builder.add_row("movsx rax, WORD PTR [rax]", true);
+                self.builder.add_row("movsx rax, WORD PTR [rax]", true); // 2バイト
             }
             4 => {
-                self.builder.add_row("movsxd rax, DWORD PTR [rax]", true);
+                self.builder.add_row("movsxd rax, DWORD PTR [rax]", true); // 4バイト
             }
             8 => {
-                self.builder.add_row("mov rax, QWORD PTR [rax]", true);
+                self.builder.add_row("mov rax, QWORD PTR [rax]", true); // 8バイト
             }
             _ => panic!(
                 "未対応のロードサイズ: {}",
