@@ -6,7 +6,7 @@ assert() {
   expected="$1"
   input="$2"
 
-  ./target/debug/c-compiler "int main() { $input }" > ./bin/tmp.s
+  ./target/debug/c-compiler -i "int main() { $input }" > ./bin/tmp.s
   cc -o ./bin/tmp ./bin/tmp.s
   ./bin/tmp
   actual="$?"

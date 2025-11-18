@@ -1,4 +1,5 @@
-use std::env;
+use clap::Parser;
+use clap_derive::Parser;
 
 pub mod asm_builder;
 pub mod ast;
@@ -12,15 +13,26 @@ use crate::ast::Ast;
 use crate::parser::Tokenizer;
 use crate::x86::Generator;
 
+#[derive(Parser, Debug)]
+struct Args {
+    #[arg(short, long)]
+    debug: bool,
+
+    #[arg(short, long, default_value_t = true)]
+    optimize: bool,
+
+    #[arg(short, long, default_value = "")]
+    input: String,
+
+    #[arg(short, long, default_value = "")]
+    file: String,
+}
+
 fn main() {
-    let args: Vec<String> = env::args().collect();
-    if args.len() != 2 {
-        eprintln!("引数の数が正しくありません");
-        return;
-    }
+    let args = Args::parse();
 
     let tokenizer = Tokenizer::default();
-    let tokens = match tokenizer.tokenize(&args[1]) {
+    let tokens = match tokenizer.tokenize(&args.input) {
         Ok(tokens) => tokens,
         Err(e) => {
             eprintln!("Tokenizer Error: {}", e);
@@ -33,8 +45,7 @@ fn main() {
     let mut generator = Generator::default();
     generator.gen_asm(&ast);
 
-    let debug = false;
-    if debug {
+    if args.debug {
         // println!("=== Tokens ===");
         // println!("{:#?}", tokens);
         println!("=== Global Variables ===");
@@ -44,7 +55,9 @@ fn main() {
         println!("=== String Literals ===");
         println!("{:#?}", ast.string_literals);
     } else {
-        generator.builder.optimize();
+        if args.optimize {
+            generator.builder.optimize();
+        }
         let code = generator.builder.build();
         println!("{}", code);
     }

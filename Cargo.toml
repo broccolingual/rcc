@@ -2,3 +2,7 @@
 name = "c-compiler"
 version = "0.1.0"
 edition = "2024"
+
+[dependencies]
+clap = "4.5.52"
+clap_derive = "4.5.49"
