@@ -61,9 +61,9 @@ impl Function {
             return Err(AstError::DuplicateVariable(var));
         }
         var.offset = if let Some(first_var) = self.locals.first() {
-            first_var.offset + var.ty.actual_size_of()
+            first_var.offset + var.ty.size_of()
         } else {
-            var.ty.actual_size_of()
+            var.ty.size_of()
         };
         self.locals.insert(0, var);
         Ok(())
@@ -140,6 +140,7 @@ impl Ast {
             .map(|v| v as _)
     }
 
+    // 現在のトークンを取得
     fn get_token(&self) -> Option<&Token> {
         self.tokens.get(self.token_pos)
     }

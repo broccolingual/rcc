@@ -230,7 +230,7 @@ impl Ast {
                     && ty.is_ptr_or_array()
                 {
                     // ポインタ減算の場合、スケーリングを考慮
-                    let size = ty.base_type().actual_size_of();
+                    let size = ty.base_type().size_of();
                     rhs = Some(Box::new(Node::new(
                         NodeKind::Mul,
                         rhs,
@@ -248,7 +248,7 @@ impl Ast {
                     && ty.is_ptr_or_array()
                 {
                     // ポインタ減算の場合、スケーリングを考慮
-                    let size = ty.base_type().actual_size_of();
+                    let size = ty.base_type().size_of();
                     rhs = Some(Box::new(Node::new(
                         NodeKind::Mul,
                         rhs,
@@ -367,7 +367,7 @@ impl Ast {
             if let Some(n) = &mut node {
                 n.assign_types()?;
                 if let Some(ty) = &n.ty {
-                    let size = ty.actual_size_of();
+                    let size = ty.size_of();
                     return Ok(Some(Box::new(Node::new_num(size))));
                 } else {
                     return Err(AstError::TypeError(format!(
@@ -445,8 +445,9 @@ impl Ast {
             }
 
             // 変数参照
-            let lvar = self.get_current_func()?.find_lvar(&name);
-            if let Some(lvar) = lvar {
+            if let Ok(current_func) = self.get_current_func()
+                && let Some(lvar) = current_func.find_lvar(&name)
+            {
                 // ローカル変数ノードを作成
                 let node = Node::new_lvar(&lvar.name, lvar.offset, &lvar.ty);
 

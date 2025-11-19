@@ -39,30 +39,67 @@ impl Generator {
         self.builder.add_row(".intel_syntax noprefix", true);
         self.builder.add_row(".text", true);
 
-        // グローバル変数の定義
-        self.builder.add_row(".bss", true);
-        for gvar in ast.globals.iter() {
-            self.builder.add_row(&format!(".globl {}", gvar.name), true);
-            self.builder.add_row(".align 8", true); // TODO: アラインメントは仮で8に固定
-            self.builder
-                .add_row(&format!(".type {}, @object", gvar.name), true);
-            self.builder.add_row(
-                &format!(".size {}, {}", gvar.name, gvar.ty.actual_size_of()),
-                true,
-            );
-            self.builder.add_row(&format!("{}:", gvar.name), false);
-            self.builder
-                .add_row(&format!(".zero {}", gvar.ty.actual_size_of()), true);
-
-            // TODO: initializeがある場合の初期化コード生成
-        }
+        self.builder.add_row(".data", true);
 
         // 文字列リテラルの定義
-        self.builder.add_row(".data", true);
         for (i, string) in ast.string_literals.iter().enumerate() {
             self.builder.add_row(&format!(".L.str.{}:", i), false);
             self.builder
                 .add_row(&format!(".string \"{}\"", string), true);
+        }
+
+        // グローバル変数の定義
+        for gvar in ast.globals.iter() {
+            self.builder.add_row(&format!(".globl {}", gvar.name), true);
+            self.builder
+                .add_row(&format!(".align {}", gvar.ty.align_of()), true);
+            self.builder
+                .add_row(&format!(".type {}, @object", gvar.name), true);
+            self.builder
+                .add_row(&format!(".size {}, {}", gvar.name, gvar.ty.size_of()), true);
+            self.builder.add_row(&format!("{}:", gvar.name), false);
+            if let Some(init) = gvar.init.as_ref() {
+                match init.kind {
+                    NodeKind::Number { val } => match gvar.ty.size_of() {
+                        1 => {
+                            self.builder.add_row(&format!(".byte {}", val), true);
+                        }
+                        2 => {
+                            self.builder.add_row(&format!(".word {}", val), true);
+                        }
+                        4 => {
+                            self.builder.add_row(&format!(".long {}", val), true);
+                        }
+                        8 => {
+                            self.builder.add_row(&format!(".quad {}", val), true);
+                        }
+                        _ => panic!("未対応のグローバル変数初期化サイズ: {}", gvar.ty.size_of()),
+                    },
+                    NodeKind::Addr => {
+                        if let Some(lhs) = &init.lhs {
+                            match &lhs.kind {
+                                NodeKind::GVar { name } => {
+                                    self.builder.add_row(&format!(".quad {}", name), true);
+                                }
+                                _ => {
+                                    panic!(
+                                        "未対応のグローバル変数初期化式のアドレス指定: {:?}",
+                                        lhs.kind
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    NodeKind::String { index, .. } => {
+                        self.builder
+                            .add_row(&format!(".quad .L.str.{}", index), true);
+                    }
+                    _ => panic!("未対応のグローバル変数初期化式: {:?}", init.kind),
+                }
+            } else {
+                self.builder
+                    .add_row(&format!(".zero {}", gvar.ty.size_of()), true);
+            }
         }
 
         // 関数の定義
@@ -90,7 +127,7 @@ impl Generator {
 
             // ローカル変数を逆順でスタックから読み出し
             for (i, arg) in func.locals.iter().rev().enumerate() {
-                match arg.ty.size_of() {
+                match arg.ty.align_of() {
                     1 => {
                         self.builder.add_row(
                             &format!("  mov [rbp-{}], {}", arg.offset, ARG_BYTE_REGS[i]), // 1バイト
@@ -115,7 +152,7 @@ impl Generator {
                             true,
                         );
                     }
-                    _ => panic!("未対応の引数サイズ: {}", arg.ty.size_of()),
+                    _ => panic!("未対応の引数サイズ: {}", arg.ty.align_of()),
                 }
 
                 // initializerがある場合、初期化コードを生成
@@ -176,7 +213,7 @@ impl Generator {
         if node.ty.is_none() {
             panic!("load先の型情報がありません: {:?}", node);
         }
-        match node.ty.as_ref().unwrap().size_of() {
+        match node.ty.as_ref().unwrap().align_of() {
             1 => {
                 self.builder.add_row("movsx rax, BYTE PTR [rax]", true); // 1バイト
             }
@@ -191,7 +228,7 @@ impl Generator {
             }
             _ => panic!(
                 "未対応のロードサイズ: {}",
-                node.ty.as_ref().unwrap().size_of()
+                node.ty.as_ref().unwrap().align_of()
             ),
         }
         self.builder.add_row("push rax", true); // 読み出した値をスタックに積む
@@ -204,7 +241,7 @@ impl Generator {
         if node.ty.is_none() {
             panic!("store先の型情報がありません: {:?}", node);
         }
-        match node.ty.as_ref().unwrap().size_of() {
+        match node.ty.as_ref().unwrap().align_of() {
             1 => {
                 self.builder.add_row("mov BYTE PTR [rax], dil", true);
             }
@@ -219,7 +256,7 @@ impl Generator {
             }
             _ => panic!(
                 "未対応のストアサイズ: {}",
-                node.ty.as_ref().unwrap().size_of()
+                node.ty.as_ref().unwrap().align_of()
             ),
         }
         self.builder.add_row("push rdi", true); // ストアした値をスタックに戻す
@@ -228,14 +265,14 @@ impl Generator {
     // int を 1 加算
     fn inc(&mut self) {
         self.builder.add_row("pop rax", true);
-        self.builder.add_row("add rax, 1", true);
+        self.builder.add_row("inc rax", true);
         self.builder.add_row("push rax", true);
     }
 
     // int を 1 減算
     fn dec(&mut self) {
         self.builder.add_row("pop rax", true);
-        self.builder.add_row("sub rax, 1", true);
+        self.builder.add_row("dec rax", true);
         self.builder.add_row("push rax", true);
     }
 

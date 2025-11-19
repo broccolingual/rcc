@@ -67,17 +67,17 @@ impl Ast {
     fn init_declarator(&mut self, base_type: Type) -> Result<Option<Box<Var>>, AstError> {
         if let Ok(mut var) = self.declarator(base_type) {
             if self.consume_punctuator("=") {
-                if let Some(mut init) = self.initializer()? {
-                    // let mut init = Some(init);
-                    init.assign_types()?; // initializerの型を設定
-                    if let Some(ty) = &init.ty
-                        && ty != &var.ty
-                    {
-                        return Err(AstError::TypeError(format!(
-                            "initializerの型が変数の型と一致しません {} != {}",
-                            var.ty, ty
-                        )));
-                    }
+                if let Some(init) = self.initializer()? {
+                    // TODO: 数字を代入する際の扱いを考える
+                    // init.assign_types()?; // initializerの型を設定
+                    // if let Some(ty) = &init.ty
+                    //     && ty != &var.ty
+                    // {
+                    //     return Err(AstError::TypeError(format!(
+                    //         "initializerの型が変数の型と一致しません {} != {}",
+                    //         var.ty, ty
+                    //     )));
+                    // }
                     var.init = Some(init); // initializerを設定
                 } else {
                     return Err(AstError::ParseError(

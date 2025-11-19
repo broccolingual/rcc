@@ -137,12 +137,6 @@ char main() {
     a = "abc";
     return a[1];
 }'
-# GCCがlibcをリンクしてくれるおかげでprintfが使える
-assert 0 '
-int main() {
-    printf("Hello, World! %d\n", 3);
-    return 0;
-}'
 assert 15 '
 int main() {
     int a = 3;
@@ -150,6 +144,26 @@ int main() {
     int *c = &b;
     int **d = &c;
     return b;
+}'
+# GCCがlibcをリンクしてくれるおかげでprintfが使える
+assert 0 '
+int main() {
+    char *a = "Hello, World! %d\n";
+    printf(a, 3);
+    return 0;
+}'
+assert 5 '
+int a = 5;
+short b = 3;
+long c = 8;
+char d = 2;
+int *e = &a;
+char *f = "Hello\n";
+int main() {
+    char *g = "World\n";
+    printf(f);
+    printf(g);
+    return *e;
 }'
 
 echo OK

@@ -201,16 +201,16 @@ impl Type {
         self.is_integer() || self.is_floating_point()
     }
 
-    // 実際のサイズ（配列の場合は要素数を考慮）
-    pub fn actual_size_of(&self) -> i64 {
+    // 型の実際のサイズ（配列の場合は要素数を考慮）
+    pub fn size_of(&self) -> i64 {
         match &self {
-            Type::Array { base, size } => base.actual_size_of() * *size as i64,
-            _ => self.size_of(),
+            Type::Array { base, size } => base.size_of() * *size as i64,
+            _ => self.align_of(),
         }
     }
 
-    // 型のサイズ（配列の場合はポインタ先のサイズ）
-    pub fn size_of(&self) -> i64 {
+    // 型のアラインメント
+    pub fn align_of(&self) -> i64 {
         match &self {
             Type::Void => 0,
             Type::Char => 1,
@@ -221,7 +221,7 @@ impl Type {
             Type::Double => 8,
             Type::Bool => 1,
             Type::Ptr { .. } => 8,
-            Type::Array { base, .. } => base.size_of(),
+            Type::Array { .. } => 8,
             Type::Func { .. } => 8, // TODO: 一旦8バイト固定
         }
     }
