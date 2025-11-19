@@ -23,7 +23,7 @@ impl Ast {
             "=", "*=", "/=", "%=", "+=", "-=", "<<=", ">>=", "&=", "^=", "|=",
         ];
         for op in &assignment_ops {
-            if self.consume_punctuator(op)
+            if let Some(_) = self.consume_punctuator(op)
                 && let Ok(kind) = NodeKind::from_str(op)
             {
                 node = Some(Box::new(Node::new(kind, node, self.assign_expr()?)));
@@ -37,7 +37,7 @@ impl Ast {
     //                      | logical_or_expr "?" expr ":" conditional_expr
     fn conditional_expr(&mut self) -> Result<Option<Box<Node>>, AstError> {
         let node = self.logical_or_expr()?;
-        if self.consume_punctuator("?") {
+        if let Some(_) = self.consume_punctuator("?") {
             let cond = node;
             let then = self.expr()?;
             self.expect_punctuator(":")?;
@@ -57,7 +57,7 @@ impl Ast {
         let mut node = self.logical_and_expr()?;
 
         loop {
-            if self.consume_punctuator("||") {
+            if let Some(_) = self.consume_punctuator("||") {
                 // logical or
                 node = Some(Box::new(Node::new(
                     NodeKind::LogicalOr,
@@ -76,7 +76,7 @@ impl Ast {
         let mut node = self.inclusive_or_expr()?;
 
         loop {
-            if self.consume_punctuator("&&") {
+            if let Some(_) = self.consume_punctuator("&&") {
                 // logical and
                 node = Some(Box::new(Node::new(
                     NodeKind::LogicalAnd,
@@ -95,7 +95,7 @@ impl Ast {
         let mut node = self.exclusive_or_expr()?;
 
         loop {
-            if self.consume_punctuator("|") {
+            if let Some(_) = self.consume_punctuator("|") {
                 // bitwise or
                 node = Some(Box::new(Node::new(
                     NodeKind::BitOr,
@@ -114,7 +114,7 @@ impl Ast {
         let mut node = self.and_expr()?;
 
         loop {
-            if self.consume_punctuator("^") {
+            if let Some(_) = self.consume_punctuator("^") {
                 // bitwise xor
                 node = Some(Box::new(Node::new(
                     NodeKind::BitXor,
@@ -133,7 +133,7 @@ impl Ast {
         let mut node = self.equality_expr()?;
 
         loop {
-            if self.consume_punctuator("&") {
+            if let Some(_) = self.consume_punctuator("&") {
                 //bitwise and
                 node = Some(Box::new(Node::new(
                     NodeKind::BitAnd,
@@ -152,14 +152,14 @@ impl Ast {
         let mut node = self.relational_expr()?;
 
         loop {
-            if self.consume_punctuator("==") {
+            if let Some(_) = self.consume_punctuator("==") {
                 // equal
                 node = Some(Box::new(Node::new(
                     NodeKind::Eq,
                     node,
                     self.relational_expr()?,
                 )));
-            } else if self.consume_punctuator("!=") {
+            } else if let Some(_) = self.consume_punctuator("!=") {
                 // not equal
                 node = Some(Box::new(Node::new(
                     NodeKind::Ne,
@@ -178,16 +178,16 @@ impl Ast {
         let mut node = self.shift_expr()?;
 
         loop {
-            if self.consume_punctuator("<") {
+            if let Some(_) = self.consume_punctuator("<") {
                 // less than
                 node = Some(Box::new(Node::new(NodeKind::Lt, node, self.shift_expr()?)));
-            } else if self.consume_punctuator("<=") {
+            } else if let Some(_) = self.consume_punctuator("<=") {
                 // less than or equal
                 node = Some(Box::new(Node::new(NodeKind::Le, node, self.shift_expr()?)));
-            } else if self.consume_punctuator(">") {
+            } else if let Some(_) = self.consume_punctuator(">") {
                 // greater than
                 node = Some(Box::new(Node::new(NodeKind::Lt, self.shift_expr()?, node)));
-            } else if self.consume_punctuator(">=") {
+            } else if let Some(_) = self.consume_punctuator(">=") {
                 // greater than or equal
                 node = Some(Box::new(Node::new(NodeKind::Le, self.shift_expr()?, node)));
             } else {
@@ -202,10 +202,10 @@ impl Ast {
         let mut node = self.add_expr()?;
 
         loop {
-            if self.consume_punctuator("<<") {
+            if let Some(_) = self.consume_punctuator("<<") {
                 // left shift
                 node = Some(Box::new(Node::new(NodeKind::Shl, node, self.add_expr()?)));
-            } else if self.consume_punctuator(">>") {
+            } else if let Some(_) = self.consume_punctuator(">>") {
                 // right shift
                 node = Some(Box::new(Node::new(NodeKind::Shr, node, self.add_expr()?)));
             } else {
@@ -220,7 +220,7 @@ impl Ast {
         let mut node = self.mul_expr()?;
 
         loop {
-            if self.consume_punctuator("+") {
+            if let Some(_) = self.consume_punctuator("+") {
                 // addition
                 node.as_mut().unwrap().assign_types()?; // lhs
                 let mut rhs = self.mul_expr()?;
@@ -238,7 +238,7 @@ impl Ast {
                     )));
                 }
                 node = Some(Box::new(Node::new(NodeKind::Add, node, rhs)));
-            } else if self.consume_punctuator("-") {
+            } else if let Some(_) = self.consume_punctuator("-") {
                 // subtraction
                 node.as_mut().unwrap().assign_types()?; // lhs
                 let mut rhs = self.mul_expr()?;
@@ -268,13 +268,13 @@ impl Ast {
         let mut node = self.cast_expr()?;
 
         loop {
-            if self.consume_punctuator("*") {
+            if let Some(_) = self.consume_punctuator("*") {
                 // multiplication
                 node = Some(Box::new(Node::new(NodeKind::Mul, node, self.cast_expr()?)));
-            } else if self.consume_punctuator("/") {
+            } else if let Some(_) = self.consume_punctuator("/") {
                 // division
                 node = Some(Box::new(Node::new(NodeKind::Div, node, self.cast_expr()?)));
-            } else if self.consume_punctuator("%") {
+            } else if let Some(_) = self.consume_punctuator("%") {
                 // remainder
                 node = Some(Box::new(Node::new(NodeKind::Rem, node, self.cast_expr()?)));
             } else {
@@ -295,14 +295,14 @@ impl Ast {
     //                | sizeof unary_expr
     //                | sizeof "(" type_name ")" // 未実装
     fn unary_expr(&mut self) -> Result<Option<Box<Node>>, AstError> {
-        if self.consume_punctuator("++") {
+        if let Some(_) = self.consume_punctuator("++") {
             // pre-increment
             return Ok(Some(Box::new(Node::new_unary(
                 NodeKind::PreInc,
                 self.unary_expr()?,
             ))));
         }
-        if self.consume_punctuator("--") {
+        if let Some(_) = self.consume_punctuator("--") {
             // pre-decrement
             return Ok(Some(Box::new(Node::new_unary(
                 NodeKind::PreDec,
@@ -310,11 +310,11 @@ impl Ast {
             ))));
         }
 
-        if self.consume_punctuator("+") {
+        if let Some(_) = self.consume_punctuator("+") {
             // unary plus
             return self.cast_expr();
         }
-        if self.consume_punctuator("-") {
+        if let Some(_) = self.consume_punctuator("-") {
             // unary minus
             return Ok(Some(Box::new(Node::new(
                 NodeKind::Sub,
@@ -322,7 +322,7 @@ impl Ast {
                 self.cast_expr()?,
             ))));
         }
-        if self.consume_punctuator("&") {
+        if let Some(_) = self.consume_punctuator("&") {
             // address-of
             let mut node = Box::new(Node::new_unary(NodeKind::Addr, self.cast_expr()?));
             node.assign_types()?;
@@ -334,7 +334,7 @@ impl Ast {
             }
             return Ok(Some(node));
         }
-        if self.consume_punctuator("*") {
+        if let Some(_) = self.consume_punctuator("*") {
             // dereference
             let mut node = Box::new(Node::new_unary(NodeKind::Deref, self.cast_expr()?));
             node.assign_types()?;
@@ -346,14 +346,14 @@ impl Ast {
             }
             return Ok(Some(node));
         }
-        if self.consume_punctuator("~") {
+        if let Some(_) = self.consume_punctuator("~") {
             // bitwise not
             return Ok(Some(Box::new(Node::new_unary(
                 NodeKind::BitNot,
                 self.cast_expr()?,
             ))));
         }
-        if self.consume_punctuator("!") {
+        if let Some(_) = self.consume_punctuator("!") {
             // logical not
             return Ok(Some(Box::new(Node::new_unary(
                 NodeKind::LogicalNot,
@@ -361,7 +361,7 @@ impl Ast {
             ))));
         }
 
-        if self.consume_keyword("sizeof") {
+        if let Some(_) = self.consume_keyword("sizeof") {
             // sizeof unary_expr
             let mut node = self.unary_expr()?;
             if let Some(n) = &mut node {
@@ -387,10 +387,10 @@ impl Ast {
         let mut node = self.primary_expr()?;
 
         loop {
-            if self.consume_punctuator("++") {
+            if let Some(_) = self.consume_punctuator("++") {
                 // post-increment
                 node = Some(Box::new(Node::new_unary(NodeKind::PostInc, node)));
-            } else if self.consume_punctuator("--") {
+            } else if let Some(_) = self.consume_punctuator("--") {
                 // post-decrement
                 node = Some(Box::new(Node::new_unary(NodeKind::PostDec, node)));
             } else {
@@ -409,7 +409,7 @@ impl Ast {
             return Ok(args);
         }
 
-        while self.consume_punctuator(",") {
+        while let Some(_) = self.consume_punctuator(",") {
             if let Some(arg) = self.assign_expr()? {
                 args.insert(0, arg); // 逆順で格納
             } else {
@@ -428,7 +428,7 @@ impl Ast {
     //                  | number
     fn primary_expr(&mut self) -> Result<Option<Box<Node>>, AstError> {
         // "(" expr ")"
-        if self.consume_punctuator("(")
+        if let Some(_) = self.consume_punctuator("(")
             && let Some(node) = self.expr()?
         {
             self.expect_punctuator(")")?;
@@ -437,7 +437,7 @@ impl Ast {
 
         if let Some(name) = self.consume_ident() {
             // 関数呼び出し
-            if self.consume_punctuator("(") {
+            if let Some(_) = self.consume_punctuator("(") {
                 // 引数リストをパース
                 let args = self.argument_expr_list()?;
                 self.expect_punctuator(")")?;
@@ -455,7 +455,7 @@ impl Ast {
                 // 例: a[0] -> *(a + 0)
                 // 例: a[1][2] -> *(*(a + 1) + 2)
                 // TODO: 多次元配列への対応
-                if self.consume_punctuator("[") {
+                if let Some(_) = self.consume_punctuator("[") {
                     let add = Node::new(NodeKind::Add, Some(Box::new(node)), self.expr()?);
                     let mut n = Box::new(Node::new_unary(NodeKind::Deref, Some(Box::new(add))));
                     n.assign_types()?;
@@ -469,7 +469,7 @@ impl Ast {
 
                 // 配列の場合は自動的にアドレスに変換
                 // TODO: 多次元配列への対応
-                if self.consume_punctuator("[") {
+                if let Some(_) = self.consume_punctuator("[") {
                     let add = Node::new(NodeKind::Add, Some(Box::new(node)), self.expr()?);
                     let mut n = Box::new(Node::new_unary(NodeKind::Deref, Some(Box::new(add))));
                     n.assign_types()?;

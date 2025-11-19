@@ -159,21 +159,21 @@ impl Ast {
         }
     }
 
-    fn consume(&mut self, kind: &TokenKind) -> bool {
-        match self.get_token() {
-            Some(t) if &t.kind == kind => {
+    fn consume(&mut self, kind: &TokenKind) -> Option<&Token> {
+        if let Some(t) = self.tokens.get(self.token_pos) {
+            if &t.kind == kind {
                 self.advance_token();
-                true
+                return self.tokens.get(self.token_pos.saturating_sub(1));
             }
-            _ => false,
         }
+        None
     }
 
-    fn consume_punctuator(&mut self, sym: &str) -> bool {
+    fn consume_punctuator(&mut self, sym: &str) -> Option<&Token> {
         self.consume(&TokenKind::Punctuator(sym.to_string()))
     }
 
-    fn consume_keyword(&mut self, word: &str) -> bool {
+    fn consume_keyword(&mut self, word: &str) -> Option<&Token> {
         self.consume(&TokenKind::Keyword(word.to_string()))
     }
 
@@ -254,7 +254,7 @@ impl Ast {
         }
     }
 
-    fn at_eof(&self) -> bool {
+    fn at_eof(&mut self) -> bool {
         self.tokens.is_empty()
             || matches!(
                 self.get_token(),

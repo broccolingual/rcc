@@ -54,7 +54,7 @@ impl Ast {
         if let Some(var) = self.init_declarator(base_type.clone())? {
             vars.push(*var);
         }
-        while self.consume_punctuator(",") {
+        while let Some(_) = self.consume_punctuator(",") {
             if let Some(var) = self.init_declarator(base_type.clone())? {
                 vars.push(*var);
             }
@@ -66,7 +66,7 @@ impl Ast {
     //                     | declarator "=" initializer
     fn init_declarator(&mut self, base_type: Type) -> Result<Option<Box<Var>>, AstError> {
         if let Ok(mut var) = self.declarator(base_type) {
-            if self.consume_punctuator("=") {
+            if let Some(_) = self.consume_punctuator("=") {
                 if let Some(init) = self.initializer()? {
                     // TODO: 数字を代入する際の扱いを考える
                     // init.assign_types()?; // initializerの型を設定
@@ -94,14 +94,14 @@ impl Ast {
     fn storage_class_specifier(&mut self) -> Option<StorageClassKind> {
         StorageClassKind::all()
             .into_iter()
-            .find(|specifier| self.consume_keyword(&specifier.to_string()))
+            .find(|specifier| self.consume_keyword(&specifier.to_string()).is_some())
     }
 
     // type_specifier ::= "void" | "char" | "short" | "int" | "long" | "float" | "double" | "bool"
     fn type_specifier(&mut self) -> Option<Type> {
         Type::all()
             .into_iter()
-            .find(|specifier| self.consume_keyword(&specifier.to_string()))
+            .find(|specifier| self.consume_keyword(&specifier.to_string()).is_some())
     }
 
     // specifier_qualifier_list ::= type_specifier_qualifier+
@@ -129,14 +129,14 @@ impl Ast {
     fn type_qualifier(&mut self) -> Option<TypeQualifierKind> {
         TypeQualifierKind::all()
             .into_iter()
-            .find(|qualifier| self.consume_keyword(&qualifier.to_string()))
+            .find(|qualifier| self.consume_keyword(&qualifier.to_string()).is_some())
     }
 
     // function_specifier ::= "inline"
     fn function_specifier(&mut self) -> Option<FunctionKind> {
         FunctionKind::all()
             .into_iter()
-            .find(|specifier| self.consume_keyword(&specifier.to_string()))
+            .find(|specifier| self.consume_keyword(&specifier.to_string()).is_some())
     }
 
     // type_qualifier_list ::= type_qualifier*
@@ -151,7 +151,7 @@ impl Ast {
     // pointer ::= "*" type_qualifier_list* pointer?
     #[allow(clippy::never_loop)]
     fn pointer(&mut self, base_ty: Box<Type>) -> Box<Type> {
-        while self.consume_punctuator("*") {
+        while let Some(_) = self.consume_punctuator("*") {
             return self.pointer(Box::new(Type::Ptr { to: base_ty }));
         }
         self.type_qualifier_list(); // 現状は型修飾子を無視
@@ -169,7 +169,7 @@ impl Ast {
     //                       | array_declarator
     //                       | function_declarator
     fn direct_declarator(&mut self, ty: Box<Type>) -> Result<Box<Var>, AstError> {
-        let mut var = if self.consume_punctuator("(") {
+        let mut var = if let Some(_) = self.consume_punctuator("(") {
             if let Ok(v) = self.declarator(*ty.clone()) {
                 self.expect_punctuator(")")?;
                 v
@@ -188,7 +188,7 @@ impl Ast {
 
         loop {
             // array_declarator
-            if self.consume_punctuator("[") {
+            if let Some(_) = self.consume_punctuator("[") {
                 let array_size = self.expect_number()? as usize;
                 self.expect_punctuator("]")?;
                 // TODO: 多次元配列の場合，逆順で定義されてしまう
@@ -200,9 +200,9 @@ impl Ast {
                 continue;
             }
             // function_declarator
-            if self.consume_punctuator("(") {
+            if let Some(_) = self.consume_punctuator("(") {
                 // パラメータが0個の場合
-                if self.consume_punctuator(")") {
+                if let Some(_) = self.consume_punctuator(")") {
                     let func_ty = Type::Func {
                         return_ty: var.ty,
                         params: Vec::new(),
@@ -237,7 +237,7 @@ impl Ast {
         let mut params = Vec::new();
         let param = self.parameter_declaration()?;
         params.push(*param);
-        while self.consume_punctuator(",") {
+        while let Some(_) = self.consume_punctuator(",") {
             let param = self.parameter_declaration()?;
             params.push(*param);
         }
