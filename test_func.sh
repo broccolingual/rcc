@@ -158,12 +158,13 @@ short b = 3;
 long c = 8;
 char d = 2;
 int *e = &a;
-char *f = "Hello\n";
+int **f = &e;
+char *g = "Hello\n";
 int main() {
-    char *g = "World\n";
-    printf(f);
+    char *h = "World\n";
     printf(g);
-    return *e;
+    printf(h);
+    return **f;
 }'
 
 echo OK

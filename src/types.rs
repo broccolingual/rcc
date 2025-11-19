@@ -169,11 +169,11 @@ impl Type {
         None
     }
 
-    // ポインタもしくは配列の基底型を取得
+    // ポインタもしくは配列の指している型を取得
     pub fn base_type(&self) -> &Type {
         match &self {
-            Type::Ptr { to } => to.base_type(),
-            Type::Array { base, .. } => base.base_type(),
+            Type::Ptr { to } => to,
+            Type::Array { base, .. } => base,
             _ => self,
         }
     }

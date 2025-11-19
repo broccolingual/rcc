@@ -39,9 +39,8 @@ impl Generator {
         self.builder.add_row(".intel_syntax noprefix", true);
         self.builder.add_row(".text", true);
 
-        self.builder.add_row(".data", true);
-
         // 文字列リテラルの定義
+        self.builder.add_row(".section .rodata", true);
         for (i, string) in ast.string_literals.iter().enumerate() {
             self.builder.add_row(&format!(".L.str.{}:", i), false);
             self.builder
@@ -49,6 +48,7 @@ impl Generator {
         }
 
         // グローバル変数の定義
+        self.builder.add_row(".data", true);
         for gvar in ast.globals.iter() {
             self.builder.add_row(&format!(".globl {}", gvar.name), true);
             self.builder
