@@ -100,7 +100,7 @@ impl TypeQualifierKind {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum TypeKind {
     Void,
     Char,
@@ -121,6 +121,34 @@ pub enum TypeKind {
         return_ty: Box<Type>,
         params: Vec<Var>,
     }, // return_ty: 戻り値の型, params: パラメータリスト
+}
+
+impl fmt::Debug for TypeKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TypeKind::Void => write!(f, "void"),
+            TypeKind::Char => write!(f, "char"),
+            TypeKind::Short => write!(f, "short"),
+            TypeKind::Int => write!(f, "int"),
+            TypeKind::Long => write!(f, "long"),
+            TypeKind::Float => write!(f, "float"),
+            TypeKind::Double => write!(f, "double"),
+            TypeKind::Bool => write!(f, "bool"),
+            // ポインタや配列は再帰的に*をつけて表示
+            TypeKind::Ptr { to } => write!(f, "{:?}*", to),
+            TypeKind::Array { base, .. } => write!(f, "{:?}*", base),
+            TypeKind::Func { return_ty, params } => {
+                write!(f, "func(")?;
+                for (i, param) in params.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{:?}", param)?;
+                }
+                write!(f, ") -> {:?}", return_ty)
+            }
+        }
+    }
 }
 
 impl fmt::Display for TypeKind {
@@ -158,10 +186,20 @@ impl TypeKind {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Type {
     pub kind: TypeKind,
     pub is_const: bool,
+}
+
+impl fmt::Debug for Type {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.is_const {
+            write!(f, "const {:?}", self.kind)
+        } else {
+            write!(f, "{:?}", self.kind)
+        }
+    }
 }
 
 impl Type {
