@@ -11,7 +11,7 @@ pub enum DeclarationSpecifier {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TypeSpecifierQualifier {
-    TypeSpecifier(Type),
+    TypeSpecifier(TypeKind),
     TypeQualifier(TypeQualifierKind),
 }
 
@@ -101,7 +101,7 @@ impl TypeQualifierKind {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Type {
+pub enum TypeKind {
     Void,
     Char,
     Short,
@@ -123,38 +123,53 @@ pub enum Type {
     }, // return_ty: 戻り値の型, params: パラメータリスト
 }
 
-impl fmt::Display for Type {
+impl fmt::Display for TypeKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Type::Void => write!(f, "void"),
-            Type::Char => write!(f, "char"),
-            Type::Short => write!(f, "short"),
-            Type::Int => write!(f, "int"),
-            Type::Long => write!(f, "long"),
-            Type::Float => write!(f, "float"),
-            Type::Double => write!(f, "double"),
-            Type::Bool => write!(f, "bool"),
-            Type::Ptr { to } => write!(f, "ptr to {:?}", to),
-            Type::Array { base, size } => write!(f, "array[{}] of {:?}", size, base),
-            Type::Func { return_ty, params } => {
+            TypeKind::Void => write!(f, "void"),
+            TypeKind::Char => write!(f, "char"),
+            TypeKind::Short => write!(f, "short"),
+            TypeKind::Int => write!(f, "int"),
+            TypeKind::Long => write!(f, "long"),
+            TypeKind::Float => write!(f, "float"),
+            TypeKind::Double => write!(f, "double"),
+            TypeKind::Bool => write!(f, "bool"),
+            TypeKind::Ptr { to } => write!(f, "ptr to {:?}", to),
+            TypeKind::Array { base, size } => write!(f, "array[{}] of {:?}", size, base),
+            TypeKind::Func { return_ty, params } => {
                 write!(f, "func({:?}) -> {:?}", params, return_ty)
             }
         }
     }
 }
 
-impl Type {
-    pub fn all() -> Vec<Type> {
+impl TypeKind {
+    pub fn all() -> Vec<TypeKind> {
         vec![
-            Type::Void,
-            Type::Char,
-            Type::Short,
-            Type::Int,
-            Type::Long,
-            Type::Float,
-            Type::Double,
-            Type::Bool,
+            TypeKind::Void,
+            TypeKind::Char,
+            TypeKind::Short,
+            TypeKind::Int,
+            TypeKind::Long,
+            TypeKind::Float,
+            TypeKind::Double,
+            TypeKind::Bool,
         ]
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Type {
+    pub kind: TypeKind,
+    pub is_const: bool,
+}
+
+impl Type {
+    pub fn new(kind: &TypeKind) -> Self {
+        Type {
+            kind: kind.clone(),
+            is_const: false,
+        }
     }
 
     // TODO: constやvolatileの情報も扱う
@@ -163,7 +178,7 @@ impl Type {
             if let DeclarationSpecifier::TypeSpecifierQualifier(tsq) = specifier
                 && let TypeSpecifierQualifier::TypeSpecifier(ty) = tsq
             {
-                return Some(ty.clone());
+                return Some(Type::new(ty));
             }
         }
         None
@@ -171,29 +186,34 @@ impl Type {
 
     // ポインタもしくは配列の指している型を取得
     pub fn base_type(&self) -> &Type {
-        match &self {
-            Type::Ptr { to } => to,
-            Type::Array { base, .. } => base,
+        match &self.kind {
+            TypeKind::Ptr { to } => to,
+            TypeKind::Array { base, .. } => base,
             _ => self,
         }
     }
 
+    // 型が配列かどうか
+    pub fn is_array(&self) -> bool {
+        matches!(&self.kind, TypeKind::Array { .. })
+    }
+
     // 型がポインタもしくは配列かどうか
     pub fn is_ptr_or_array(&self) -> bool {
-        matches!(self, Type::Ptr { .. } | Type::Array { .. })
+        matches!(&self.kind, TypeKind::Ptr { .. } | TypeKind::Array { .. })
     }
 
     // 型が整数型かどうか
     pub fn is_integer(&self) -> bool {
         matches!(
-            self,
-            Type::Char | Type::Short | Type::Int | Type::Long | Type::Bool
+            &self.kind,
+            TypeKind::Char | TypeKind::Short | TypeKind::Int | TypeKind::Long | TypeKind::Bool
         )
     }
 
     // 型が浮動小数点型かどうか
     pub fn is_floating_point(&self) -> bool {
-        matches!(self, Type::Float | Type::Double)
+        matches!(&self.kind, TypeKind::Float | TypeKind::Double)
     }
 
     // 型がスカラー型かどうか（整数型または浮動小数点型）
@@ -203,26 +223,26 @@ impl Type {
 
     // 型の実際のサイズ（配列の場合は要素数を考慮）
     pub fn size_of(&self) -> i64 {
-        match &self {
-            Type::Array { base, size } => base.size_of() * *size as i64,
+        match &self.kind {
+            TypeKind::Array { base, size } => base.size_of() * *size as i64,
             _ => self.align_of(),
         }
     }
 
     // 型のアラインメント
     pub fn align_of(&self) -> i64 {
-        match &self {
-            Type::Void => 0,
-            Type::Char => 1,
-            Type::Short => 2,
-            Type::Int => 4,
-            Type::Long => 8,
-            Type::Float => 4,
-            Type::Double => 8,
-            Type::Bool => 1,
-            Type::Ptr { .. } => 8,
-            Type::Array { .. } => 8,
-            Type::Func { .. } => 8, // TODO: 一旦8バイト固定
+        match &self.kind {
+            TypeKind::Void => 0,
+            TypeKind::Char => 1,
+            TypeKind::Short => 2,
+            TypeKind::Int => 4,
+            TypeKind::Long => 8,
+            TypeKind::Float => 4,
+            TypeKind::Double => 8,
+            TypeKind::Bool => 1,
+            TypeKind::Ptr { .. } => 8,
+            TypeKind::Array { .. } => 8,
+            TypeKind::Func { .. } => 8, // TODO: 一旦8バイト固定
         }
     }
 }

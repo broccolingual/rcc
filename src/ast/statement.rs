@@ -3,7 +3,7 @@ use std::ops::Deref;
 
 use crate::ast::{Ast, AstError};
 use crate::node::{Node, NodeKind};
-use crate::types::Type;
+use crate::types::TypeKind;
 
 impl Ast {
     // TODO: case文, default文の実装
@@ -145,7 +145,7 @@ impl Ast {
 
         if let Some(_) = self.consume_keyword("return") {
             if let Some(_) = self.consume_punctuator(";") {
-                if Type::Void != self.get_current_func()?.return_ty {
+                if TypeKind::Void != self.get_current_func()?.return_ty.kind {
                     panic!("return文は値を返す必要があります");
                 }
                 return Ok(Some(Box::new(Node::from(NodeKind::Return))));

@@ -478,7 +478,7 @@ impl Ast {
                 }
                 return Ok(Some(Box::new(node)));
             }
-            panic!("未定義の関数もしくは変数です: {}", name);
+            Err(AstError::UndefinedVariable(name))?;
         }
 
         if let Ok(string) = self.expect_string() {

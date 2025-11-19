@@ -1,17 +1,17 @@
 use crate::token::{KEYWORDS, PUNCTUATORS};
 use crate::token::{Token, TokenKind};
 
-pub struct Tokenizer {}
+pub struct Lexer {}
 
-impl Default for Tokenizer {
+impl Default for Lexer {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Tokenizer {
+impl Lexer {
     pub fn new() -> Self {
-        Tokenizer {}
+        Lexer {}
     }
 
     pub fn tokenize(&self, input: &str) -> Result<Vec<Token>, String> {

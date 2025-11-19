@@ -1,7 +1,7 @@
 use crate::ast::{Ast, AstError, Var};
 use crate::node::Node;
 use crate::types::{
-    DeclarationSpecifier, FunctionKind, StorageClassKind, Type, TypeQualifierKind,
+    DeclarationSpecifier, FunctionKind, StorageClassKind, Type, TypeKind, TypeQualifierKind,
     TypeSpecifierQualifier,
 };
 
@@ -98,8 +98,8 @@ impl Ast {
     }
 
     // type_specifier ::= "void" | "char" | "short" | "int" | "long" | "float" | "double" | "bool"
-    fn type_specifier(&mut self) -> Option<Type> {
-        Type::all()
+    fn type_specifier(&mut self) -> Option<TypeKind> {
+        TypeKind::all()
             .into_iter()
             .find(|specifier| self.consume_keyword(&specifier.to_string()).is_some())
     }
@@ -152,7 +152,7 @@ impl Ast {
     #[allow(clippy::never_loop)]
     fn pointer(&mut self, base_ty: Box<Type>) -> Box<Type> {
         while let Some(_) = self.consume_punctuator("*") {
-            return self.pointer(Box::new(Type::Ptr { to: base_ty }));
+            return self.pointer(Box::new(Type::new(&TypeKind::Ptr { to: base_ty })));
         }
         self.type_qualifier_list(); // 現状は型修飾子を無視
         base_ty
@@ -192,10 +192,10 @@ impl Ast {
                 let array_size = self.expect_number()? as usize;
                 self.expect_punctuator("]")?;
                 // TODO: 多次元配列の場合，逆順で定義されてしまう
-                let array_ty = Type::Array {
+                let array_ty = Type::new(&TypeKind::Array {
                     base: var.ty,
                     size: array_size,
-                };
+                });
                 var = Box::new(Var::new(&var.name, array_ty));
                 continue;
             }
@@ -203,10 +203,10 @@ impl Ast {
             if let Some(_) = self.consume_punctuator("(") {
                 // パラメータが0個の場合
                 if let Some(_) = self.consume_punctuator(")") {
-                    let func_ty = Type::Func {
+                    let func_ty = Type::new(&TypeKind::Func {
                         return_ty: var.ty,
                         params: Vec::new(),
-                    };
+                    });
                     var = Box::new(Var::new(&var.name, func_ty));
                     continue;
                 }
@@ -214,10 +214,10 @@ impl Ast {
                 // パラメータが1個以上の場合
                 let params = self.parameter_type_list()?;
                 self.expect_punctuator(")")?;
-                let func_ty = Type::Func {
+                let func_ty = Type::new(&TypeKind::Func {
                     return_ty: var.ty,
                     params,
-                };
+                });
                 var = Box::new(Var::new(&var.name, func_ty));
                 continue;
             }
@@ -268,12 +268,12 @@ impl Ast {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lexer::Lexer;
     use crate::node::NodeKind;
-    use crate::parser::Tokenizer;
 
     fn preproc(input: &str) -> Ast {
-        let tokenizer = Tokenizer::new();
-        let tokens = tokenizer.tokenize(input).unwrap();
+        let lexer = Lexer::new();
+        let tokens = lexer.tokenize(input).unwrap();
         Ast::new(&tokens)
     }
 
@@ -284,7 +284,7 @@ mod tests {
         let vars = ast.declaration().unwrap().unwrap();
         let var = &vars[0];
         assert_eq!(var.name, "a");
-        assert_eq!(*var.ty, Type::Int);
+        assert_eq!(*var.ty, Type::new(&TypeKind::Int));
 
         let input = "int *p;";
         let mut ast = preproc(input);
@@ -293,9 +293,9 @@ mod tests {
         assert_eq!(var.name, "p");
         assert_eq!(
             *var.ty,
-            Type::Ptr {
-                to: Box::new(Type::Int)
-            }
+            Type::new(&TypeKind::Ptr {
+                to: Box::new(Type::new(&TypeKind::Int))
+            })
         );
 
         let input = "int **p;";
@@ -305,11 +305,11 @@ mod tests {
         assert_eq!(var.name, "p");
         assert_eq!(
             *var.ty,
-            Type::Ptr {
-                to: Box::new(Type::Ptr {
-                    to: Box::new(Type::Int)
-                })
-            }
+            Type::new(&TypeKind::Ptr {
+                to: Box::new(Type::new(&TypeKind::Ptr {
+                    to: Box::new(Type::new(&TypeKind::Int))
+                }))
+            })
         );
 
         let input = "int arr[10];";
@@ -319,10 +319,10 @@ mod tests {
         assert_eq!(var.name, "arr");
         assert_eq!(
             *var.ty,
-            Type::Array {
-                base: Box::new(Type::Int),
+            Type::new(&TypeKind::Array {
+                base: Box::new(Type::new(&TypeKind::Int)),
                 size: 10
-            }
+            })
         );
 
         // TODO: 多次元配列の要素数の宣言が逆順になる問題の修正
@@ -345,12 +345,12 @@ mod tests {
         assert_eq!(var.name, "arr");
         assert_eq!(
             *var.ty,
-            Type::Array {
-                base: Box::new(Type::Ptr {
-                    to: Box::new(Type::Int)
-                }),
+            Type::new(&TypeKind::Array {
+                base: Box::new(Type::new(&TypeKind::Ptr {
+                    to: Box::new(Type::new(&TypeKind::Int))
+                })),
                 size: 10
-            }
+            })
         );
 
         let input = "int a, b;";
@@ -359,15 +359,15 @@ mod tests {
         assert!(vars.len() == 2);
         assert_eq!(vars[0].name, "a");
         assert_eq!(vars[1].name, "b");
-        assert_eq!(*vars[0].ty, Type::Int);
-        assert_eq!(*vars[1].ty, Type::Int);
+        assert_eq!(*vars[0].ty, Type::new(&TypeKind::Int));
+        assert_eq!(*vars[1].ty, Type::new(&TypeKind::Int));
 
         let input = "int a = 3;";
         let mut ast = preproc(input);
         let vars = ast.declaration().unwrap().unwrap();
         let var = &vars[0];
         assert_eq!(var.name, "a");
-        assert_eq!(*var.ty, Type::Int);
+        assert_eq!(*var.ty, Type::new(&TypeKind::Int));
         assert!(var.init.is_some());
         let init = var.init.as_ref().unwrap();
         assert_eq!(init.kind, NodeKind::Number { val: 3 });
@@ -380,8 +380,8 @@ mod tests {
         let var_b = &vars[1];
         assert_eq!(var_a.name, "a");
         assert_eq!(var_b.name, "b");
-        assert_eq!(*var_a.ty, Type::Int);
-        assert_eq!(*var_b.ty, Type::Int);
+        assert_eq!(*var_a.ty, Type::new(&TypeKind::Int));
+        assert_eq!(*var_b.ty, Type::new(&TypeKind::Int));
         assert!(var_a.init.is_some());
         assert!(var_b.init.is_some());
         let init_a = var_a.init.as_ref().unwrap();

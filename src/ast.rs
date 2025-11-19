@@ -6,7 +6,7 @@ mod statement;
 
 use crate::node::{Node, NodeKind};
 use crate::token::{Token, TokenKind};
-use crate::types::Type;
+use crate::types::{Type, TypeKind};
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Var {
@@ -50,7 +50,7 @@ impl Function {
             name: name.to_string(),
             body: Vec::new(),
             locals: Vec::new(),
-            return_ty: Type::Void,
+            return_ty: Type::new(&TypeKind::Void),
         }
     }
 }
@@ -160,11 +160,11 @@ impl Ast {
     }
 
     fn consume(&mut self, kind: &TokenKind) -> Option<&Token> {
-        if let Some(t) = self.tokens.get(self.token_pos) {
-            if &t.kind == kind {
-                self.advance_token();
-                return self.tokens.get(self.token_pos.saturating_sub(1));
-            }
+        if let Some(t) = self.tokens.get(self.token_pos)
+            && &t.kind == kind
+        {
+            self.advance_token();
+            return self.tokens.get(self.token_pos.saturating_sub(1));
         }
         None
     }
@@ -314,7 +314,7 @@ impl Ast {
             ));
         };
         let mut func = Box::new(Function::new(&func_decl.name));
-        if let Type::Func { params, return_ty } = *func_decl.ty {
+        if let TypeKind::Func { params, return_ty } = func_decl.ty.kind {
             for param in params {
                 func.gen_lvar(param.clone())?;
             }

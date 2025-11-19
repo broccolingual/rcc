@@ -3,14 +3,14 @@ use clap_derive::Parser;
 
 pub mod asm_builder;
 pub mod ast;
+pub mod lexer;
 pub mod node;
-pub mod parser;
 pub mod token;
 pub mod types;
 pub mod x86;
 
 use crate::ast::Ast;
-use crate::parser::Tokenizer;
+use crate::lexer::Lexer;
 use crate::x86::Generator;
 
 #[derive(Parser, Debug)]
@@ -46,11 +46,11 @@ fn main() {
         }
     }
 
-    let tokenizer = Tokenizer::default();
-    let tokens = match tokenizer.tokenize(&args.input) {
+    let lexer = Lexer::default();
+    let tokens = match lexer.tokenize(&args.input) {
         Ok(tokens) => tokens,
         Err(e) => {
-            eprintln!("Tokenizer Error: {}", e);
+            eprintln!("Lexer Error: {}", e);
             return;
         }
     };

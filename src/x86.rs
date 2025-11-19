@@ -3,7 +3,6 @@ use std::ops::Deref;
 use crate::asm_builder::AsmBuilder;
 use crate::ast::Ast;
 use crate::node::{Node, NodeKind};
-use crate::types::Type;
 
 const ARG_BYTE_REGS: [&str; 6] = ["dil", "sil", "dl", "cl", "r8b", "r9b"];
 const ARG_WORD_REGS: [&str; 6] = ["di", "si", "dx", "cx", "r8w", "r9w"];
@@ -293,7 +292,7 @@ impl Generator {
             }
             NodeKind::LVar { .. } | NodeKind::GVar { .. } => {
                 self.get_val(node);
-                if !matches!(node.ty.as_ref().unwrap().deref(), Type::Array { .. }) {
+                if !node.ty.as_ref().unwrap().deref().is_array() {
                     self.load(node); // 配列型以外は値を読み出す
                 }
                 return;
