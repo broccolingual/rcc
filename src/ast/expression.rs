@@ -4,10 +4,10 @@ use crate::ast::{Ast, AstError};
 use crate::node::{Node, NodeKind};
 
 impl Ast {
-    // constant_expr ::= conditional_expr
+    // const_expr ::= cond_expr
     #[allow(dead_code)]
-    pub(super) fn constant_expr(&mut self) -> Result<Option<Box<Node>>, AstError> {
-        self.conditional_expr()
+    pub(super) fn const_expr(&mut self) -> Result<Option<Box<Node>>, AstError> {
+        self.cond_expr()
     }
 
     // expr ::= assign_expr
@@ -15,10 +15,10 @@ impl Ast {
         self.assign_expr()
     }
 
-    // assign_expr ::= conditional_expr
+    // assign_expr ::= cond_expr
     //                 | ("=" | "*=" | "/=" | "%=" | "+=" | "-=" | "<<=" | ">>=" | "&=" | "^=" | "|=") assign_expr
     pub(super) fn assign_expr(&mut self) -> Result<Option<Box<Node>>, AstError> {
-        let mut node = self.conditional_expr()?;
+        let mut node = self.cond_expr()?;
         let assignment_ops = [
             "=", "*=", "/=", "%=", "+=", "-=", "<<=", ">>=", "&=", "^=", "|=",
         ];
@@ -33,15 +33,15 @@ impl Ast {
         Ok(node)
     }
 
-    // conditional_expr ::= logical_or_expr
-    //                      | logical_or_expr "?" expr ":" conditional_expr
-    fn conditional_expr(&mut self) -> Result<Option<Box<Node>>, AstError> {
+    // cond_expr ::= logical_or_expr
+    //               | logical_or_expr "?" expr ":" cond_expr
+    fn cond_expr(&mut self) -> Result<Option<Box<Node>>, AstError> {
         let node = self.logical_or_expr()?;
         if self.consume_punctuator("?").is_some() {
             let cond = node;
             let then = self.expr()?;
             self.expect_punctuator(":")?;
-            let els = self.conditional_expr()?;
+            let els = self.cond_expr()?;
             return Ok(Some(Box::new(Node::from(NodeKind::Ternary {
                 cond,
                 then,
