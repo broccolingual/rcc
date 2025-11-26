@@ -9,7 +9,7 @@ impl Ast {
     // TODO: case文, default文の実装
     fn labeled_stmt(&mut self) -> Result<Option<Box<Node>>, AstError> {
         if let Some(name) = self.consume_ident() {
-            if let Some(_) = self.consume_punctuator(":") {
+            if self.consume_punctuator(":").is_some() {
                 return Ok(Some(Box::new(Node::new_unary(
                     NodeKind::Label { name },
                     self.stmt()?,
@@ -24,7 +24,7 @@ impl Ast {
 
     // compound_stmt ::= "{" declaration* stmt* "}"
     pub(super) fn compound_stmt(&mut self) -> Result<Option<Box<Node>>, AstError> {
-        if let Some(_) = self.consume_punctuator("{") {
+        if self.consume_punctuator("{").is_some() {
             let mut body = Vec::new();
             while self.consume_punctuator("}").is_none() {
                 if let Some(vars) = self.declaration()? {
@@ -46,12 +46,12 @@ impl Ast {
     // TODO: switch文の実装
     // selection_stmt ::= "if" "(" expr ")" stmt ("else" stmt)?
     fn selection_stmt(&mut self) -> Result<Option<Box<Node>>, AstError> {
-        if let Some(_) = self.consume_keyword("if") {
+        if self.consume_keyword("if").is_some() {
             self.expect_punctuator("(")?;
             let cond = self.expr()?;
             self.expect_punctuator(")")?;
             let then = self.stmt()?;
-            let els = if let Some(_) = self.consume_keyword("else") {
+            let els = if self.consume_keyword("else").is_some() {
                 self.stmt()?
             } else {
                 None
@@ -65,7 +65,7 @@ impl Ast {
     //                    | "do" stmt "while" "(" expr ")" ";"
     //                    | "for" "(" expr? ";" expr? ";" expr? ")" stmt
     fn iteration_stmt(&mut self) -> Result<Option<Box<Node>>, AstError> {
-        if let Some(_) = self.consume_keyword("while") {
+        if self.consume_keyword("while").is_some() {
             self.expect_punctuator("(")?;
             let cond = self.expr()?;
             self.expect_punctuator(")")?;
@@ -73,7 +73,7 @@ impl Ast {
             return Ok(Some(Box::new(Node::from(NodeKind::While { cond, then }))));
         }
 
-        if let Some(_) = self.consume_keyword("do") {
+        if self.consume_keyword("do").is_some() {
             let then = self.stmt()?;
             self.expect_reserved("while")?;
             self.expect_punctuator("(")?;
@@ -83,7 +83,7 @@ impl Ast {
             return Ok(Some(Box::new(Node::from(NodeKind::Do { then, cond }))));
         }
 
-        if let Some(_) = self.consume_keyword("for") {
+        if self.consume_keyword("for").is_some() {
             self.expect_punctuator("(")?;
             // 初期化式
             let init = if self.consume_punctuator(";").is_none() {
@@ -125,7 +125,7 @@ impl Ast {
     //               | "break" ";"
     //               | "return" expr? ";"
     fn jump_stmt(&mut self) -> Result<Option<Box<Node>>, AstError> {
-        if let Some(_) = self.consume_keyword("goto") {
+        if self.consume_keyword("goto").is_some() {
             let name = self.consume_ident().ok_or(AstError::ParseError(
                 "goto文の後に識別子が必要です".to_string(),
             ))?;
@@ -133,20 +133,22 @@ impl Ast {
             return Ok(Some(Box::new(Node::from(NodeKind::Goto { name }))));
         }
 
-        if let Some(_) = self.consume_keyword("continue") {
+        if self.consume_keyword("continue").is_some() {
             self.expect_punctuator(";")?;
             return Ok(Some(Box::new(Node::from(NodeKind::Continue))));
         }
 
-        if let Some(_) = self.consume_keyword("break") {
+        if self.consume_keyword("break").is_some() {
             self.expect_punctuator(";")?;
             return Ok(Some(Box::new(Node::from(NodeKind::Break))));
         }
 
-        if let Some(_) = self.consume_keyword("return") {
-            if let Some(_) = self.consume_punctuator(";") {
+        if self.consume_keyword("return").is_some() {
+            if self.consume_punctuator(";").is_some() {
                 if TypeKind::Void != self.get_current_func()?.return_ty.kind {
-                    panic!("return文は値を返す必要があります");
+                    return Err(AstError::SemanticError(
+                        "return文は値を返す必要があります".to_string(),
+                    ));
                 }
                 return Ok(Some(Box::new(Node::from(NodeKind::Return))));
             }
@@ -156,10 +158,9 @@ impl Ast {
                 if let Some(ret_ty) = &n.ty {
                     let func_ret_ty = &self.get_current_func()?.return_ty;
                     if ret_ty.deref() != func_ret_ty {
-                        panic!(
-                            "関数の戻り値の型とreturn文の型が一致しません: 関数の戻り値の型は{:?}ですが、return文の型は{:?}です",
-                            func_ret_ty, ret_ty
-                        );
+                        return Err(AstError::SemanticError(
+                            "関数の戻り値の型とreturn文の型が一致しません".to_string(),
+                        ));
                     }
                 }
             }
@@ -206,7 +207,7 @@ impl Ast {
 
     // expr_stmt ::= expr? ";"
     fn expr_stmt(&mut self) -> Result<Option<Box<Node>>, AstError> {
-        if let Some(_) = self.consume_punctuator(";") {
+        if self.consume_punctuator(";").is_some() {
             Ok(Some(Box::new(Node::from(NodeKind::Nop))))
         } else {
             let expr_node = self.expr()?;

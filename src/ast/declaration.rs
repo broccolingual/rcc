@@ -54,7 +54,7 @@ impl Ast {
         if let Some(var) = self.init_declarator(base_type.clone())? {
             vars.push(*var);
         }
-        while let Some(_) = self.consume_punctuator(",") {
+        while self.consume_punctuator(",").is_some() {
             if let Some(var) = self.init_declarator(base_type.clone())? {
                 vars.push(*var);
             }
@@ -66,7 +66,7 @@ impl Ast {
     //                     | declarator "=" initializer
     fn init_declarator(&mut self, base_type: Type) -> Result<Option<Box<Var>>, AstError> {
         if let Ok(mut var) = self.declarator(base_type) {
-            if let Some(_) = self.consume_punctuator("=") {
+            if self.consume_punctuator("=").is_some() {
                 if let Some(init) = self.initializer()? {
                     // TODO: 数字を代入する際の扱いを考える
                     // init.assign_types()?; // initializerの型を設定
@@ -151,7 +151,7 @@ impl Ast {
     // pointer ::= "*" type_qualifier_list* pointer?
     #[allow(clippy::never_loop)]
     fn pointer(&mut self, base_ty: Box<Type>) -> Box<Type> {
-        while let Some(_) = self.consume_punctuator("*") {
+        while self.consume_punctuator("*").is_some() {
             return self.pointer(Box::new(Type::new(&TypeKind::Ptr { to: base_ty })));
         }
         self.type_qualifier_list(); // 現状は型修飾子を無視
@@ -169,7 +169,7 @@ impl Ast {
     //                       | array_declarator
     //                       | function_declarator
     fn direct_declarator(&mut self, ty: Box<Type>) -> Result<Box<Var>, AstError> {
-        let mut var = if let Some(_) = self.consume_punctuator("(") {
+        let mut var = if self.consume_punctuator("(").is_some() {
             if let Ok(v) = self.declarator(*ty.clone()) {
                 self.expect_punctuator(")")?;
                 v
@@ -188,7 +188,7 @@ impl Ast {
 
         loop {
             // array_declarator
-            if let Some(_) = self.consume_punctuator("[") {
+            if self.consume_punctuator("[").is_some() {
                 let array_size = self.expect_number()? as usize;
                 self.expect_punctuator("]")?;
                 // TODO: 多次元配列の場合，逆順で定義されてしまう
@@ -200,9 +200,9 @@ impl Ast {
                 continue;
             }
             // function_declarator
-            if let Some(_) = self.consume_punctuator("(") {
+            if self.consume_punctuator("(").is_some() {
                 // パラメータが0個の場合
-                if let Some(_) = self.consume_punctuator(")") {
+                if self.consume_punctuator(")").is_some() {
                     let func_ty = Type::new(&TypeKind::Func {
                         return_ty: var.ty,
                         params: Vec::new(),
@@ -237,7 +237,7 @@ impl Ast {
         let mut params = Vec::new();
         let param = self.parameter_declaration()?;
         params.push(*param);
-        while let Some(_) = self.consume_punctuator(",") {
+        while self.consume_punctuator(",").is_some() {
             let param = self.parameter_declaration()?;
             params.push(*param);
         }
@@ -259,9 +259,21 @@ impl Ast {
     }
 
     // initializer ::= assignment_expr
-    //                 | braced_initializer // TODO: 未実装
+    //                 | braced_initializer
     fn initializer(&mut self) -> Result<Option<Box<Node>>, AstError> {
+        if let Some(init) = self.braced_initializer()? {
+            return Ok(Some(init));
+        }
         self.assign_expr()
+    }
+
+    // braced_initializer ::= "{" "}" // TODO: その他未実装
+    fn braced_initializer(&mut self) -> Result<Option<Box<Node>>, AstError> {
+        if self.consume_punctuator("{").is_some() {
+            self.expect_punctuator("}")?;
+            return Ok(None);
+        }
+        Ok(None)
     }
 }
 
