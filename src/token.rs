@@ -1,60 +1,20 @@
 use core::fmt;
 
-pub const PUNCTUATORS: [&str; 55] = [
+pub const PUNCTUATORS: [&str; 54] = [
     "[", "]", "(", ")", "{", "}", ".", "->", "++", "--", "&", "*", "+", "-", "~", "!", "/", "%",
-    "<<", ">>", "<", "<=", ">", ">=", "==", "!=", "^", "|", "&&", "||", "?", ":", "::", ";", "...",
-    "=", "*=", "/=", "%=", "+=", "-=", "&=", "^=", "|=", "<<=", ">>=", ",", "#", "##", "<:", ":>",
-    "<%", "%>", "%:", "%:%:",
+    "<<", ">>", "<", "<=", ">", ">=", "==", "!=", "^", "|", "&&", "||", "?", ":", ";", "...", "=",
+    "*=", "/=", "%=", "+=", "-=", "&=", "^=", "|=", "<<=", ">>=", ",", "#", "##", "<:", ":>", "<%",
+    "%>", "%:", "%:%:",
 ];
 
-pub const KEYWORDS: [&str; 44] = [
-    "alignas",
-    "alignof",
-    "auto",
-    "bool",
-    "break",
-    "case",
-    "char",
-    "const",
-    "constexpr",
-    "continue",
-    "default",
-    "do",
-    "double",
-    "else",
-    "enum",
-    "extern",
-    "float",
-    "for",
-    "goto",
-    "if",
-    "inline",
-    "int",
-    "long",
-    "nullptr",
-    "register",
-    "restrict",
-    "return",
-    "short",
-    "signed",
-    "sizeof",
-    "static",
-    "static_assert",
-    "struct",
-    "switch",
-    "thread_local",
-    "true",
-    "typedef",
-    "typeof",
-    "typeof_unqual",
-    "union",
-    "unsigned",
-    "void",
-    "volatile",
-    "while",
+pub const KEYWORDS: [&str; 34] = [
+    "auto", "break", "case", "char", "const", "continue", "default", "do", "double", "else",
+    "enum", "extern", "float", "for", "goto", "if", "inline", "int", "long", "register",
+    "restrict", "return", "short", "signed", "sizeof", "static", "struct", "switch", "typedef",
+    "union", "unsigned", "void", "volatile", "while",
 ];
 
-#[derive(PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum TokenKind {
     Punctuator(String), // 記号トークン
     Keyword(String),    // キーワード
