@@ -1,3 +1,5 @@
+use std::clone;
+use std::collections::HashMap;
 use std::ops::Deref;
 
 use crate::asm_builder::AsmBuilder;
@@ -6,6 +8,7 @@ use crate::node::{Node, NodeKind};
 
 const ARG_REGS: [Reg; 6] = [Reg::Rdi, Reg::Rsi, Reg::Rdx, Reg::Rcx, Reg::R8, Reg::R9];
 
+#[derive(Hash, Eq, PartialEq, Clone)]
 enum Reg {
     Rax,
     Rcx,
@@ -83,6 +86,46 @@ impl Reg {
             Reg::R10 => "r10b",
             Reg::R11 => "r11b",
         }
+    }
+}
+
+struct RegAllocator {
+    pool: HashMap<Reg, bool>,
+}
+
+impl RegAllocator {
+    fn new() -> Self {
+        let mut pool = HashMap::new();
+        pool.insert(Reg::Rax, false);
+        pool.insert(Reg::Rcx, false);
+        pool.insert(Reg::Rdx, false);
+        pool.insert(Reg::Rdi, false);
+        pool.insert(Reg::Rsi, false);
+        pool.insert(Reg::R8, false);
+        pool.insert(Reg::R9, false);
+        pool.insert(Reg::R10, false);
+        pool.insert(Reg::R11, false);
+        RegAllocator { pool }
+    }
+
+    fn alloc(&mut self) -> Option<Reg> {
+        for (reg, used) in self.pool.iter_mut() {
+            if !*used {
+                *used = true;
+                return Some(reg.clone());
+            }
+        }
+        None
+    }
+
+    fn free(&mut self, reg: &Reg) {
+        if let Some(used) = self.pool.get_mut(reg) {
+            *used = false;
+        }
+    }
+
+    fn is_occupied(&self, reg: &Reg) -> bool {
+        *self.pool.get(reg).unwrap_or(&false)
     }
 }
 
