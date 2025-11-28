@@ -217,6 +217,24 @@ impl Node {
         node
     }
 
+    pub fn is_expr(&self) -> bool {
+        match self.kind {
+            // 値を返さない文
+            NodeKind::If { .. }
+            | NodeKind::While { .. }
+            | NodeKind::For { .. }
+            | NodeKind::Do { .. }
+            | NodeKind::Block { .. }
+            | NodeKind::Break
+            | NodeKind::Continue
+            | NodeKind::Goto { .. }
+            | NodeKind::Label { .. }
+            | NodeKind::Return
+            | NodeKind::Nop => false,
+            _ => true, // 値を返す式
+        }
+    }
+
     pub fn assign_types(&mut self) -> Result<(), CompileError> {
         if let Some(ref mut lhs) = self.lhs {
             lhs.assign_types()?;
