@@ -12,7 +12,7 @@ use crate::types::{Type, TypeKind};
 #[derive(Clone, PartialEq, Eq)]
 pub struct Var {
     pub name: String,
-    pub offset: i64,
+    pub offset: usize,
     pub ty: Box<Type>,
     pub init: Option<Box<Node>>,
 }

@@ -81,7 +81,7 @@ pub enum NodeKind {
     Continue,     // continue
     LVar {
         name: String,
-        offset: i64,
+        offset: usize,
     }, // ローカル変数
     GVar {
         name: String,
@@ -192,7 +192,7 @@ impl Node {
         node
     }
 
-    pub fn new_lvar(name: &str, offset: i64, ty: &Type) -> Self {
+    pub fn new_lvar(name: &str, offset: usize, ty: &Type) -> Self {
         let mut node = Node::new(
             NodeKind::LVar {
                 name: name.to_string(),

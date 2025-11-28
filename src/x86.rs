@@ -4,10 +4,87 @@ use crate::asm_builder::AsmBuilder;
 use crate::ast::Ast;
 use crate::node::{Node, NodeKind};
 
-const ARG_BYTE_REGS: [&str; 6] = ["dil", "sil", "dl", "cl", "r8b", "r9b"];
-const ARG_WORD_REGS: [&str; 6] = ["di", "si", "dx", "cx", "r8w", "r9w"];
-const ARG_DWORD_REGS: [&str; 6] = ["edi", "esi", "edx", "ecx", "r8d", "r9d"];
-const ARG_QWORD_REGS: [&str; 6] = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
+const ARG_REGS: [Reg; 6] = [Reg::Rdi, Reg::Rsi, Reg::Rdx, Reg::Rcx, Reg::R8, Reg::R9];
+
+enum Reg {
+    Rax,
+    Rcx,
+    Rdx,
+    Rdi,
+    Rsi,
+    R8,
+    R9,
+    R10,
+    R11,
+}
+
+impl Reg {
+    fn by_size(&self, size: usize) -> &'static str {
+        match size {
+            1 => self.byte(),
+            2 => self.word(),
+            4 => self.dword(),
+            8 => self.qword(),
+            _ => panic!("Unsupported register size: {}", size),
+        }
+    }
+
+    fn qword(&self) -> &'static str {
+        match self {
+            Reg::Rax => "rax",
+            Reg::Rcx => "rcx",
+            Reg::Rdx => "rdx",
+            Reg::Rdi => "rdi",
+            Reg::Rsi => "rsi",
+            Reg::R8 => "r8",
+            Reg::R9 => "r9",
+            Reg::R10 => "r10",
+            Reg::R11 => "r11",
+        }
+    }
+
+    fn dword(&self) -> &'static str {
+        match self {
+            Reg::Rax => "eax",
+            Reg::Rcx => "ecx",
+            Reg::Rdx => "edx",
+            Reg::Rdi => "edi",
+            Reg::Rsi => "esi",
+            Reg::R8 => "r8d",
+            Reg::R9 => "r9d",
+            Reg::R10 => "r10d",
+            Reg::R11 => "r11d",
+        }
+    }
+
+    fn word(&self) -> &'static str {
+        match self {
+            Reg::Rax => "ax",
+            Reg::Rcx => "cx",
+            Reg::Rdx => "dx",
+            Reg::Rdi => "di",
+            Reg::Rsi => "si",
+            Reg::R8 => "r8w",
+            Reg::R9 => "r9w",
+            Reg::R10 => "r10w",
+            Reg::R11 => "r11w",
+        }
+    }
+
+    fn byte(&self) -> &'static str {
+        match self {
+            Reg::Rax => "al",
+            Reg::Rcx => "cl",
+            Reg::Rdx => "dl",
+            Reg::Rdi => "dil",
+            Reg::Rsi => "sil",
+            Reg::R8 => "r8b",
+            Reg::R9 => "r9b",
+            Reg::R10 => "r10b",
+            Reg::R11 => "r11b",
+        }
+    }
+}
 
 pub struct Generator {
     label_seq: usize,
@@ -146,33 +223,14 @@ impl Generator {
 
             // ローカル変数を逆順でスタックから読み出し
             for (i, arg) in func.locals.iter().rev().enumerate() {
-                match arg.ty.align_of() {
-                    1 => {
-                        self.builder.add_row(
-                            &format!("  mov [rbp-{}], {}", arg.offset, ARG_BYTE_REGS[i]), // 1バイト
-                            true,
-                        );
-                    }
-                    2 => {
-                        self.builder.add_row(
-                            &format!("  mov [rbp-{}], {}", arg.offset, ARG_WORD_REGS[i]), // 2バイト
-                            true,
-                        );
-                    }
-                    4 => {
-                        self.builder.add_row(
-                            &format!("  mov [rbp-{}], {}", arg.offset, ARG_DWORD_REGS[i]), // 4バイト
-                            true,
-                        );
-                    }
-                    8 => {
-                        self.builder.add_row(
-                            &format!("  mov [rbp-{}], {}", arg.offset, ARG_QWORD_REGS[i]), // 8バイト
-                            true,
-                        );
-                    }
-                    _ => panic!("未対応の引数サイズ: {}", arg.ty.align_of()),
-                }
+                self.builder.add_row(
+                    &format!(
+                        "  mov [rbp-{}], {}",
+                        arg.offset,
+                        ARG_REGS[i].by_size(arg.ty.align_of())
+                    ),
+                    true,
+                );
 
                 // initializerがある場合、初期化コードを生成
                 if let Some(init) = arg.init.as_ref() {
@@ -464,6 +522,12 @@ impl Generator {
 
     // 式のコード生成
     fn gen_expr(&mut self, node: &Node) {
+        if !node.is_expr() {
+            panic!(
+                "式ではないノードに対してgen_exprが呼ばれました: {:?}",
+                node.kind
+            );
+        }
         match &node.kind {
             NodeKind::Number { val } => {
                 self.builder.add_row(&format!("push {}", val), true);
@@ -612,8 +676,8 @@ impl Generator {
                 }
 
                 // 引数をレジスタに移動
-                for reg in ARG_QWORD_REGS.iter().take(arg_count) {
-                    self.builder.add_row(&format!("pop {}", reg), true);
+                for reg in ARG_REGS.iter().take(arg_count) {
+                    self.builder.add_row(&format!("pop {}", reg.qword()), true);
                 }
 
                 // 関数呼び出し（アラインメントは揃っているはず）

@@ -109,7 +109,6 @@ pub enum TypeKind {
     Long,
     Float,
     Double,
-    Bool,
     Ptr {
         to: Box<Type>,
     }, // to: ポインタの指す型
@@ -133,7 +132,6 @@ impl fmt::Debug for TypeKind {
             TypeKind::Long => write!(f, "long"),
             TypeKind::Float => write!(f, "float"),
             TypeKind::Double => write!(f, "double"),
-            TypeKind::Bool => write!(f, "bool"),
             // ポインタや配列は再帰的に*をつけて表示
             TypeKind::Ptr { to } => write!(f, "{:?}*", to),
             TypeKind::Array { base, .. } => write!(f, "{:?}*", base),
@@ -161,7 +159,6 @@ impl fmt::Display for TypeKind {
             TypeKind::Long => write!(f, "long"),
             TypeKind::Float => write!(f, "float"),
             TypeKind::Double => write!(f, "double"),
-            TypeKind::Bool => write!(f, "bool"),
             TypeKind::Ptr { to } => write!(f, "ptr to {:?}", to),
             TypeKind::Array { base, size } => write!(f, "array[{}] of {:?}", size, base),
             TypeKind::Func { return_ty, params } => {
@@ -181,7 +178,6 @@ impl TypeKind {
             TypeKind::Long,
             TypeKind::Float,
             TypeKind::Double,
-            TypeKind::Bool,
         ]
     }
 }
@@ -245,7 +241,7 @@ impl Type {
     pub fn is_integer(&self) -> bool {
         matches!(
             &self.kind,
-            TypeKind::Char | TypeKind::Short | TypeKind::Int | TypeKind::Long | TypeKind::Bool
+            TypeKind::Char | TypeKind::Short | TypeKind::Int | TypeKind::Long
         )
     }
 
@@ -260,15 +256,15 @@ impl Type {
     }
 
     // 型の実際のサイズ（配列の場合は要素数を考慮）
-    pub fn size_of(&self) -> i64 {
+    pub fn size_of(&self) -> usize {
         match &self.kind {
-            TypeKind::Array { base, size } => base.size_of() * *size as i64,
+            TypeKind::Array { base, size } => base.size_of() * *size,
             _ => self.align_of(),
         }
     }
 
     // 型のアラインメント
-    pub fn align_of(&self) -> i64 {
+    pub fn align_of(&self) -> usize {
         match &self.kind {
             TypeKind::Void => 0,
             TypeKind::Char => 1,
@@ -277,7 +273,6 @@ impl Type {
             TypeKind::Long => 8,
             TypeKind::Float => 4,
             TypeKind::Double => 8,
-            TypeKind::Bool => 1,
             TypeKind::Ptr { .. } => 8,
             TypeKind::Array { .. } => 8,
             TypeKind::Func { .. } => 8, // TODO: 一旦8バイト固定

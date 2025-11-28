@@ -235,7 +235,7 @@ impl Ast {
                     rhs = Some(Box::new(Node::new(
                         NodeKind::Mul,
                         rhs,
-                        Some(Box::new(Node::new_num(size))),
+                        Some(Box::new(Node::new_num(size as i64))),
                     )));
                 }
                 node = Some(Box::new(Node::new(NodeKind::Add, node, rhs)));
@@ -253,7 +253,7 @@ impl Ast {
                     rhs = Some(Box::new(Node::new(
                         NodeKind::Mul,
                         rhs,
-                        Some(Box::new(Node::new_num(size))),
+                        Some(Box::new(Node::new_num(size as i64))),
                     )));
                 }
                 node = Some(Box::new(Node::new(NodeKind::Sub, node, rhs)));
@@ -367,7 +367,7 @@ impl Ast {
                 n.assign_types()?;
                 if let Some(ty) = &n.ty {
                     let size = ty.size_of();
-                    return Ok(Some(Box::new(Node::new_num(size))));
+                    return Ok(Some(Box::new(Node::new_num(size as i64))));
                 } else {
                     return Err(CompileError::InternalError {
                         msg: "sizeof演算子の型情報が設定されていません".to_string(),
