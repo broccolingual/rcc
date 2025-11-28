@@ -187,6 +187,20 @@ impl Ast {
         }
     }
 
+    fn consume_string(&mut self) -> Option<String> {
+        match self.get_token() {
+            Some(Token {
+                kind: TokenKind::String(s),
+                ..
+            }) => {
+                let s_clone = s.clone();
+                self.advance_token();
+                Some(s_clone)
+            }
+            _ => None,
+        }
+    }
+
     fn consume_number(&mut self) -> Option<i64> {
         match self.get_token() {
             Some(Token {
@@ -222,26 +236,8 @@ impl Ast {
         self.expect(&TokenKind::Punctuator(sym.to_string()))
     }
 
-    fn expect_reserved(&mut self, word: &str) -> Result<(), CompileError> {
+    fn expect_keyword(&mut self, word: &str) -> Result<(), CompileError> {
         self.expect(&TokenKind::Keyword(word.to_string()))
-    }
-
-    fn expect_string(&mut self) -> Result<String, CompileError> {
-        match self.get_token() {
-            Some(token) => {
-                if let TokenKind::String(s) = &token.kind {
-                    let s_clone = s.clone();
-                    self.advance_token();
-                    return Ok(s_clone);
-                }
-                Err(CompileError::UnexpectedToken {
-                    expected: TokenKind::String("".to_string()),
-                    found: token.kind.clone(),
-                    span: token.span,
-                })
-            }
-            _ => Err(CompileError::UnexpectedEof),
-        }
     }
 
     fn expect_number(&mut self) -> Result<i64, CompileError> {

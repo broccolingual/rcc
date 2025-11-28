@@ -479,7 +479,7 @@ impl Ast {
             Err(CompileError::UndefinedIdentifier { name })?;
         }
 
-        if let Ok(string) = self.expect_string() {
+        if let Some(string) = self.consume_string() {
             let node = Node::from(NodeKind::String {
                 val: string.clone(),
                 index: self.string_literals.len() as i64,

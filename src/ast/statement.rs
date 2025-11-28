@@ -77,7 +77,7 @@ impl Ast {
 
         if self.consume_keyword("do").is_some() {
             let then = self.stmt()?;
-            self.expect_reserved("while")?;
+            self.expect_keyword("while")?;
             self.expect_punctuator("(")?;
             let cond = self.expr()?;
             self.expect_punctuator(")")?;
