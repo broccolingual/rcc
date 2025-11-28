@@ -169,4 +169,9 @@ echo + pointer dereference and address-of
 assert 3 'int a; int *b; a = 3; b = &a; return *b;'
 assert 7 'int a; int *p; p = &a; *p = 7; return a;'
 
+echo + octal and hexadecimal number literals
+assert 10 'return 012;'
+assert 26 'return 0x1a;'
+assert 255 'return 0xff;'
+
 echo OK

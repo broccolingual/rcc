@@ -32,8 +32,8 @@ impl fmt::Debug for Var {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "Var {{ name: '{}', type: {:?}, offset: {} }}",
-            self.name, self.ty, self.offset
+            "{}: {:?} (offset: {}) = {:?}",
+            self.name, self.ty, self.offset, self.init
         )
     }
 }

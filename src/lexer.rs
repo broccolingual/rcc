@@ -104,25 +104,73 @@ impl Lexer {
             }
 
             // 数字トークン
-            if c.is_ascii_digit() {
+            if matches!(c, '0'..='9') {
                 let mut num_str = String::new();
-                num_str.push(c);
-                pos += 1;
-                while pos < chars.len() {
-                    let next_c = chars[pos];
-                    if next_c.is_ascii_digit() {
-                        num_str.push(next_c);
-                        pos += 1;
+                if c != '0' {
+                    // decimal constant
+                    num_str.push(c);
+                    pos += 1;
+                    while pos < chars.len() {
+                        let next_c = chars[pos];
+                        if matches!(next_c, '0'..='9') {
+                            num_str.push(next_c);
+                            pos += 1;
+                        } else {
+                            break;
+                        }
+                    }
+                    let val = i64::from_str_radix(&num_str, 10).unwrap();
+                    tokens.push(Token::new(
+                        TokenKind::Number(val),
+                        (pos - num_str.len(), pos),
+                    ));
+                    continue;
+                } else {
+                    // hexadecimal constant or octal constant
+                    if pos < chars.len() - 1 && (chars[pos + 1] == 'x' || chars[pos + 1] == 'X') {
+                        // hexadecimal constant
+                        pos += 2; // skip '0x' or '0X'
+                        while pos < chars.len() {
+                            let next_c = chars[pos];
+                            if matches!(next_c, '0'..='9' | 'a'..='f' | 'A'..='F') {
+                                num_str.push(next_c);
+                                pos += 1;
+                            } else {
+                                break;
+                            }
+                        }
+                        if num_str.is_empty() {
+                            num_str.push('0');
+                        }
+                        let val = i64::from_str_radix(&num_str, 16).unwrap();
+                        tokens.push(Token::new(
+                            TokenKind::Number(val),
+                            (pos - num_str.len() - 2, pos),
+                        ));
+                        continue;
                     } else {
-                        break;
+                        // octal constant
+                        pos += 1; // skip '0'
+                        while pos < chars.len() {
+                            let next_c = chars[pos];
+                            if matches!(next_c, '0'..='7') {
+                                num_str.push(next_c);
+                                pos += 1;
+                            } else {
+                                break;
+                            }
+                        }
+                        if num_str.is_empty() {
+                            num_str.push('0');
+                        }
+                        let val = i64::from_str_radix(&num_str, 8).unwrap();
+                        tokens.push(Token::new(
+                            TokenKind::Number(val),
+                            (pos - num_str.len() - 1, pos),
+                        ));
+                        continue;
                     }
                 }
-                let val = num_str.parse::<i64>().unwrap();
-                tokens.push(Token::new(
-                    TokenKind::Number(val),
-                    (pos - num_str.len(), pos),
-                ));
-                continue;
             }
 
             // 識別子トークン
