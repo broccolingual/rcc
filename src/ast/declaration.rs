@@ -1,4 +1,5 @@
-use crate::ast::{Ast, AstError, Var};
+use crate::ast::{Ast, Var};
+use crate::errors::CompileError;
 use crate::node::Node;
 use crate::types::{
     DeclarationSpecifier, FunctionKind, StorageClassKind, Type, TypeKind, TypeQualifierKind,
@@ -7,7 +8,7 @@ use crate::types::{
 
 impl Ast {
     // declaration ::= declaration_specifiers init_declarator_list ";"
-    pub(super) fn declaration(&mut self) -> Result<Option<Vec<Var>>, AstError> {
+    pub(super) fn declaration(&mut self) -> Result<Option<Vec<Var>>, CompileError> {
         let specifiers = self.declaration_specifiers();
         if specifiers.is_empty() {
             return Ok(None);
@@ -49,7 +50,7 @@ impl Ast {
     }
 
     // init_declarator_list ::= init_declarator ("," init_declarator)*
-    fn init_declarator_list(&mut self, base_type: Type) -> Result<Vec<Var>, AstError> {
+    fn init_declarator_list(&mut self, base_type: Type) -> Result<Vec<Var>, CompileError> {
         let mut vars = Vec::new();
         if let Some(var) = self.init_declarator(base_type.clone())? {
             vars.push(*var);
@@ -64,7 +65,7 @@ impl Ast {
 
     // init_declarator ::= declarator
     //                     | declarator "=" initializer
-    fn init_declarator(&mut self, base_type: Type) -> Result<Option<Box<Var>>, AstError> {
+    fn init_declarator(&mut self, base_type: Type) -> Result<Option<Box<Var>>, CompileError> {
         if let Ok(mut var) = self.declarator(base_type) {
             if self.consume_punctuator("=").is_some() {
                 if let Some(init) = self.initializer()? {
@@ -80,9 +81,9 @@ impl Ast {
                     // }
                     var.init = Some(init); // initializerを設定
                 } else {
-                    return Err(AstError::ParseError(
-                        "initializerのパースに失敗しました".to_string(),
-                    ));
+                    return Err(CompileError::InvalidInitializer {
+                        msg: "無効な初期化子です".to_string(),
+                    });
                 }
             }
             return Ok(Some(var));
@@ -159,7 +160,7 @@ impl Ast {
     }
 
     // declarator ::= pointer? direct_declarator
-    pub(super) fn declarator(&mut self, base_type: Type) -> Result<Box<Var>, AstError> {
+    pub(super) fn declarator(&mut self, base_type: Type) -> Result<Box<Var>, CompileError> {
         let ty = self.pointer(Box::new(base_type));
         self.direct_declarator(ty)
     }
@@ -168,22 +169,22 @@ impl Ast {
     //                       | ident
     //                       | array_declarator
     //                       | function_declarator
-    fn direct_declarator(&mut self, ty: Box<Type>) -> Result<Box<Var>, AstError> {
+    fn direct_declarator(&mut self, ty: Box<Type>) -> Result<Box<Var>, CompileError> {
         let mut var = if self.consume_punctuator("(").is_some() {
             if let Ok(v) = self.declarator(*ty.clone()) {
                 self.expect_punctuator(")")?;
                 v
             } else {
-                return Err(AstError::ParseError(
-                    "direct_declarator: parentheses declarator failed".to_string(),
-                ));
+                return Err(CompileError::InvalidDeclaration {
+                    msg: "無効な宣言子です".to_string(),
+                });
             }
         } else if let Some(name) = self.consume_ident() {
             Box::new(Var::new(&name, *ty.clone()))
         } else {
-            return Err(AstError::ParseError(
-                "direct_declaratorのパースに失敗しました".to_string(),
-            ));
+            return Err(CompileError::InvalidDeclaration {
+                msg: "無効な宣言子です".to_string(),
+            });
         };
 
         loop {
@@ -227,13 +228,13 @@ impl Ast {
     }
 
     // parameter_type_list ::= parameter_list
-    fn parameter_type_list(&mut self) -> Result<Vec<Var>, AstError> {
+    fn parameter_type_list(&mut self) -> Result<Vec<Var>, CompileError> {
         self.parameter_list()
     }
 
     //
     // parameter_list ::= parameter_declaration ("," parameter_declaration)*
-    fn parameter_list(&mut self) -> Result<Vec<Var>, AstError> {
+    fn parameter_list(&mut self) -> Result<Vec<Var>, CompileError> {
         let mut params = Vec::new();
         let param = self.parameter_declaration()?;
         params.push(*param);
@@ -245,7 +246,7 @@ impl Ast {
     }
 
     // parameter_declaration ::= declaration_specifiers declarator
-    fn parameter_declaration(&mut self) -> Result<Box<Var>, AstError> {
+    fn parameter_declaration(&mut self) -> Result<Box<Var>, CompileError> {
         let specifiers = self.declaration_specifiers();
         if !specifiers.is_empty() {
             let base_kind = Type::from(&specifiers).unwrap();
@@ -253,14 +254,14 @@ impl Ast {
                 return Ok(var);
             }
         }
-        Err(AstError::ParseError(
-            "パラメータ宣言のパースに失敗しました".to_string(),
-        ))
+        Err(CompileError::InvalidDeclaration {
+            msg: "無効なパラメータ宣言です".to_string(),
+        })
     }
 
     // initializer ::= assignment_expr
     //                 | braced_initializer
-    fn initializer(&mut self) -> Result<Option<Box<Node>>, AstError> {
+    fn initializer(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         if let Some(init) = self.braced_initializer()? {
             return Ok(Some(init));
         }
@@ -268,7 +269,7 @@ impl Ast {
     }
 
     // braced_initializer ::= "{" "}" // TODO: その他未実装
-    fn braced_initializer(&mut self) -> Result<Option<Box<Node>>, AstError> {
+    fn braced_initializer(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         if self.consume_punctuator("{").is_some() {
             self.expect_punctuator("}")?;
             return Ok(None);

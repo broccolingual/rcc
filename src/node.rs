@@ -1,6 +1,6 @@
 use core::{fmt, str};
 
-use crate::ast::AstError;
+use crate::errors::CompileError;
 use crate::types::{Type, TypeKind};
 
 #[derive(PartialEq, Eq, Clone, Debug)]
@@ -217,7 +217,7 @@ impl Node {
         node
     }
 
-    pub fn assign_types(&mut self) -> Result<(), AstError> {
+    pub fn assign_types(&mut self) -> Result<(), CompileError> {
         if let Some(ref mut lhs) = self.lhs {
             lhs.assign_types()?;
         }
@@ -253,10 +253,12 @@ impl Node {
                     // 右辺がポインタ/配列型、左辺がスカラー型の場合、右辺の型を結果型とする
                     self.ty = Some(rhs_ty.clone());
                 } else {
-                    return Err(AstError::TypeError(format!(
-                        "不正な型の組み合わせ: {:?} と {:?}",
-                        lhs_ty, rhs_ty
-                    )));
+                    return Err(CompileError::InvalidExpression {
+                        msg: format!(
+                            "算術演算子はスカラー型またはポインタ/配列型にのみ適用可能です: {:?} と {:?}",
+                            lhs_ty, rhs_ty
+                        ),
+                    });
                 }
             }
             NodeKind::Rem => {
@@ -271,10 +273,12 @@ impl Node {
                         self.ty = Some(rhs_ty.clone());
                     }
                 } else {
-                    return Err(AstError::TypeError(format!(
-                        "剰余演算子は整数型にのみ適用可能です: {:?} と {:?}",
-                        lhs_ty, rhs_ty
-                    )));
+                    return Err(CompileError::InvalidExpression {
+                        msg: format!(
+                            "剰余演算子は整数型にのみ適用可能です: {:?} と {:?}",
+                            lhs_ty, rhs_ty
+                        ),
+                    });
                 }
             }
             NodeKind::BitAnd | NodeKind::BitOr | NodeKind::BitXor => {
@@ -289,10 +293,12 @@ impl Node {
                         self.ty = Some(rhs_ty.clone());
                     }
                 } else {
-                    return Err(AstError::TypeError(format!(
-                        "ビット演算子は整数型にのみ適用可能です: {:?} と {:?}",
-                        lhs_ty, rhs_ty
-                    )));
+                    return Err(CompileError::InvalidExpression {
+                        msg: format!(
+                            "ビット演算子は整数型にのみ適用可能です: {:?} と {:?}",
+                            lhs_ty, rhs_ty
+                        ),
+                    });
                 }
             }
             NodeKind::Shl | NodeKind::Shr => {
@@ -303,10 +309,12 @@ impl Node {
                     // 両方とも整数型の場合、昇格後の型を結果型とする
                     self.ty = Some(Box::new(Type::new(&TypeKind::Int)));
                 } else {
-                    return Err(AstError::TypeError(format!(
-                        "シフト演算子は整数型にのみ適用可能です: {:?} と {:?}",
-                        lhs_ty, rhs_ty
-                    )));
+                    return Err(CompileError::InvalidExpression {
+                        msg: format!(
+                            "シフト演算子は整数型にのみ適用可能です: {:?} と {:?}",
+                            lhs_ty, rhs_ty
+                        ),
+                    });
                 }
             }
             NodeKind::Eq | NodeKind::Ne | NodeKind::Lt | NodeKind::Le => {
@@ -319,10 +327,12 @@ impl Node {
                     // 両方ともスカラー型の場合、結果型はint型とする
                     self.ty = Some(Box::new(Type::new(&TypeKind::Int)));
                 } else {
-                    return Err(AstError::TypeError(format!(
-                        "比較演算子はスカラー型にのみ適用可能です: {:?} と {:?}",
-                        lhs_ty, rhs_ty
-                    )));
+                    return Err(CompileError::InvalidExpression {
+                        msg: format!(
+                            "比較演算子はスカラー型またはポインタ/配列型にのみ適用可能です: {:?} と {:?}",
+                            lhs_ty, rhs_ty
+                        ),
+                    });
                 }
             }
             NodeKind::LogicalAnd | NodeKind::LogicalOr => {
@@ -335,10 +345,12 @@ impl Node {
                     // 両方ともスカラー型の場合、結果型はint型とする
                     self.ty = Some(Box::new(Type::new(&TypeKind::Int)));
                 } else {
-                    return Err(AstError::TypeError(format!(
-                        "論理演算子はスカラー型にのみ適用可能です: {:?} と {:?}",
-                        lhs_ty, rhs_ty
-                    )));
+                    return Err(CompileError::InvalidExpression {
+                        msg: format!(
+                            "論理演算子はスカラー型またはポインタ/配列型にのみ適用可能です: {:?} と {:?}",
+                            lhs_ty, rhs_ty
+                        ),
+                    });
                 }
             }
             NodeKind::Ternary {
@@ -366,16 +378,20 @@ impl Node {
                             self.ty = Some(els_ty.clone());
                         }
                     } else {
-                        return Err(AstError::TypeError(format!(
-                            "条件演算子のthen節とelse節の型が一致しません: {:?} と {:?}",
-                            then_ty, els_ty
-                        )));
+                        return Err(CompileError::InvalidExpression {
+                            msg: format!(
+                                "条件演算子のthen節とelse節は同じ型か、両方ともスカラー型である必要があります: {:?} と {:?}",
+                                then_ty, els_ty
+                            ),
+                        });
                     }
                 } else {
-                    return Err(AstError::TypeError(format!(
-                        "条件演算子の条件式はスカラー型にのみ適用可能です: {:?}",
-                        cond_ty
-                    )));
+                    return Err(CompileError::InvalidExpression {
+                        msg: format!(
+                            "条件演算子の条件式はスカラー型にのみ適用可能です: {:?}",
+                            cond_ty
+                        ),
+                    });
                 }
             }
             NodeKind::Assign
@@ -400,10 +416,9 @@ impl Node {
                 if lhs_ty.is_integer() {
                     self.ty = Some(Box::new(Type::new(&TypeKind::Int))); // 整数拡張
                 } else {
-                    return Err(AstError::TypeError(format!(
-                        "ビット反転演算子は整数型にのみ適用可能です: {:?}",
-                        lhs_ty
-                    )));
+                    return Err(CompileError::InvalidExpression {
+                        msg: format!("ビット否定演算子は整数型にのみ適用可能です: {:?}", lhs_ty),
+                    });
                 }
             }
             NodeKind::LogicalNot => {
@@ -412,10 +427,12 @@ impl Node {
                 if lhs_ty.is_scalar() || lhs_ty.is_ptr_or_array() {
                     self.ty = Some(Box::new(Type::new(&TypeKind::Int))); // 結果型はint型
                 } else {
-                    return Err(AstError::TypeError(format!(
-                        "論理否定演算子はスカラー型にのみ適用可能です: {:?}",
-                        lhs_ty
-                    )));
+                    return Err(CompileError::InvalidExpression {
+                        msg: format!(
+                            "論理否定演算子はスカラー型またはポインタ/配列型にのみ適用可能です: {:?}",
+                            lhs_ty
+                        ),
+                    });
                 }
             }
             NodeKind::Addr => {
@@ -429,10 +446,12 @@ impl Node {
 
                 // デリファレンス演算子の型はポインタの指す型にする
                 if !lhs_ty.is_ptr_or_array() {
-                    return Err(AstError::TypeError(format!(
-                        "ポインタ型ではないものをデリファレンスしようとしました: {:?}",
-                        self
-                    )));
+                    return Err(CompileError::InvalidExpression {
+                        msg: format!(
+                            "デリファレンス演算子はポインタ/配列型にのみ適用可能です: {:?}",
+                            lhs_ty
+                        ),
+                    });
                 }
                 self.ty = Some(Box::new(lhs_ty.base_type().clone()));
             }

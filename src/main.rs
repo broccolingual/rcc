@@ -3,6 +3,7 @@ use clap_derive::Parser;
 
 pub mod asm_builder;
 pub mod ast;
+pub mod errors;
 pub mod lexer;
 pub mod node;
 pub mod token;
@@ -55,7 +56,10 @@ fn main() {
         }
     };
     let mut ast = Ast::new(&tokens);
-    ast.translation_unit().unwrap();
+    if let Err(e) = ast.translation_unit() {
+        eprintln!("Parser Error: {}", e);
+        return;
+    }
 
     let mut generator = Generator::default();
     generator.gen_asm(&ast);

@@ -1,23 +1,24 @@
 use core::str::FromStr;
 
-use crate::ast::{Ast, AstError};
+use crate::ast::Ast;
+use crate::errors::CompileError;
 use crate::node::{Node, NodeKind};
 
 impl Ast {
     // const_expr ::= cond_expr
     #[allow(dead_code)]
-    pub(super) fn const_expr(&mut self) -> Result<Option<Box<Node>>, AstError> {
+    pub(super) fn const_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         self.cond_expr()
     }
 
     // expr ::= assign_expr
-    pub(super) fn expr(&mut self) -> Result<Option<Box<Node>>, AstError> {
+    pub(super) fn expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         self.assign_expr()
     }
 
     // assign_expr ::= cond_expr
     //                 | ("=" | "*=" | "/=" | "%=" | "+=" | "-=" | "<<=" | ">>=" | "&=" | "^=" | "|=") assign_expr
-    pub(super) fn assign_expr(&mut self) -> Result<Option<Box<Node>>, AstError> {
+    pub(super) fn assign_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         let mut node = self.cond_expr()?;
         let assignment_ops = [
             "=", "*=", "/=", "%=", "+=", "-=", "<<=", ">>=", "&=", "^=", "|=",
@@ -35,7 +36,7 @@ impl Ast {
 
     // cond_expr ::= logical_or_expr
     //               | logical_or_expr "?" expr ":" cond_expr
-    fn cond_expr(&mut self) -> Result<Option<Box<Node>>, AstError> {
+    fn cond_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         let node = self.logical_or_expr()?;
         if self.consume_punctuator("?").is_some() {
             let cond = node;
@@ -53,7 +54,7 @@ impl Ast {
 
     // logical_or_expr ::= logical_and_expr
     //                     | logical_or_expr "||" logical_and_expr
-    fn logical_or_expr(&mut self) -> Result<Option<Box<Node>>, AstError> {
+    fn logical_or_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         let mut node = self.logical_and_expr()?;
 
         loop {
@@ -72,7 +73,7 @@ impl Ast {
 
     // logical_and_expr ::= inclusive_or_expr
     //                      | logical_and_expr "&&" inclusive_or_expr
-    fn logical_and_expr(&mut self) -> Result<Option<Box<Node>>, AstError> {
+    fn logical_and_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         let mut node = self.inclusive_or_expr()?;
 
         loop {
@@ -91,7 +92,7 @@ impl Ast {
 
     // inclusive_or_expr ::= exclusive_or_expr
     //                       | inclusive_or_expr "|" exclusive_or_expr
-    fn inclusive_or_expr(&mut self) -> Result<Option<Box<Node>>, AstError> {
+    fn inclusive_or_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         let mut node = self.exclusive_or_expr()?;
 
         loop {
@@ -110,7 +111,7 @@ impl Ast {
 
     // exclusive_or_expr ::= and_expr
     //                       | exclusive_or_expr "^" and_expr
-    fn exclusive_or_expr(&mut self) -> Result<Option<Box<Node>>, AstError> {
+    fn exclusive_or_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         let mut node = self.and_expr()?;
 
         loop {
@@ -129,7 +130,7 @@ impl Ast {
 
     // and_expr ::= equality_expr
     //              | and_expr "&" equality_expr
-    fn and_expr(&mut self) -> Result<Option<Box<Node>>, AstError> {
+    fn and_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         let mut node = self.equality_expr()?;
 
         loop {
@@ -148,7 +149,7 @@ impl Ast {
 
     // equality_expr ::= relational_expr
     //                   | equality_expr ("==" | "!=") relational_expr
-    fn equality_expr(&mut self) -> Result<Option<Box<Node>>, AstError> {
+    fn equality_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         let mut node = self.relational_expr()?;
 
         loop {
@@ -174,7 +175,7 @@ impl Ast {
 
     // relational_expr ::= shift_expr
     //                     | relational_expr ("<" | "<=" | ">" | ">=") shift_expr
-    fn relational_expr(&mut self) -> Result<Option<Box<Node>>, AstError> {
+    fn relational_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         let mut node = self.shift_expr()?;
 
         loop {
@@ -198,7 +199,7 @@ impl Ast {
 
     // shift_expr ::= add_expr
     //                | shift_expr ("<<" | ">>") add_expr
-    fn shift_expr(&mut self) -> Result<Option<Box<Node>>, AstError> {
+    fn shift_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         let mut node = self.add_expr()?;
 
         loop {
@@ -216,7 +217,7 @@ impl Ast {
 
     // add_expr ::= mul_expr
     //              | add_expr ("+" | "-") mul_expr
-    fn add_expr(&mut self) -> Result<Option<Box<Node>>, AstError> {
+    fn add_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         let mut node = self.mul_expr()?;
 
         loop {
@@ -264,7 +265,7 @@ impl Ast {
 
     // mul_expr ::= cast_expr
     //              | mul_expr ("*" | "/" | "%") cast_expr
-    fn mul_expr(&mut self) -> Result<Option<Box<Node>>, AstError> {
+    fn mul_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         let mut node = self.cast_expr()?;
 
         loop {
@@ -285,7 +286,7 @@ impl Ast {
 
     // cast_expr ::= unary_expr
     //               | "(" type_name ")" cast_expr // 未実装
-    fn cast_expr(&mut self) -> Result<Option<Box<Node>>, AstError> {
+    fn cast_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         self.unary_expr()
     }
 
@@ -294,7 +295,7 @@ impl Ast {
     //                | ( "&" | "*" | "+" | "-" | "~" | "!") cast_expr
     //                | sizeof unary_expr
     //                | sizeof "(" type_name ")" // 未実装
-    fn unary_expr(&mut self) -> Result<Option<Box<Node>>, AstError> {
+    fn unary_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         if self.consume_punctuator("++").is_some() {
             // pre-increment
             return Ok(Some(Box::new(Node::new_unary(
@@ -327,10 +328,9 @@ impl Ast {
             let mut node = Box::new(Node::new_unary(NodeKind::Addr, self.cast_expr()?));
             node.assign_types()?;
             if node.ty.is_none() {
-                Err(AstError::TypeError(format!(
-                    "&演算子の型情報が設定されていません: {:?}",
-                    node
-                )))?;
+                return Err(CompileError::InternalError {
+                    msg: "＆演算子の型情報が設定されていません".to_string(),
+                })?;
             }
             return Ok(Some(node));
         }
@@ -339,10 +339,9 @@ impl Ast {
             let mut node = Box::new(Node::new_unary(NodeKind::Deref, self.cast_expr()?));
             node.assign_types()?;
             if node.ty.is_none() {
-                Err(AstError::TypeError(format!(
-                    "*演算子の型情報が設定されていません: {:?}",
-                    node
-                )))?;
+                return Err(CompileError::InternalError {
+                    msg: "*演算子の型情報が設定されていません".to_string(),
+                })?;
             }
             return Ok(Some(node));
         }
@@ -370,10 +369,9 @@ impl Ast {
                     let size = ty.size_of();
                     return Ok(Some(Box::new(Node::new_num(size))));
                 } else {
-                    return Err(AstError::TypeError(format!(
-                        "sizeof演算子の型情報が設定されていません: {:?}",
-                        node
-                    )));
+                    return Err(CompileError::InternalError {
+                        msg: "sizeof演算子の型情報が設定されていません".to_string(),
+                    })?;
                 }
             }
         }
@@ -383,7 +381,7 @@ impl Ast {
 
     // postfix_expr ::= primary_expr
     //                  | postfix_expr ("++" | "--")
-    fn postfix_expr(&mut self) -> Result<Option<Box<Node>>, AstError> {
+    fn postfix_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         let mut node = self.primary_expr()?;
 
         loop {
@@ -401,7 +399,7 @@ impl Ast {
 
     // argument_expr_list ::= assign_expr ("," assign_expr)*
     #[allow(clippy::vec_box)]
-    fn argument_expr_list(&mut self) -> Result<Vec<Box<Node>>, AstError> {
+    fn argument_expr_list(&mut self) -> Result<Vec<Box<Node>>, CompileError> {
         let mut args = Vec::new();
         if let Some(arg) = self.assign_expr()? {
             args.insert(0, arg); // 逆順で格納
@@ -413,9 +411,9 @@ impl Ast {
             if let Some(arg) = self.assign_expr()? {
                 args.insert(0, arg); // 逆順で格納
             } else {
-                return Err(AstError::ParseError(
-                    "関数呼び出しの引数のパースに失敗しました".to_string(),
-                ));
+                return Err(CompileError::InternalError {
+                    msg: "関数呼び出しの引数リストのパースに失敗しました".to_string(),
+                })?;
             }
         }
         Ok(args)
@@ -426,7 +424,7 @@ impl Ast {
     //                  | ident ("[" expr "]")*
     //                  | string
     //                  | number
-    fn primary_expr(&mut self) -> Result<Option<Box<Node>>, AstError> {
+    fn primary_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         // "(" expr ")"
         if self.consume_punctuator("(").is_some()
             && let Some(node) = self.expr()?
@@ -478,7 +476,7 @@ impl Ast {
                 }
                 return Ok(Some(Box::new(node)));
             }
-            Err(AstError::UndefinedVariable(name))?;
+            Err(CompileError::UndefinedIdentifier { name })?;
         }
 
         if let Ok(string) = self.expect_string() {

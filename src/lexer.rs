@@ -1,3 +1,4 @@
+use crate::errors::CompileError;
 use crate::token::{KEYWORDS, PUNCTUATORS};
 use crate::token::{Token, TokenKind};
 
@@ -14,7 +15,7 @@ impl Lexer {
         Lexer {}
     }
 
-    pub fn tokenize(&self, input: &str) -> Result<Vec<Token>, String> {
+    pub fn tokenize(&self, input: &str) -> Result<Vec<Token>, CompileError> {
         // 演算子トークンを長い順にソート
         let mut sorted_punctuators = PUNCTUATORS.to_vec();
         sorted_punctuators.sort_by_key(|a| std::cmp::Reverse(a.len()));
@@ -53,7 +54,9 @@ impl Lexer {
                     pos += 1;
                 }
                 if pos == chars.len() - 1 {
-                    return Err("ブロックコメントが閉じられていません".to_string());
+                    return Err(CompileError::InternalError {
+                        msg: "unterminated block comment".to_string(),
+                    });
                 }
                 continue;
             }
@@ -151,7 +154,10 @@ impl Lexer {
                     continue;
                 }
             }
-            return Err(format!("不明な文字が含まれています: {}", c));
+            return Err(CompileError::MissingToken {
+                found: c.to_string(),
+                span: (pos, pos + 1),
+            });
         }
         tokens.push(Token::new(TokenKind::EOF, (pos, pos)));
         Ok(tokens)
