@@ -104,7 +104,7 @@ impl Lexer {
             }
 
             // 数字トークン
-            if matches!(c, '0'..='9') {
+            if c.is_ascii_digit() {
                 let mut num_str = String::new();
                 if c != '0' {
                     // decimal constant
@@ -112,14 +112,14 @@ impl Lexer {
                     pos += 1;
                     while pos < chars.len() {
                         let next_c = chars[pos];
-                        if matches!(next_c, '0'..='9') {
+                        if next_c.is_ascii_digit() {
                             num_str.push(next_c);
                             pos += 1;
                         } else {
                             break;
                         }
                     }
-                    let val = i64::from_str_radix(&num_str, 10).unwrap();
+                    let val = num_str.parse::<i64>().unwrap();
                     tokens.push(Token::new(
                         TokenKind::Number(val),
                         (pos - num_str.len(), pos),
@@ -132,7 +132,7 @@ impl Lexer {
                         pos += 2; // skip '0x' or '0X'
                         while pos < chars.len() {
                             let next_c = chars[pos];
-                            if matches!(next_c, '0'..='9' | 'a'..='f' | 'A'..='F') {
+                            if next_c.is_ascii_hexdigit() {
                                 num_str.push(next_c);
                                 pos += 1;
                             } else {
