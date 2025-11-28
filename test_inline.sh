@@ -7,7 +7,7 @@ assert() {
   input="$2"
 
   ./target/debug/c-compiler -i "int main() { $input }" > ./bin/tmp.s
-  cc -o ./bin/tmp ./bin/tmp.s
+  cc -g -o ./bin/tmp ./bin/tmp.s
   ./bin/tmp
   actual="$?"
 
@@ -141,7 +141,7 @@ echo + ternary operator
 assert 3 'int a; int b; a = 3; b = 5; return a < b ? a : b;'
 assert 5 'int a; int b; a = 3; b = 5; return a > b ? a : b;'
 assert 8 'int a; int b; int c; a = 3; b = 5; c = 2; return a + b > 7 ? a + b : b + c;'
-# assert 2 'int a; a = 2; a == 1 ? 1 : a == 2 ? 2 : 3;' # TODO: ネストされた三項演算子の対応
+assert 2 'int a; a = 2; a == 1 ? 1 : a == 2 ? 2 : 3;'
 
 echo + block statement
 assert 8 '{ int a; int b; a = 3; b = 5; return a + b; }'
@@ -172,6 +172,8 @@ assert 7 'int a; int *p; p = &a; *p = 7; return a;'
 echo + octal and hexadecimal number literals
 assert 10 'return 012;'
 assert 26 'return 0x1a;'
-assert 255 'return 0xff;'
+assert 255 'return 0xff;' # exit codeは8ビットなので255まで
+assert 35 'return 0x11 + 0x12;'
+assert 19 'return 011 + 012;'
 
 echo OK

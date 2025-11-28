@@ -98,7 +98,7 @@ impl Ast {
             .find(|specifier| self.consume_keyword(&specifier.to_string()).is_some())
     }
 
-    // type_specifier ::= "void" | "char" | "short" | "int" | "long" | "float" | "double" | "bool"
+    // type_specifier ::= "void" | "char" | "short" | "int" | "long" | "float" | "double"
     fn type_specifier(&mut self) -> Option<TypeKind> {
         TypeKind::all()
             .into_iter()

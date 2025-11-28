@@ -9,7 +9,7 @@ assert() {
   input="$2"
 
   ./target/debug/c-compiler -i "$input" > ./bin/tmp.s
-  cc -o ./bin/tmp ./bin/tmp.s ./bin/func.o
+  cc -g -o ./bin/tmp ./bin/tmp.s ./bin/func.o
   ./bin/tmp
   actual="$?"
 
