@@ -30,11 +30,11 @@ impl Var {
 
 impl fmt::Debug for Var {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}: {:?} (offset: {}) = {:?}",
-            self.name, self.ty, self.offset, self.init
-        )
+        write!(f, "{}: {:?} (offset: {})", self.name, self.ty, self.offset)?;
+        if self.init.is_some() {
+            write!(f, " = {:?}", self.init)?;
+        }
+        Ok(())
     }
 }
 
@@ -63,6 +63,7 @@ impl Function {
                 name: var.name.clone(),
             });
         }
+        // TODO: 構造体の場合のオフセット計算
         var.offset = if let Some(first_var) = self.locals.first() {
             first_var.offset + var.ty.size_of()
         } else {
@@ -302,9 +303,9 @@ impl Ast {
 
     // func_def ::= declaration_specifier declarator compound_stmt
     fn func_def(&mut self) -> Result<Option<Box<Function>>, CompileError> {
-        let specifier = self.declaration_specifier();
+        let specifier = self.declaration_specifier()?;
         let base_kind = if let Some(specifier) = specifier {
-            Type::from(&vec![specifier]).unwrap()
+            Type::from_ds(&vec![specifier]).unwrap()
         } else {
             return Err(CompileError::InvalidTypeSpecifier {
                 msg: "関数定義の型指定子が無効です".to_string(),

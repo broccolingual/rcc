@@ -37,11 +37,9 @@ impl FunctionKind {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum StorageClassKind {
     Auto,
-    Constexpr,
     Extern,
     Register,
     Static,
-    ThreadLocal,
     Typedef,
 }
 
@@ -49,11 +47,9 @@ impl fmt::Display for StorageClassKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             StorageClassKind::Auto => write!(f, "auto"),
-            StorageClassKind::Constexpr => write!(f, "constexpr"),
             StorageClassKind::Extern => write!(f, "extern"),
             StorageClassKind::Register => write!(f, "register"),
             StorageClassKind::Static => write!(f, "static"),
-            StorageClassKind::ThreadLocal => write!(f, "thread_local"),
             StorageClassKind::Typedef => write!(f, "typedef"),
         }
     }
@@ -63,11 +59,9 @@ impl StorageClassKind {
     pub fn all() -> Vec<StorageClassKind> {
         vec![
             StorageClassKind::Auto,
-            StorageClassKind::Constexpr,
             StorageClassKind::Extern,
             StorageClassKind::Register,
             StorageClassKind::Static,
-            StorageClassKind::ThreadLocal,
             StorageClassKind::Typedef,
         ]
     }
@@ -116,6 +110,10 @@ pub enum TypeKind {
         base: Box<Type>,
         size: usize,
     }, // base: 配列の要素型, size: 要素数
+    Struct {
+        name: String,
+        members: Vec<Var>,
+    }, // name: 構造体名, members: メンバーリスト
     Func {
         return_ty: Box<Type>,
         params: Vec<Var>,
@@ -135,6 +133,7 @@ impl fmt::Debug for TypeKind {
             // ポインタや配列は再帰的に*をつけて表示
             TypeKind::Ptr { to } => write!(f, "{:?}*", to),
             TypeKind::Array { base, .. } => write!(f, "{:?}*", base),
+            TypeKind::Struct { name, members } => write!(f, "struct {} {{ {:?} }}", name, members),
             TypeKind::Func { return_ty, params } => {
                 write!(f, "func(")?;
                 for (i, param) in params.iter().enumerate() {
@@ -161,6 +160,9 @@ impl fmt::Display for TypeKind {
             TypeKind::Double => write!(f, "double"),
             TypeKind::Ptr { to } => write!(f, "ptr to {:?}", to),
             TypeKind::Array { base, size } => write!(f, "array[{}] of {:?}", size, base),
+            TypeKind::Struct { name, members } => {
+                write!(f, "struct {} {{ {:?} }}", name, members)
+            }
             TypeKind::Func { return_ty, params } => {
                 write!(f, "func({:?}) -> {:?}", params, return_ty)
             }
@@ -207,11 +209,20 @@ impl Type {
     }
 
     // TODO: constやvolatileの情報も扱う
-    pub fn from(declaration_specifiers: &Vec<DeclarationSpecifier>) -> Option<Self> {
+    pub fn from_ds(declaration_specifiers: &Vec<DeclarationSpecifier>) -> Option<Self> {
         for specifier in declaration_specifiers {
             if let DeclarationSpecifier::TypeSpecifierQualifier(tsq) = specifier
                 && let TypeSpecifierQualifier::TypeSpecifier(ty) = tsq
             {
+                return Some(Type::new(ty));
+            }
+        }
+        None
+    }
+
+    pub fn from_tsq(type_specifier_qualifiers: &Vec<TypeSpecifierQualifier>) -> Option<Self> {
+        for specifier in type_specifier_qualifiers {
+            if let TypeSpecifierQualifier::TypeSpecifier(ty) = specifier {
                 return Some(Type::new(ty));
             }
         }
@@ -275,6 +286,11 @@ impl Type {
             TypeKind::Double => 8,
             TypeKind::Ptr { .. } => 8,
             TypeKind::Array { .. } => 8,
+            TypeKind::Struct { members, .. } => members
+                .iter()
+                .map(|member| member.ty.align_of())
+                .max()
+                .unwrap_or(8), // TODO: 正しく実装し直す
             TypeKind::Func { .. } => 8, // TODO: 一旦8バイト固定
         }
     }

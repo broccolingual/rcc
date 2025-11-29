@@ -176,4 +176,9 @@ assert 255 'return 0xff;' # exit codeは8ビットなので255まで
 assert 35 'return 0x11 + 0x12;'
 assert 19 'return 011 + 012;'
 
+echo + struct declaration
+assert 0 'struct Point { int a, b; int *p; }; return 0;'
+assert 0 'struct { int a, b; int *p; } point; return 0;'
+assert 0 'struct { struct {int a;} inner1, inner2; int b; } point; return 0;'
+
 echo OK

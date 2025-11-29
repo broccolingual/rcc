@@ -9,11 +9,11 @@ use crate::types::{
 impl Ast {
     // declaration ::= declaration_specifiers init_declarator_list ";"
     pub(super) fn declaration(&mut self) -> Result<Option<Vec<Var>>, CompileError> {
-        let specifiers = self.declaration_specifiers();
+        let specifiers = self.declaration_specifiers()?;
         if specifiers.is_empty() {
             return Ok(None);
         }
-        let base_type = Type::from(&specifiers).unwrap();
+        let base_type = Type::from_ds(&specifiers).unwrap();
         let vars = self.init_declarator_list(base_type)?;
         if vars.is_empty() {
             return Ok(None);
@@ -23,30 +23,36 @@ impl Ast {
     }
 
     // declaration_specifiers ::= declaration_specifier+
-    pub(super) fn declaration_specifiers(&mut self) -> Vec<DeclarationSpecifier> {
+    pub(super) fn declaration_specifiers(
+        &mut self,
+    ) -> Result<Vec<DeclarationSpecifier>, CompileError> {
         let mut specifiers = Vec::new();
-        while let Some(specifier) = self.declaration_specifier() {
+        while let Some(specifier) = self.declaration_specifier()? {
             specifiers.push(specifier);
         }
-        specifiers
+        Ok(specifiers)
     }
 
     // declaration_specifier ::= storage_class_specifier | type_specifier_qualifier | function_specifier
-    pub(super) fn declaration_specifier(&mut self) -> Option<DeclarationSpecifier> {
+    pub(super) fn declaration_specifier(
+        &mut self,
+    ) -> Result<Option<DeclarationSpecifier>, CompileError> {
         if let Some(storage_class_specifier) = self.storage_class_specifier() {
-            return Some(DeclarationSpecifier::StorageClassSpecifier(
+            return Ok(Some(DeclarationSpecifier::StorageClassSpecifier(
                 storage_class_specifier,
-            ));
+            )));
         }
-        if let Some(type_specifier_qualifier) = self.type_specifier_qualifier() {
-            return Some(DeclarationSpecifier::TypeSpecifierQualifier(
+        if let Some(type_specifier_qualifier) = self.type_specifier_qualifier()? {
+            return Ok(Some(DeclarationSpecifier::TypeSpecifierQualifier(
                 type_specifier_qualifier,
-            ));
+            )));
         }
         if let Some(function_specifier) = self.function_specifier() {
-            return Some(DeclarationSpecifier::FunctionSpecifier(function_specifier));
+            return Ok(Some(DeclarationSpecifier::FunctionSpecifier(
+                function_specifier,
+            )));
         }
-        None
+        Ok(None)
     }
 
     // init_declarator_list ::= init_declarator ("," init_declarator)*
@@ -91,39 +97,106 @@ impl Ast {
         Ok(None)
     }
 
-    // storage_class_specifier ::= "auto" | "constexpr" | "extern" | "register" | "static" | "thread_local" | "typedef"
+    // storage_class_specifier ::= "auto" | "extern" | "register" | "static" | "typedef"
     fn storage_class_specifier(&mut self) -> Option<StorageClassKind> {
         StorageClassKind::all()
             .into_iter()
             .find(|specifier| self.consume_keyword(&specifier.to_string()).is_some())
     }
 
-    // type_specifier ::= "void" | "char" | "short" | "int" | "long" | "float" | "double"
-    fn type_specifier(&mut self) -> Option<TypeKind> {
-        TypeKind::all()
+    // type_specifier ::= "void" | "char" | "short" | "int" | "long" | "float" | "double" | struct_or_union_specifier
+    fn type_specifier(&mut self) -> Result<Option<TypeKind>, CompileError> {
+        if let Some(ty) = self.struct_or_union_specifier()? {
+            return Ok(Some(ty));
+        }
+        Ok(TypeKind::all()
             .into_iter()
-            .find(|specifier| self.consume_keyword(&specifier.to_string()).is_some())
+            .find(|specifier| self.consume_keyword(&specifier.to_string()).is_some()))
+    }
+
+    // struct_or_union_specifier ::= "struct" ident? "{" struct_declaration_list "}"
+    fn struct_or_union_specifier(&mut self) -> Result<Option<TypeKind>, CompileError> {
+        if self.consume_keyword("struct").is_some() {
+            let struct_name = if let Some(name) = self.consume_ident() {
+                name
+            } else {
+                "".to_string()
+            };
+            self.expect_punctuator("{")?;
+            let members = self.struct_declaration_list()?;
+            self.expect_punctuator("}")?;
+            return Ok(Some(TypeKind::Struct {
+                name: struct_name,
+                members,
+            }));
+        }
+        Ok(None)
+    }
+
+    // struct_declaration_list ::= struct_declaration+
+    fn struct_declaration_list(&mut self) -> Result<Vec<Var>, CompileError> {
+        let mut members = Vec::new();
+        while let Some(member) = self.struct_declaration()? {
+            members.extend(member);
+        }
+        Ok(members)
+    }
+
+    // struct_declaration ::= specifier_qualifier_list struct_declarator_list? ";"
+    fn struct_declaration(&mut self) -> Result<Option<Vec<Var>>, CompileError> {
+        let specifiers = self.specifier_qualifier_list()?;
+        if specifiers.is_empty() {
+            return Ok(None);
+        }
+        let base_type = Type::from_tsq(&specifiers).unwrap();
+        let members = self.struct_declarator_list(base_type)?;
+        self.expect_punctuator(";")?;
+        if members.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(members))
+    }
+
+    // struct_declarator_list ::= struct_declarator ("," struct_declarator)*
+    fn struct_declarator_list(&mut self, base_type: Type) -> Result<Vec<Var>, CompileError> {
+        let mut members = Vec::new();
+        if let Some(member) = self.struct_declarator(base_type.clone())? {
+            members.push(*member);
+        }
+        while self.consume_punctuator(",").is_some() {
+            if let Some(member) = self.struct_declarator(base_type.clone())? {
+                members.push(*member);
+            }
+        }
+        Ok(members)
+    }
+
+    // struct_declarator ::= declarator
+    fn struct_declarator(&mut self, base_type: Type) -> Result<Option<Box<Var>>, CompileError> {
+        if let Ok(var) = self.declarator(base_type) {
+            return Ok(Some(var));
+        }
+        Ok(None)
     }
 
     // specifier_qualifier_list ::= type_specifier_qualifier+
-    #[allow(dead_code)]
-    fn specifier_qualifier_list(&mut self) -> Vec<TypeSpecifierQualifier> {
+    fn specifier_qualifier_list(&mut self) -> Result<Vec<TypeSpecifierQualifier>, CompileError> {
         let mut specifiers = Vec::new();
-        while let Some(specifier) = self.type_specifier_qualifier() {
+        while let Some(specifier) = self.type_specifier_qualifier()? {
             specifiers.push(specifier);
         }
-        specifiers
+        Ok(specifiers)
     }
 
     // type_specifier_qualifier ::= type_specifier | type_qualifier
-    fn type_specifier_qualifier(&mut self) -> Option<TypeSpecifierQualifier> {
-        if let Some(specifier) = self.type_specifier() {
-            return Some(TypeSpecifierQualifier::TypeSpecifier(specifier));
+    fn type_specifier_qualifier(&mut self) -> Result<Option<TypeSpecifierQualifier>, CompileError> {
+        if let Some(specifier) = self.type_specifier()? {
+            return Ok(Some(TypeSpecifierQualifier::TypeSpecifier(specifier)));
         }
         if let Some(qualifier) = self.type_qualifier() {
-            return Some(TypeSpecifierQualifier::TypeQualifier(qualifier));
+            return Ok(Some(TypeSpecifierQualifier::TypeQualifier(qualifier)));
         }
-        None
+        Ok(None)
     }
 
     // type_qualifier ::= "const" | "volatile" | "restrict"
@@ -247,9 +320,9 @@ impl Ast {
 
     // parameter_declaration ::= declaration_specifiers declarator
     fn parameter_declaration(&mut self) -> Result<Box<Var>, CompileError> {
-        let specifiers = self.declaration_specifiers();
+        let specifiers = self.declaration_specifiers()?;
         if !specifiers.is_empty() {
-            let base_kind = Type::from(&specifiers).unwrap();
+            let base_kind = Type::from_ds(&specifiers).unwrap();
             if let Ok(var) = self.declarator(base_kind) {
                 return Ok(var);
             }
