@@ -269,7 +269,12 @@ impl Type {
     // 型の実際のサイズ（配列の場合は要素数を考慮）
     pub fn size_of(&self) -> usize {
         match &self.kind {
+            // 配列の場合は要素数を考慮
             TypeKind::Array { base, size } => base.size_of() * *size,
+            // 構造体の場合はメンバーのサイズの合計
+            TypeKind::Struct { members, .. } => {
+                members.iter().map(|m| m.ty.size_of()).sum::<usize>()
+            }
             _ => self.align_of(),
         }
     }
@@ -286,11 +291,7 @@ impl Type {
             TypeKind::Double => 8,
             TypeKind::Ptr { .. } => 8,
             TypeKind::Array { .. } => 8,
-            TypeKind::Struct { members, .. } => members
-                .iter()
-                .map(|member| member.ty.align_of())
-                .max()
-                .unwrap_or(8), // TODO: 正しく実装し直す
+            TypeKind::Struct { .. } => 8,
             TypeKind::Func { .. } => 8, // TODO: 一旦8バイト固定
         }
     }

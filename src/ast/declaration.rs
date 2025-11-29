@@ -135,9 +135,16 @@ impl Ast {
 
     // struct_declaration_list ::= struct_declaration+
     fn struct_declaration_list(&mut self) -> Result<Vec<Var>, CompileError> {
-        let mut members = Vec::new();
-        while let Some(member) = self.struct_declaration()? {
-            members.extend(member);
+        let mut members: Vec<Var> = Vec::new();
+        while let Some(mut member_list) = self.struct_declaration()? {
+            for member in &mut member_list {
+                member.offset += if let Some(last_member) = members.last() {
+                    last_member.offset
+                } else {
+                    0
+                };
+            }
+            members.extend(member_list);
         }
         Ok(members)
     }
@@ -160,11 +167,13 @@ impl Ast {
     // struct_declarator_list ::= struct_declarator ("," struct_declarator)*
     fn struct_declarator_list(&mut self, base_type: Type) -> Result<Vec<Var>, CompileError> {
         let mut members = Vec::new();
-        if let Some(member) = self.struct_declarator(base_type.clone())? {
+        if let Some(mut member) = self.struct_declarator(base_type.clone())? {
+            member.offset = member.ty.size_of();
             members.push(*member);
         }
         while self.consume_punctuator(",").is_some() {
-            if let Some(member) = self.struct_declarator(base_type.clone())? {
+            if let Some(mut member) = self.struct_declarator(base_type.clone())? {
+                member.offset = members.last().unwrap().offset + member.ty.size_of();
                 members.push(*member);
             }
         }
