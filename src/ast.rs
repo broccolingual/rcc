@@ -64,12 +64,12 @@ impl Function {
             });
         }
         // TODO: 構造体の場合のオフセット計算
-        var.offset = if let Some(first_var) = self.locals.first() {
+        var.offset = if let Some(first_var) = self.locals.last() {
             first_var.offset + var.ty.size_of()
         } else {
             var.ty.size_of()
         };
-        self.locals.insert(0, var); // オフセット計算のために先頭に追加
+        self.locals.push(var); // オフセット計算のために末尾に追加
         Ok(())
     }
 

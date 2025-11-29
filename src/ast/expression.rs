@@ -402,14 +402,14 @@ impl Ast {
     fn argument_expr_list(&mut self) -> Result<Vec<Box<Node>>, CompileError> {
         let mut args = Vec::new();
         if let Some(arg) = self.assign_expr()? {
-            args.insert(0, arg); // 逆順で格納
+            args.push(arg);
         } else {
             return Ok(args);
         }
 
         while self.consume_punctuator(",").is_some() {
             if let Some(arg) = self.assign_expr()? {
-                args.insert(0, arg); // 逆順で格納
+                args.push(arg);
             } else {
                 return Err(CompileError::InternalError {
                     msg: "関数呼び出しの引数リストのパースに失敗しました".to_string(),

@@ -222,8 +222,8 @@ impl Generator {
                     .add_row(&format!("sub rsp, {}", stack_size), true);
             }
 
-            // ローカル変数を逆順でスタックから読み出し
-            for (i, arg) in func.locals.iter().rev().enumerate() {
+            // ローカル変数をスタックから読み出し
+            for (i, arg) in func.locals.iter().enumerate() {
                 self.builder.add_row(
                     &format!(
                         "  mov [rbp-{}], {}",
@@ -671,8 +671,8 @@ impl Generator {
                         panic!("6個を超える引数の関数呼び出しには対応していません");
                     }
 
-                    // 引数をスタックに積む
-                    for arg in args.iter() {
+                    // 引数をスタックに積む（逆順）
+                    for arg in args.iter().rev() {
                         self.gen_expr(&Some(arg.clone()));
                     }
 
