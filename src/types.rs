@@ -215,56 +215,56 @@ impl fmt::Debug for Type {
 
 impl Type {
     pub fn from(kind: &TypeKind, is_const: bool) -> Self {
-        match kind {
-            &TypeKind::Void => Type {
+        match *kind {
+            TypeKind::Void => Type {
                 kind: TypeKind::Void,
                 size: 0,
                 align: 0,
                 is_const,
             },
-            &TypeKind::Char => Type {
+            TypeKind::Char => Type {
                 kind: TypeKind::Char,
                 size: 1,
                 align: 1,
                 is_const,
             },
-            &TypeKind::Short => Type {
+            TypeKind::Short => Type {
                 kind: TypeKind::Short,
                 size: 2,
                 align: 2,
                 is_const,
             },
-            &TypeKind::Int => Type {
+            TypeKind::Int => Type {
                 kind: TypeKind::Int,
                 size: 4,
                 align: 4,
                 is_const,
             },
-            &TypeKind::Long => Type {
+            TypeKind::Long => Type {
                 kind: TypeKind::Long,
                 size: 8,
                 align: 8,
                 is_const,
             },
-            &TypeKind::Float => Type {
+            TypeKind::Float => Type {
                 kind: TypeKind::Float,
                 size: 4,
                 align: 4,
                 is_const,
             },
-            &TypeKind::Double => Type {
+            TypeKind::Double => Type {
                 kind: TypeKind::Double,
                 size: 8,
                 align: 8,
                 is_const,
             },
-            &TypeKind::Ptr { ref to } => Type {
+            TypeKind::Ptr { ref to } => Type {
                 kind: TypeKind::Ptr { to: to.clone() },
                 size: 8,
                 align: 8,
                 is_const,
             },
-            &TypeKind::Array { ref base, size } => Type {
+            TypeKind::Array { ref base, size } => Type {
                 kind: TypeKind::Array {
                     base: base.clone(),
                     size,
@@ -273,7 +273,7 @@ impl Type {
                 align: base.align,
                 is_const,
             },
-            &TypeKind::Struct {
+            TypeKind::Struct {
                 ref name,
                 ref members,
             } => {
@@ -300,7 +300,7 @@ impl Type {
                     is_const,
                 }
             }
-            &TypeKind::Func {
+            TypeKind::Func {
                 ref return_ty,
                 ref params,
             } => Type {
