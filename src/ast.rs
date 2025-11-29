@@ -7,7 +7,7 @@ mod statement;
 use crate::errors::CompileError;
 use crate::node::{Node, NodeKind};
 use crate::token::{Token, TokenKind};
-use crate::types::{Type, TypeKind};
+use crate::types::{AlignUp, Type, TypeKind};
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Var {
@@ -63,12 +63,13 @@ impl Function {
                 name: var.name.clone(),
             });
         }
-        // TODO: 構造体の場合のオフセット計算
-        var.offset = if let Some(first_var) = self.locals.last() {
-            first_var.offset + var.ty.size_of()
+        let last_offset = if let Some(last_var) = self.locals.last() {
+            last_var.offset
         } else {
-            var.ty.size_of()
+            0
         };
+        let offset = last_offset.align_up(var.ty.align_of()); // アラインメント調整
+        var.offset = offset + var.ty.size_of(); // サイズ分オフセットを進める
         self.locals.push(var); // オフセット計算のために末尾に追加
         Ok(())
     }

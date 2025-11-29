@@ -184,6 +184,17 @@ impl TypeKind {
     }
 }
 
+pub trait AlignUp {
+    fn align_up(&self, align: usize) -> usize;
+}
+
+impl AlignUp for usize {
+    // alignの倍数に切り上げる
+    fn align_up(&self, align: usize) -> usize {
+        (*self + align - 1) & !(align - 1)
+    }
+}
+
 #[derive(Clone, PartialEq, Eq)]
 pub struct Type {
     pub kind: TypeKind,
@@ -203,13 +214,6 @@ impl fmt::Debug for Type {
 }
 
 impl Type {
-    // pub fn new(kind: &TypeKind) -> Self {
-    //     Type {
-    //         kind: kind.clone(),
-    //         is_const: false,
-    //     }
-    // }
-
     pub fn from(kind: &TypeKind, is_const: bool) -> Self {
         match kind {
             &TypeKind::Void => Type {
@@ -273,15 +277,26 @@ impl Type {
                 ref name,
                 ref members,
             } => {
-                // TODO: メンバーのオフセット，サイズ，アラインメントの計算
-                let max_align = members.iter().map(|m| m.ty.align).max().unwrap_or(1);
+                let mut offset = 0;
+                let mut max_align = 1;
+                let mut members = members.clone();
+                for member in members.iter_mut() {
+                    let a = member.ty.align_of();
+                    offset = offset.align_up(a); // メンバーのアラインメントに合わせてオフセットを調整
+                    offset += member.ty.size_of(); // メンバーのサイズ分オフセットを進める
+                    member.offset = offset; // メンバーのオフセットを設定
+                    // 構造体全体のアラインメントを更新
+                    if a > max_align {
+                        max_align = a;
+                    }
+                }
                 Type {
                     kind: TypeKind::Struct {
                         name: name.to_string(),
-                        members: members.clone(),
+                        members,
                     },
-                    size: max_align * members.len(),
-                    align: max_align,
+                    size: offset.align_up(max_align), // 構造体全体のサイズをアラインメントに合わせて調整
+                    align: max_align, // メンバーの最大アラインメントを構造体のアラインメントとする
                     is_const,
                 }
             }
