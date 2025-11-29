@@ -51,7 +51,7 @@ impl Function {
             name: name.to_string(),
             body: Vec::new(),
             locals: Vec::new(),
-            return_ty: Type::new(&TypeKind::Void),
+            return_ty: Type::from(&TypeKind::Void, false),
         }
     }
 }

@@ -136,14 +136,7 @@ impl Ast {
     // struct_declaration_list ::= struct_declaration+
     fn struct_declaration_list(&mut self) -> Result<Vec<Var>, CompileError> {
         let mut members: Vec<Var> = Vec::new();
-        while let Some(mut member_list) = self.struct_declaration()? {
-            for member in &mut member_list {
-                member.offset += if let Some(last_member) = members.last() {
-                    last_member.offset
-                } else {
-                    0
-                };
-            }
+        while let Some(member_list) = self.struct_declaration()? {
             members.extend(member_list);
         }
         Ok(members)
@@ -167,13 +160,11 @@ impl Ast {
     // struct_declarator_list ::= struct_declarator ("," struct_declarator)*
     fn struct_declarator_list(&mut self, base_type: Type) -> Result<Vec<Var>, CompileError> {
         let mut members = Vec::new();
-        if let Some(mut member) = self.struct_declarator(base_type.clone())? {
-            member.offset = member.ty.size_of();
+        if let Some(member) = self.struct_declarator(base_type.clone())? {
             members.push(*member);
         }
         while self.consume_punctuator(",").is_some() {
-            if let Some(mut member) = self.struct_declarator(base_type.clone())? {
-                member.offset = members.last().unwrap().offset + member.ty.size_of();
+            if let Some(member) = self.struct_declarator(base_type.clone())? {
                 members.push(*member);
             }
         }
@@ -235,7 +226,7 @@ impl Ast {
     #[allow(clippy::never_loop)]
     fn pointer(&mut self, base_ty: Box<Type>) -> Box<Type> {
         while self.consume_punctuator("*").is_some() {
-            return self.pointer(Box::new(Type::new(&TypeKind::Ptr { to: base_ty })));
+            return self.pointer(Box::new(Type::from(&TypeKind::Ptr { to: base_ty }, false)));
         }
         self.type_qualifier_list(); // 現状は型修飾子を無視
         base_ty
@@ -275,10 +266,13 @@ impl Ast {
                 let array_size = self.expect_number()? as usize;
                 self.expect_punctuator("]")?;
                 // TODO: 多次元配列の場合，逆順で定義されてしまう
-                let array_ty = Type::new(&TypeKind::Array {
-                    base: var.ty,
-                    size: array_size,
-                });
+                let array_ty = Type::from(
+                    &TypeKind::Array {
+                        base: var.ty,
+                        size: array_size,
+                    },
+                    false,
+                );
                 var = Box::new(Var::new(&var.name, array_ty));
                 continue;
             }
@@ -286,10 +280,13 @@ impl Ast {
             if self.consume_punctuator("(").is_some() {
                 // パラメータが0個の場合
                 if self.consume_punctuator(")").is_some() {
-                    let func_ty = Type::new(&TypeKind::Func {
-                        return_ty: var.ty,
-                        params: Vec::new(),
-                    });
+                    let func_ty = Type::from(
+                        &TypeKind::Func {
+                            return_ty: var.ty,
+                            params: Vec::new(),
+                        },
+                        false,
+                    );
                     var = Box::new(Var::new(&var.name, func_ty));
                     continue;
                 }
@@ -297,10 +294,13 @@ impl Ast {
                 // パラメータが1個以上の場合
                 let params = self.parameter_type_list()?;
                 self.expect_punctuator(")")?;
-                let func_ty = Type::new(&TypeKind::Func {
-                    return_ty: var.ty,
-                    params,
-                });
+                let func_ty = Type::from(
+                    &TypeKind::Func {
+                        return_ty: var.ty,
+                        params,
+                    },
+                    false,
+                );
                 var = Box::new(Var::new(&var.name, func_ty));
                 continue;
             }
@@ -379,7 +379,7 @@ mod tests {
         let vars = ast.declaration().unwrap().unwrap();
         let var = &vars[0];
         assert_eq!(var.name, "a");
-        assert_eq!(*var.ty, Type::new(&TypeKind::Int));
+        assert_eq!(*var.ty, Type::from(&TypeKind::Int, false));
 
         let input = "int *p;";
         let mut ast = preproc(input);
@@ -388,9 +388,12 @@ mod tests {
         assert_eq!(var.name, "p");
         assert_eq!(
             *var.ty,
-            Type::new(&TypeKind::Ptr {
-                to: Box::new(Type::new(&TypeKind::Int))
-            })
+            Type::from(
+                &TypeKind::Ptr {
+                    to: Box::new(Type::from(&TypeKind::Int, false))
+                },
+                false
+            )
         );
 
         let input = "int **p;";
@@ -400,11 +403,17 @@ mod tests {
         assert_eq!(var.name, "p");
         assert_eq!(
             *var.ty,
-            Type::new(&TypeKind::Ptr {
-                to: Box::new(Type::new(&TypeKind::Ptr {
-                    to: Box::new(Type::new(&TypeKind::Int))
-                }))
-            })
+            Type::from(
+                &TypeKind::Ptr {
+                    to: Box::new(Type::from(
+                        &TypeKind::Ptr {
+                            to: Box::new(Type::from(&TypeKind::Int, false))
+                        },
+                        false
+                    ))
+                },
+                false
+            )
         );
 
         let input = "int arr[10];";
@@ -414,10 +423,13 @@ mod tests {
         assert_eq!(var.name, "arr");
         assert_eq!(
             *var.ty,
-            Type::new(&TypeKind::Array {
-                base: Box::new(Type::new(&TypeKind::Int)),
-                size: 10
-            })
+            Type::from(
+                &TypeKind::Array {
+                    base: Box::new(Type::from(&TypeKind::Int, false)),
+                    size: 10
+                },
+                false
+            )
         );
 
         // TODO: 多次元配列の要素数の宣言が逆順になる問題の修正
@@ -440,12 +452,18 @@ mod tests {
         assert_eq!(var.name, "arr");
         assert_eq!(
             *var.ty,
-            Type::new(&TypeKind::Array {
-                base: Box::new(Type::new(&TypeKind::Ptr {
-                    to: Box::new(Type::new(&TypeKind::Int))
-                })),
-                size: 10
-            })
+            Type::from(
+                &TypeKind::Array {
+                    base: Box::new(Type::from(
+                        &TypeKind::Ptr {
+                            to: Box::new(Type::from(&TypeKind::Int, false))
+                        },
+                        false
+                    )),
+                    size: 10
+                },
+                false
+            )
         );
 
         let input = "int a, b;";
@@ -454,15 +472,15 @@ mod tests {
         assert!(vars.len() == 2);
         assert_eq!(vars[0].name, "a");
         assert_eq!(vars[1].name, "b");
-        assert_eq!(*vars[0].ty, Type::new(&TypeKind::Int));
-        assert_eq!(*vars[1].ty, Type::new(&TypeKind::Int));
+        assert_eq!(*vars[0].ty, Type::from(&TypeKind::Int, false));
+        assert_eq!(*vars[1].ty, Type::from(&TypeKind::Int, false));
 
         let input = "int a = 3;";
         let mut ast = preproc(input);
         let vars = ast.declaration().unwrap().unwrap();
         let var = &vars[0];
         assert_eq!(var.name, "a");
-        assert_eq!(*var.ty, Type::new(&TypeKind::Int));
+        assert_eq!(*var.ty, Type::from(&TypeKind::Int, false));
         assert!(var.init.is_some());
         let init = var.init.as_ref().unwrap();
         assert_eq!(init.kind, NodeKind::Number { val: 3 });
@@ -475,8 +493,8 @@ mod tests {
         let var_b = &vars[1];
         assert_eq!(var_a.name, "a");
         assert_eq!(var_b.name, "b");
-        assert_eq!(*var_a.ty, Type::new(&TypeKind::Int));
-        assert_eq!(*var_b.ty, Type::new(&TypeKind::Int));
+        assert_eq!(*var_a.ty, Type::from(&TypeKind::Int, false));
+        assert_eq!(*var_b.ty, Type::from(&TypeKind::Int, false));
         assert!(var_a.init.is_some());
         assert!(var_b.init.is_some());
         let init_a = var_a.init.as_ref().unwrap();

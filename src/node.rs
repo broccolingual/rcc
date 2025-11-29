@@ -188,7 +188,7 @@ impl Node {
 
     pub fn new_num(val: i64) -> Self {
         let mut node = Node::new(NodeKind::Number { val }, None, None);
-        node.ty = Some(Box::new(Type::new(&TypeKind::Int)));
+        node.ty = Some(Box::new(Type::from(&TypeKind::Int, false)));
         node
     }
 
@@ -325,7 +325,7 @@ impl Node {
 
                 if lhs_ty.is_integer() && rhs_ty.is_integer() {
                     // 両方とも整数型の場合、昇格後の型を結果型とする
-                    self.ty = Some(Box::new(Type::new(&TypeKind::Int)));
+                    self.ty = Some(Box::new(Type::from(&TypeKind::Int, false)));
                 } else {
                     return Err(CompileError::InvalidExpression {
                         msg: format!(
@@ -343,7 +343,7 @@ impl Node {
                     || lhs_ty.is_ptr_or_array() && rhs_ty.is_ptr_or_array()
                 {
                     // 両方ともスカラー型の場合、結果型はint型とする
-                    self.ty = Some(Box::new(Type::new(&TypeKind::Int)));
+                    self.ty = Some(Box::new(Type::from(&TypeKind::Int, false)));
                 } else {
                     return Err(CompileError::InvalidExpression {
                         msg: format!(
@@ -361,7 +361,7 @@ impl Node {
                     || lhs_ty.is_ptr_or_array() && rhs_ty.is_ptr_or_array()
                 {
                     // 両方ともスカラー型の場合、結果型はint型とする
-                    self.ty = Some(Box::new(Type::new(&TypeKind::Int)));
+                    self.ty = Some(Box::new(Type::from(&TypeKind::Int, false)));
                 } else {
                     return Err(CompileError::InvalidExpression {
                         msg: format!(
@@ -432,7 +432,7 @@ impl Node {
                 let lhs_ty = self.lhs.as_ref().unwrap().ty.as_ref().unwrap();
 
                 if lhs_ty.is_integer() {
-                    self.ty = Some(Box::new(Type::new(&TypeKind::Int))); // 整数拡張
+                    self.ty = Some(Box::new(Type::from(&TypeKind::Int, false))); // 整数拡張
                 } else {
                     return Err(CompileError::InvalidExpression {
                         msg: format!("ビット否定演算子は整数型にのみ適用可能です: {:?}", lhs_ty),
@@ -443,7 +443,7 @@ impl Node {
                 let lhs_ty = self.lhs.as_ref().unwrap().ty.as_ref().unwrap();
 
                 if lhs_ty.is_scalar() || lhs_ty.is_ptr_or_array() {
-                    self.ty = Some(Box::new(Type::new(&TypeKind::Int))); // 結果型はint型
+                    self.ty = Some(Box::new(Type::from(&TypeKind::Int, false))); // 結果型はint型
                 } else {
                     return Err(CompileError::InvalidExpression {
                         msg: format!(
@@ -457,7 +457,10 @@ impl Node {
                 let lhs_ty = self.lhs.as_ref().unwrap().ty.as_ref().unwrap();
 
                 // アドレス演算子の型はポインタ型にする
-                self.ty = Some(Box::new(Type::new(&TypeKind::Ptr { to: lhs_ty.clone() })));
+                self.ty = Some(Box::new(Type::from(
+                    &TypeKind::Ptr { to: lhs_ty.clone() },
+                    false,
+                )));
             }
             NodeKind::Deref => {
                 let lhs_ty = self.lhs.as_ref().unwrap().ty.as_ref().unwrap();

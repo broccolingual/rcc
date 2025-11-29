@@ -187,6 +187,8 @@ impl TypeKind {
 #[derive(Clone, PartialEq, Eq)]
 pub struct Type {
     pub kind: TypeKind,
+    size: usize,
+    align: usize,
     pub is_const: bool,
 }
 
@@ -201,10 +203,100 @@ impl fmt::Debug for Type {
 }
 
 impl Type {
-    pub fn new(kind: &TypeKind) -> Self {
-        Type {
-            kind: kind.clone(),
-            is_const: false,
+    // pub fn new(kind: &TypeKind) -> Self {
+    //     Type {
+    //         kind: kind.clone(),
+    //         is_const: false,
+    //     }
+    // }
+
+    pub fn from(kind: &TypeKind, is_const: bool) -> Self {
+        match kind {
+            &TypeKind::Void => Type {
+                kind: TypeKind::Void,
+                size: 0,
+                align: 0,
+                is_const,
+            },
+            &TypeKind::Char => Type {
+                kind: TypeKind::Char,
+                size: 1,
+                align: 1,
+                is_const,
+            },
+            &TypeKind::Short => Type {
+                kind: TypeKind::Short,
+                size: 2,
+                align: 2,
+                is_const,
+            },
+            &TypeKind::Int => Type {
+                kind: TypeKind::Int,
+                size: 4,
+                align: 4,
+                is_const,
+            },
+            &TypeKind::Long => Type {
+                kind: TypeKind::Long,
+                size: 8,
+                align: 8,
+                is_const,
+            },
+            &TypeKind::Float => Type {
+                kind: TypeKind::Float,
+                size: 4,
+                align: 4,
+                is_const,
+            },
+            &TypeKind::Double => Type {
+                kind: TypeKind::Double,
+                size: 8,
+                align: 8,
+                is_const,
+            },
+            &TypeKind::Ptr { ref to } => Type {
+                kind: TypeKind::Ptr { to: to.clone() },
+                size: 8,
+                align: 8,
+                is_const,
+            },
+            &TypeKind::Array { ref base, size } => Type {
+                kind: TypeKind::Array {
+                    base: base.clone(),
+                    size,
+                },
+                size: base.size * size,
+                align: base.align,
+                is_const,
+            },
+            &TypeKind::Struct {
+                ref name,
+                ref members,
+            } => {
+                // TODO: メンバーのオフセット，サイズ，アラインメントの計算
+                let max_align = members.iter().map(|m| m.ty.align).max().unwrap_or(1);
+                Type {
+                    kind: TypeKind::Struct {
+                        name: name.to_string(),
+                        members: members.clone(),
+                    },
+                    size: max_align * members.len(),
+                    align: max_align,
+                    is_const,
+                }
+            }
+            &TypeKind::Func {
+                ref return_ty,
+                ref params,
+            } => Type {
+                kind: TypeKind::Func {
+                    return_ty: return_ty.clone(),
+                    params: params.clone(),
+                },
+                size: 8,
+                align: 8,
+                is_const,
+            },
         }
     }
 
@@ -214,7 +306,7 @@ impl Type {
             if let DeclarationSpecifier::TypeSpecifierQualifier(tsq) = specifier
                 && let TypeSpecifierQualifier::TypeSpecifier(ty) = tsq
             {
-                return Some(Type::new(ty));
+                return Some(Type::from(ty, false));
             }
         }
         None
@@ -223,7 +315,7 @@ impl Type {
     pub fn from_tsq(type_specifier_qualifiers: &Vec<TypeSpecifierQualifier>) -> Option<Self> {
         for specifier in type_specifier_qualifiers {
             if let TypeSpecifierQualifier::TypeSpecifier(ty) = specifier {
-                return Some(Type::new(ty));
+                return Some(Type::from(ty, false));
             }
         }
         None
@@ -266,33 +358,13 @@ impl Type {
         self.is_integer() || self.is_floating_point()
     }
 
-    // 型の実際のサイズ（配列の場合は要素数を考慮）
+    // 型の実際のサイズ
     pub fn size_of(&self) -> usize {
-        match &self.kind {
-            // 配列の場合は要素数を考慮
-            TypeKind::Array { base, size } => base.size_of() * *size,
-            // 構造体の場合はメンバーのサイズの合計
-            TypeKind::Struct { members, .. } => {
-                members.iter().map(|m| m.ty.size_of()).sum::<usize>()
-            }
-            _ => self.align_of(),
-        }
+        self.size
     }
 
     // 型のアラインメント
     pub fn align_of(&self) -> usize {
-        match &self.kind {
-            TypeKind::Void => 0,
-            TypeKind::Char => 1,
-            TypeKind::Short => 2,
-            TypeKind::Int => 4,
-            TypeKind::Long => 8,
-            TypeKind::Float => 4,
-            TypeKind::Double => 8,
-            TypeKind::Ptr { .. } => 8,
-            TypeKind::Array { .. } => 8,
-            TypeKind::Struct { .. } => 8,
-            TypeKind::Func { .. } => 8, // TODO: 一旦8バイト固定
-        }
+        self.align
     }
 }
