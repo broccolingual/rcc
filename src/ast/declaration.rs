@@ -13,8 +13,8 @@ impl Ast {
         if specifiers.is_empty() {
             return Ok(None);
         }
-        let base_type = Type::from_ds(&specifiers).unwrap();
-        let vars = self.init_declarator_list(base_type)?;
+        let base_ty = Type::from_ds(&specifiers).unwrap();
+        let vars = self.init_declarator_list(base_ty)?;
         if vars.is_empty() {
             return Ok(None);
         }
@@ -56,13 +56,13 @@ impl Ast {
     }
 
     // init_declarator_list ::= init_declarator ("," init_declarator)*
-    fn init_declarator_list(&mut self, base_type: Type) -> Result<Vec<Var>, CompileError> {
+    fn init_declarator_list(&mut self, base_ty: Type) -> Result<Vec<Var>, CompileError> {
         let mut vars = Vec::new();
-        if let Some(var) = self.init_declarator(base_type.clone())? {
+        if let Some(var) = self.init_declarator(base_ty.clone())? {
             vars.push(*var);
         }
         while self.consume_punctuator(",").is_some() {
-            if let Some(var) = self.init_declarator(base_type.clone())? {
+            if let Some(var) = self.init_declarator(base_ty.clone())? {
                 vars.push(*var);
             }
         }
@@ -71,8 +71,8 @@ impl Ast {
 
     // init_declarator ::= declarator
     //                     | declarator "=" initializer
-    fn init_declarator(&mut self, base_type: Type) -> Result<Option<Box<Var>>, CompileError> {
-        if let Ok(mut var) = self.declarator(base_type) {
+    fn init_declarator(&mut self, base_ty: Type) -> Result<Option<Box<Var>>, CompileError> {
+        if let Ok(mut var) = self.declarator(base_ty) {
             if self.consume_punctuator("=").is_some() {
                 if let Some(init) = self.initializer()? {
                     // TODO: 数字を代入する際の扱いを考える
@@ -148,8 +148,8 @@ impl Ast {
         if specifiers.is_empty() {
             return Ok(None);
         }
-        let base_type = Type::from_tsq(&specifiers).unwrap();
-        let members = self.struct_declarator_list(base_type)?;
+        let base_ty = Type::from_tsq(&specifiers).unwrap();
+        let members = self.struct_declarator_list(base_ty)?;
         self.expect_punctuator(";")?;
         if members.is_empty() {
             return Ok(None);
@@ -158,13 +158,13 @@ impl Ast {
     }
 
     // struct_declarator_list ::= struct_declarator ("," struct_declarator)*
-    fn struct_declarator_list(&mut self, base_type: Type) -> Result<Vec<Var>, CompileError> {
+    fn struct_declarator_list(&mut self, base_ty: Type) -> Result<Vec<Var>, CompileError> {
         let mut members = Vec::new();
-        if let Some(member) = self.struct_declarator(base_type.clone())? {
+        if let Some(member) = self.struct_declarator(base_ty.clone())? {
             members.push(*member);
         }
         while self.consume_punctuator(",").is_some() {
-            if let Some(member) = self.struct_declarator(base_type.clone())? {
+            if let Some(member) = self.struct_declarator(base_ty.clone())? {
                 members.push(*member);
             }
         }
@@ -172,8 +172,8 @@ impl Ast {
     }
 
     // struct_declarator ::= declarator
-    fn struct_declarator(&mut self, base_type: Type) -> Result<Option<Box<Var>>, CompileError> {
-        if let Ok(var) = self.declarator(base_type) {
+    fn struct_declarator(&mut self, base_ty: Type) -> Result<Option<Box<Var>>, CompileError> {
+        if let Ok(var) = self.declarator(base_ty) {
             return Ok(Some(var));
         }
         Ok(None)
@@ -233,80 +233,70 @@ impl Ast {
     }
 
     // declarator ::= pointer? direct_declarator
-    pub(super) fn declarator(&mut self, base_type: Type) -> Result<Box<Var>, CompileError> {
-        let ty = self.pointer(Box::new(base_type));
+    pub(super) fn declarator(&mut self, base_ty: Type) -> Result<Box<Var>, CompileError> {
+        let ty = self.pointer(Box::new(base_ty));
         self.direct_declarator(ty)
     }
 
     // direct_declarator ::= "(" declarator ")"
     //                       | identifier
-    //                       | array_declarator
-    //                       | function_declarator
-    fn direct_declarator(&mut self, ty: Box<Type>) -> Result<Box<Var>, CompileError> {
-        let mut var = if self.consume_punctuator("(").is_some() {
-            if let Ok(v) = self.declarator(*ty.clone()) {
-                self.expect_punctuator(")")?;
-                v
-            } else {
-                return Err(CompileError::InvalidDeclaration {
-                    msg: "無効な宣言子です".to_string(),
-                });
-            }
+    //                       | direct_declarator "[" type_qualifier_list? assignment_expression? "]"
+    //                       | direct_declarator "(" parameter_type_list ")"
+    fn direct_declarator(&mut self, base_ty: Box<Type>) -> Result<Box<Var>, CompileError> {
+        let name = if self.consume_punctuator("(").is_some() {
+            let inner_var = self.declarator(*base_ty.clone())?;
+            self.expect_punctuator(")")?;
+            inner_var.name
         } else if let Some(name) = self.consume_ident() {
-            Box::new(Var::new(&name, *ty.clone()))
+            name
         } else {
             return Err(CompileError::InvalidDeclaration {
-                msg: "無効な宣言子です".to_string(),
+                msg: "識別子または括弧で囲まれた宣言子が必要です".to_string(),
             });
         };
 
-        loop {
-            // array_declarator
-            if self.consume_punctuator("[").is_some() {
-                let array_size = self.expect_number()? as usize;
-                self.expect_punctuator("]")?;
-                // TODO: 多次元配列の場合，逆順で定義されてしまう
-                let array_ty = Type::from(
-                    &TypeKind::Array {
-                        base: var.ty,
-                        size: array_size,
-                    },
-                    false,
-                );
-                var = Box::new(Var::new(&var.name, array_ty));
-                continue;
-            }
-            // function_declarator
-            if self.consume_punctuator("(").is_some() {
-                // パラメータが0個の場合
-                if self.consume_punctuator(")").is_some() {
-                    let func_ty = Type::from(
-                        &TypeKind::Func {
-                            return_ty: var.ty,
-                            params: Vec::new(),
-                        },
-                        false,
-                    );
-                    var = Box::new(Var::new(&var.name, func_ty));
-                    continue;
-                }
+        let final_ty = self.parse_postfix_declarators(base_ty)?;
+        Ok(Box::new(Var::new(&name, *final_ty)))
+    }
 
+    // 右結合で解析
+    fn parse_postfix_declarators(&mut self, base_ty: Box<Type>) -> Result<Box<Type>, CompileError> {
+        // "[" type_qualifier_list? assignment_expression? "]"
+        if self.consume_punctuator("[").is_some() {
+            self.type_qualifier_list(); // 現状は型修飾子を無視
+            let array_size = self.expect_number()? as usize; // TODO: assign_exprに置き換え
+            self.expect_punctuator("]")?;
+            let inner_ty = self.parse_postfix_declarators(base_ty)?;
+            Ok(Box::new(Type::from(
+                &TypeKind::Array {
+                    base: inner_ty,
+                    size: array_size,
+                },
+                false,
+            )))
+        }
+        // "(" parameter_type_list ")"
+        else if self.consume_punctuator("(").is_some() {
+            let params = if self.consume_punctuator(")").is_some() {
+                // パラメータが0個の場合
+                Vec::new()
+            } else {
                 // パラメータが1個以上の場合
                 let params = self.parameter_type_list()?;
                 self.expect_punctuator(")")?;
-                let func_ty = Type::from(
-                    &TypeKind::Func {
-                        return_ty: var.ty,
-                        params,
-                    },
-                    false,
-                );
-                var = Box::new(Var::new(&var.name, func_ty));
-                continue;
-            }
-            break;
+                params
+            };
+            let inner_ty = self.parse_postfix_declarators(base_ty)?;
+            Ok(Box::new(Type::from(
+                &TypeKind::Func {
+                    return_ty: inner_ty,
+                    params,
+                },
+                false,
+            )))
+        } else {
+            Ok(base_ty)
         }
-        Ok(var)
     }
 
     // parameter_type_list ::= parameter_list
@@ -314,7 +304,6 @@ impl Ast {
         self.parameter_list()
     }
 
-    //
     // parameter_list ::= parameter_declaration ("," parameter_declaration)*
     fn parameter_list(&mut self) -> Result<Vec<Var>, CompileError> {
         let mut params = Vec::new();
@@ -349,72 +338,79 @@ impl Ast {
                 msg: "無効な型名です".to_string(),
             });
         }
-        let base_type = Type::from_tsq(&specifiers).unwrap();
-        if let Ok(abstract_ty) = self.abstract_declarator(base_type.clone()) {
+        let base_ty = Type::from_tsq(&specifiers).unwrap();
+        if let Ok(abstract_ty) = self.abstract_declarator(base_ty.clone()) {
             return Ok(abstract_ty);
         }
-        Ok(Box::new(base_type))
+        Ok(Box::new(base_ty))
     }
 
-    // abstract_declarator ::= pointer? direct_abstract_declarator
-    fn abstract_declarator(&mut self, base_type: Type) -> Result<Box<Type>, CompileError> {
-        let ty = self.pointer(Box::new(base_type));
+    // abstract_declarator ::= pointer // 未実装
+    //                         | pointer? direct_abstract_declarator
+    fn abstract_declarator(&mut self, base_ty: Type) -> Result<Box<Type>, CompileError> {
+        let ty = self.pointer(Box::new(base_ty));
         self.direct_abstract_declarator(ty)
     }
 
     // direct_abstract_declarator ::= "(" abstract_declarator ")"
-    //                                 | array_abstract_declarator
-    //                                 | function_abstract_declarator
+    //                                | direct_abstract_declarator "[" type_qualifier_list? assignment_expression? "]"
+    //                                | direct_abstract_declarator "(" parameter_type_list ")"
     fn direct_abstract_declarator(
         &mut self,
-        mut abstract_ty: Box<Type>,
+        base_ty: Box<Type>,
     ) -> Result<Box<Type>, CompileError> {
-        loop {
-            // array_abstract_declarator
-            if self.consume_punctuator("[").is_some() {
-                let array_size = self.expect_number()? as usize;
-                self.expect_punctuator("]")?;
-                let array_ty = Type::from(
-                    &TypeKind::Array {
-                        base: abstract_ty,
-                        size: array_size,
-                    },
-                    false,
-                );
-                abstract_ty = Box::new(array_ty);
-                continue;
-            }
-            // function_abstract_declarator
-            if self.consume_punctuator("(").is_some() {
-                // パラメータが0個の場合
-                if self.consume_punctuator(")").is_some() {
-                    let func_ty = Type::from(
-                        &TypeKind::Func {
-                            return_ty: abstract_ty,
-                            params: Vec::new(),
-                        },
-                        false,
-                    );
-                    abstract_ty = Box::new(func_ty);
-                    continue;
-                }
+        let mut current_ty = if self.consume_punctuator("(").is_some() {
+            let inner_ty = self.abstract_declarator(*base_ty.clone())?;
+            self.expect_punctuator(")")?;
+            inner_ty
+        } else {
+            base_ty
+        };
+        current_ty = self.parse_abstract_postfix_declarators(current_ty)?;
+        Ok(current_ty)
+    }
 
+    // 右結合で解析
+    fn parse_abstract_postfix_declarators(
+        &mut self,
+        base_ty: Box<Type>,
+    ) -> Result<Box<Type>, CompileError> {
+        // "[" type_qualifier_list? assignment_expression? "]"
+        if self.consume_punctuator("[").is_some() {
+            self.type_qualifier_list(); // 現状は型修飾子を無視
+            let array_size = self.expect_number()? as usize; // TODO: assign_exprに置き換え
+            self.expect_punctuator("]")?;
+            let inner_ty = self.parse_abstract_postfix_declarators(base_ty)?;
+            Ok(Box::new(Type::from(
+                &TypeKind::Array {
+                    base: inner_ty,
+                    size: array_size,
+                },
+                false,
+            )))
+        }
+        // "(" parameter_type_list ")"
+        else if self.consume_punctuator("(").is_some() {
+            let params = if self.consume_punctuator(")").is_some() {
+                // パラメータが0個の場合
+                Vec::new()
+            } else {
                 // パラメータが1個以上の場合
                 let params = self.parameter_type_list()?;
                 self.expect_punctuator(")")?;
-                let func_ty = Type::from(
-                    &TypeKind::Func {
-                        return_ty: abstract_ty,
-                        params,
-                    },
-                    false,
-                );
-                abstract_ty = Box::new(func_ty);
-                continue;
-            }
-            break;
+                params
+            };
+            let inner_ty = self.parse_abstract_postfix_declarators(base_ty)?;
+            Ok(Box::new(Type::from(
+                &TypeKind::Func {
+                    return_ty: inner_ty,
+                    params,
+                },
+                false,
+            )))
+        } else {
+            Ok(base_ty)
         }
-        Ok(abstract_ty)
     }
 
     // initializer ::= assignment_expr

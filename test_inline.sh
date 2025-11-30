@@ -157,11 +157,12 @@ assert 8 'int *p; return sizeof(p + 3);'
 assert 32 'int a[8]; return sizeof(a);'
 assert 8 'int a[8]; return sizeof(&a);'
 assert 128 'int a[8][4]; return sizeof(a);'
+assert 16 'int a[8][4]; return sizeof(a[0]);'
 assert 1 'return sizeof(char);'
 assert 4 'return sizeof(int);'
 assert 8 'return sizeof(int *);'
-assert 16 'return sizeof(int[4]);'
-# assert 16 'int a[8][4]; return sizeof(a[0]);' # TODO: 多次元配列宣言の修正
+assert 32 'return sizeof(int[8]);'
+assert 128 'return sizeof(int[8][4]);'
 
 echo + operator precedence and associativity
 assert 8 'return 1 << 2 + 1;'           # 1 << (2 + 1) = 8
