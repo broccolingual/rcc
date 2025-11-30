@@ -385,22 +385,22 @@ impl Ast {
         &mut self,
         node: Option<Box<Node>>,
     ) -> Result<Option<Box<Node>>, CompileError> {
-        if let Some(n) = &node {
-            if let NodeKind::Identifier { name } = &n.kind {
-                // 変数参照
-                if let Ok(current_func) = self.get_current_func()
-                    && let Some(lvar) = current_func.find_lvar(&name)
-                {
-                    // ローカル変数ノードを作成
-                    let node = Node::new_var(&lvar.name, lvar.offset, &lvar.ty, true);
-                    return Ok(Some(Box::new(node)));
-                } else if let Some(gvar) = self.find_gvar(&name) {
-                    // グローバル変数ノードを作成
-                    let node = Node::new_var(&gvar.name, 0, &gvar.ty, false);
-                    return Ok(Some(Box::new(node)));
-                }
-                Err(CompileError::UndefinedIdentifier { name: name.clone() })?;
+        if let Some(n) = &node
+            && let NodeKind::Identifier { name } = &n.kind
+        {
+            // 変数参照
+            if let Ok(current_func) = self.get_current_func()
+                && let Some(lvar) = current_func.find_lvar(name)
+            {
+                // ローカル変数ノードを作成
+                let node = Node::new_var(&lvar.name, lvar.offset, &lvar.ty, true);
+                return Ok(Some(Box::new(node)));
+            } else if let Some(gvar) = self.find_gvar(name) {
+                // グローバル変数ノードを作成
+                let node = Node::new_var(&gvar.name, 0, &gvar.ty, false);
+                return Ok(Some(Box::new(node)));
             }
+            Err(CompileError::UndefinedIdentifier { name: name.clone() })?;
         }
         Ok(node)
     }
@@ -444,9 +444,9 @@ impl Ast {
                     args,
                 })));
             } else if self.consume_punctuator(".").is_some() {
-                node = self.assign_identifier(node)?; // 識別子を変数に割り当て
+                unimplemented!("構造体メンバアクセスは未実装です");
             } else if self.consume_punctuator("->").is_some() {
-                node = self.assign_identifier(node)?; // 識別子を変数に割り当て
+                unimplemented!("構造体ポインタメンバアクセスは未実装です");
             } else if self.consume_punctuator("++").is_some() {
                 // post-increment
                 node = self.assign_identifier(node)?; // 識別子を変数に割り当て

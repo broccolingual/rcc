@@ -184,6 +184,6 @@ echo + struct declaration
 assert 0 'struct Point { int a, b; int *p; }; return 0;'
 assert 16 'struct { int a, b; int *p; } point; return sizeof(point);'
 assert 36 'struct { struct {int a; int b[3];} inner1, inner2; int b; } point; return sizeof(point);'
-assert 24 'struct { char a; int b; char c; int *d; } point; return sizeof(point);'
+assert 24 'char c; struct { char a; int b; char c; int *d; } point; int *p; return sizeof(point);'
 
 echo OK
