@@ -132,7 +132,7 @@ impl fmt::Debug for TypeKind {
             TypeKind::Double => write!(f, "double"),
             // ポインタや配列は再帰的に*をつけて表示
             TypeKind::Ptr { to } => write!(f, "{:?}*", to),
-            TypeKind::Array { base, .. } => write!(f, "{:?}*", base),
+            TypeKind::Array { base, size } => write!(f, "[{:?}; {}]", base, size),
             TypeKind::Struct { name, members } => write!(f, "struct {} {{ {:?} }}", name, members),
             TypeKind::Func { return_ty, params } => {
                 write!(f, "func(")?;
@@ -371,6 +371,23 @@ impl Type {
     // 型がスカラー型かどうか（整数型または浮動小数点型）
     pub fn is_scalar(&self) -> bool {
         self.is_integer() || self.is_floating_point()
+    }
+
+    // 型が構造体かどうか
+    pub fn is_struct(&self) -> bool {
+        matches!(&self.kind, TypeKind::Struct { .. })
+    }
+
+    // 構造体メンバーの検索
+    pub fn find_struct_member(&self, name: &str) -> Option<&Var> {
+        if let TypeKind::Struct { members, .. } = &self.kind {
+            for member in members {
+                if member.name == name {
+                    return Some(member);
+                }
+            }
+        }
+        None
     }
 
     // 型の実際のサイズ

@@ -157,7 +157,7 @@ assert 8 'int *p; return sizeof(p + 3);'
 assert 32 'int a[8]; return sizeof(a);'
 assert 8 'int a[8]; return sizeof(&a);'
 assert 128 'int a[8][4]; return sizeof(a);'
-# assert 16 'int a[8][4]; return sizeof(a[0]);' # TODO: 多次元配列の対応
+# assert 16 'int a[8][4]; return sizeof(a[0]);' # TODO: 多次元配列宣言の修正
 
 echo + operator precedence and associativity
 assert 8 'return 1 << 2 + 1;'           # 1 << (2 + 1) = 8
@@ -168,6 +168,10 @@ assert 1 'return 1 < 2 < 3;'           # (1 < 2) = 1, then 1 < 3 -> 1
 echo + pointer dereference and address-of
 assert 3 'int a; int *b; a = 3; b = &a; return *b;'
 assert 7 'int a; int *p; p = &a; *p = 7; return a;'
+
+echo + array access
+assert 3 'int a[5]; a[0] = 3; return a[0];'
+assert 8 'int a[5]; a[0] = 3; a[1] = 5; return a[0] + a[1];'
 
 echo + octal and hexadecimal number literals
 assert 10 'return 012;'

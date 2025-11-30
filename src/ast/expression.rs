@@ -379,19 +379,84 @@ impl Ast {
         self.postfix_expr()
     }
 
+    // 未確定の識別子をローカル変数またはグローバル変数に割り当てる
+    // その他のノードはそのまま返す
+    fn assign_identifier(
+        &mut self,
+        node: Option<Box<Node>>,
+    ) -> Result<Option<Box<Node>>, CompileError> {
+        if let Some(n) = &node {
+            if let NodeKind::Identifier { name } = &n.kind {
+                // 変数参照
+                if let Ok(current_func) = self.get_current_func()
+                    && let Some(lvar) = current_func.find_lvar(&name)
+                {
+                    // ローカル変数ノードを作成
+                    let node = Node::new_var(&lvar.name, lvar.offset, &lvar.ty, true);
+                    return Ok(Some(Box::new(node)));
+                } else if let Some(gvar) = self.find_gvar(&name) {
+                    // グローバル変数ノードを作成
+                    let node = Node::new_var(&gvar.name, 0, &gvar.ty, false);
+                    return Ok(Some(Box::new(node)));
+                }
+                Err(CompileError::UndefinedIdentifier { name: name.clone() })?;
+            }
+        }
+        Ok(node)
+    }
+
     // postfix_expr ::= primary_expr
+    //                  | postfix_expr "[" expr "]"
+    //                  | postfix_expr "(" argument_expr_list? ")"
+    //                  | postfix_expr "." identifier
+    //                  | postfix_expr "->" identifier
     //                  | postfix_expr ("++" | "--")
     fn postfix_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         let mut node = self.primary_expr()?;
 
         loop {
-            if self.consume_punctuator("++").is_some() {
+            if self.consume_punctuator("[").is_some() {
+                // 配列の場合は自動的にアドレスに変換
+                // 例: a[0] -> *(a + 0)
+                // 例: a[1][2] -> *(*(a + 1) + 2)
+                // TODO: 多次元配列アクセスの際の問題点の修正
+                node = self.assign_identifier(node)?; // 識別子を変数に割り当て
+                let add_node = Node::new(NodeKind::Add, node, self.expr()?);
+                node = Some(Box::new(Node::new_unary(
+                    NodeKind::Deref,
+                    Some(Box::new(add_node)),
+                )));
+                node.as_mut().unwrap().assign_types()?;
+                self.expect_punctuator("]")?;
+            } else if self.consume_punctuator("(").is_some() {
+                let args = self.argument_expr_list()?;
+                self.expect_punctuator(")")?;
+                node = Some(Box::new(Node::from(NodeKind::Call {
+                    name: if let Some(n) = &node
+                        && let NodeKind::Identifier { name } = &n.kind
+                    {
+                        name.clone()
+                    } else {
+                        return Err(CompileError::InternalError {
+                            msg: "関数呼び出しの関数名のパースに失敗しました".to_string(),
+                        });
+                    },
+                    args,
+                })));
+            } else if self.consume_punctuator(".").is_some() {
+                node = self.assign_identifier(node)?; // 識別子を変数に割り当て
+            } else if self.consume_punctuator("->").is_some() {
+                node = self.assign_identifier(node)?; // 識別子を変数に割り当て
+            } else if self.consume_punctuator("++").is_some() {
                 // post-increment
+                node = self.assign_identifier(node)?; // 識別子を変数に割り当て
                 node = Some(Box::new(Node::new_unary(NodeKind::PostInc, node)));
             } else if self.consume_punctuator("--").is_some() {
                 // post-decrement
+                node = self.assign_identifier(node)?; // 識別子を変数に割り当て
                 node = Some(Box::new(Node::new_unary(NodeKind::PostDec, node)));
             } else {
+                node = self.assign_identifier(node)?; // 識別子を変数に割り当て
                 return Ok(node);
             }
         }
@@ -420,8 +485,7 @@ impl Ast {
     }
 
     // primary_expr ::= "(" expr ")"
-    //                  | ident "(" argument_expr_list? ")"
-    //                  | ident ("[" expr "]")*
+    //                  | identifier
     //                  | string
     //                  | number
     fn primary_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
@@ -434,49 +498,8 @@ impl Ast {
         }
 
         if let Some(name) = self.consume_ident() {
-            // 関数呼び出し
-            if self.consume_punctuator("(").is_some() {
-                // 引数リストをパース
-                let args = self.argument_expr_list()?;
-                self.expect_punctuator(")")?;
-                return Ok(Some(Box::new(Node::from(NodeKind::Call { name, args }))));
-            }
-
-            // 変数参照
-            if let Ok(current_func) = self.get_current_func()
-                && let Some(lvar) = current_func.find_lvar(&name)
-            {
-                // ローカル変数ノードを作成
-                let node = Node::new_lvar(&lvar.name, lvar.offset, &lvar.ty);
-
-                // 配列の場合は自動的にアドレスに変換
-                // 例: a[0] -> *(a + 0)
-                // 例: a[1][2] -> *(*(a + 1) + 2)
-                // TODO: 多次元配列への対応
-                if self.consume_punctuator("[").is_some() {
-                    let add = Node::new(NodeKind::Add, Some(Box::new(node)), self.expr()?);
-                    let mut n = Box::new(Node::new_unary(NodeKind::Deref, Some(Box::new(add))));
-                    n.assign_types()?;
-                    self.expect_punctuator("]")?;
-                    return Ok(Some(n));
-                }
-                return Ok(Some(Box::new(node)));
-            } else if let Some(gvar) = self.find_gvar(&name) {
-                // グローバル変数ノードを作成
-                let node = Node::new_gvar(&gvar.name, &gvar.ty);
-
-                // 配列の場合は自動的にアドレスに変換
-                // TODO: 多次元配列への対応
-                if self.consume_punctuator("[").is_some() {
-                    let add = Node::new(NodeKind::Add, Some(Box::new(node)), self.expr()?);
-                    let mut n = Box::new(Node::new_unary(NodeKind::Deref, Some(Box::new(add))));
-                    n.assign_types()?;
-                    self.expect_punctuator("]")?;
-                    return Ok(Some(n));
-                }
-                return Ok(Some(Box::new(node)));
-            }
-            Err(CompileError::UndefinedIdentifier { name })?;
+            let node = Node::from(NodeKind::Identifier { name: name.clone() });
+            return Ok(Some(Box::new(node)));
         }
 
         if let Some(string) = self.consume_string() {

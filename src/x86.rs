@@ -163,8 +163,15 @@ impl Generator {
                     NodeKind::Addr => {
                         if let Some(lhs) = &init.lhs {
                             match &lhs.kind {
-                                NodeKind::GVar { name } => {
-                                    self.builder.add_row(&format!(".quad {}", name), true);
+                                NodeKind::Var { name, is_local, .. } => {
+                                    if !*is_local {
+                                        self.builder.add_row(&format!(".quad {}", name), true);
+                                    } else {
+                                        panic!(
+                                            "グローバル変数の初期化式にローカル変数のアドレスは使用できません: {}",
+                                            name
+                                        );
+                                    }
                                 }
                                 _ => {
                                     panic!(
@@ -236,9 +243,10 @@ impl Generator {
                 // initializerがある場合、初期化コードを生成
                 if arg.init.is_some() {
                     self.gen_addr(&Some(Box::new(Node {
-                        kind: NodeKind::LVar {
+                        kind: NodeKind::Var {
                             name: arg.name.clone(),
                             offset: arg.offset,
+                            is_local: true,
                         },
                         ..Default::default()
                     }))); // 変数のアドレスをスタックに積む
@@ -273,14 +281,19 @@ impl Generator {
                 NodeKind::Deref => {
                     self.gen_expr(&node.lhs); // ポインタの値を取得
                 }
-                NodeKind::LVar { offset, .. } => {
-                    self.builder
-                        .add_row(&format!("lea rax, [rbp-{}]", offset), true); // ローカル変数のアドレスを計算して取得
-                    self.builder.add_row("push rax", true); // 変数のアドレスをスタックに積む
-                }
-                NodeKind::GVar { name } => {
-                    self.builder
-                        .add_row(&format!("lea rax, {}[rip]", name), true); // RIP相対アドレッシングでアドレスを取得
+                NodeKind::Var {
+                    name,
+                    offset,
+                    is_local,
+                    ..
+                } => {
+                    if *is_local {
+                        self.builder
+                            .add_row(&format!("lea rax, [rbp-{}]", offset), true); // ローカル変数のアドレスを計算して取得
+                    } else {
+                        self.builder
+                            .add_row(&format!("lea rax, {}[rip]", name), true); // グローバル変数のアドレスを計算して取得
+                    }
                     self.builder.add_row("push rax", true); // 変数のアドレスをスタックに積む
                 }
                 _ => panic!("代入の左辺値が変数ではありません: {:?}", node.kind),
@@ -536,7 +549,7 @@ impl Generator {
                         .add_row(&format!("lea rax, .L.str.{}[rip]", index), true); // RIP相対アドレッシング
                     self.builder.add_row("push rax", true); // 文字列リテラルのアドレスをスタックに積む
                 }
-                NodeKind::LVar { .. } | NodeKind::GVar { .. } => {
+                NodeKind::Var { .. } => {
                     self.gen_addr(&Some(node.clone()));
                     if let Some(ty) = &node.ty
                         && !ty.is_array()

@@ -79,13 +79,14 @@ pub enum NodeKind {
     }, // goto
     Break,        // break
     Continue,     // continue
-    LVar {
+    Var {
         name: String,
         offset: usize,
-    }, // ローカル変数
-    GVar {
+        is_local: bool,
+    }, // 変数
+    Identifier {
         name: String,
-    }, // グローバル変数
+    }, // 識別子（変数名など）
     Return,       // return
     Number {
         val: i64,
@@ -139,11 +140,16 @@ impl fmt::Debug for Node {
             NodeKind::Number { val } => {
                 write!(f, ", val: {}", val)?;
             }
-            NodeKind::LVar { ref name, offset } => {
-                write!(f, ", name: {}, offset: {}", name, offset)?;
-            }
-            NodeKind::GVar { ref name } => {
-                write!(f, ", name: {}", name)?;
+            NodeKind::Var {
+                ref name,
+                offset,
+                is_local,
+            } => {
+                write!(
+                    f,
+                    ", name: {}, offset: {}, is_local: {}",
+                    name, offset, is_local
+                )?;
             }
             NodeKind::Call { ref name, ref args } => {
                 write!(f, ", name: {}, args: {:?}", name, args)?;
@@ -192,23 +198,12 @@ impl Node {
         node
     }
 
-    pub fn new_lvar(name: &str, offset: usize, ty: &Type) -> Self {
+    pub fn new_var(name: &str, offset: usize, ty: &Type, is_local: bool) -> Self {
         let mut node = Node::new(
-            NodeKind::LVar {
+            NodeKind::Var {
                 name: name.to_string(),
                 offset,
-            },
-            None,
-            None,
-        );
-        node.ty = Some(Box::new(ty.clone()));
-        node
-    }
-
-    pub fn new_gvar(name: &str, ty: &Type) -> Self {
-        let mut node = Node::new(
-            NodeKind::GVar {
-                name: name.to_string(),
+                is_local,
             },
             None,
             None,
@@ -247,11 +242,8 @@ impl Node {
             NodeKind::Number { .. } => {
                 // 数値リテラルの型はすでに設定されているはず
             }
-            NodeKind::LVar { .. } => {
-                // ローカル変数の型はすでに設定されているはず
-            }
-            NodeKind::GVar { .. } => {
-                // グローバル変数の型はすでに設定されているはず
+            NodeKind::Var { .. } => {
+                // 変数の型はすでに設定されているはず
             }
             NodeKind::Add | NodeKind::Sub | NodeKind::Mul | NodeKind::Div => {
                 let lhs_ty = self.lhs.as_ref().unwrap().ty.as_ref().unwrap();
