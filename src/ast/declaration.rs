@@ -239,7 +239,7 @@ impl Ast {
     }
 
     // direct_declarator ::= "(" declarator ")"
-    //                       | ident
+    //                       | identifier
     //                       | array_declarator
     //                       | function_declarator
     fn direct_declarator(&mut self, ty: Box<Type>) -> Result<Box<Var>, CompileError> {
@@ -339,6 +339,82 @@ impl Ast {
         Err(CompileError::InvalidDeclaration {
             msg: "無効なパラメータ宣言です".to_string(),
         })
+    }
+
+    // type_name ::= specifier_qualifier_list abstract_declarator?
+    pub(super) fn type_name(&mut self) -> Result<Box<Type>, CompileError> {
+        let specifiers = self.specifier_qualifier_list()?;
+        if specifiers.is_empty() {
+            return Err(CompileError::InvalidDeclaration {
+                msg: "無効な型名です".to_string(),
+            });
+        }
+        let base_type = Type::from_tsq(&specifiers).unwrap();
+        if let Ok(abstract_ty) = self.abstract_declarator(base_type.clone()) {
+            return Ok(abstract_ty);
+        }
+        Ok(Box::new(base_type))
+    }
+
+    // abstract_declarator ::= pointer? direct_abstract_declarator
+    fn abstract_declarator(&mut self, base_type: Type) -> Result<Box<Type>, CompileError> {
+        let ty = self.pointer(Box::new(base_type));
+        self.direct_abstract_declarator(ty)
+    }
+
+    // direct_abstract_declarator ::= "(" abstract_declarator ")"
+    //                                 | array_abstract_declarator
+    //                                 | function_abstract_declarator
+    fn direct_abstract_declarator(
+        &mut self,
+        mut abstract_ty: Box<Type>,
+    ) -> Result<Box<Type>, CompileError> {
+        loop {
+            // array_abstract_declarator
+            if self.consume_punctuator("[").is_some() {
+                let array_size = self.expect_number()? as usize;
+                self.expect_punctuator("]")?;
+                let array_ty = Type::from(
+                    &TypeKind::Array {
+                        base: abstract_ty,
+                        size: array_size,
+                    },
+                    false,
+                );
+                abstract_ty = Box::new(array_ty);
+                continue;
+            }
+            // function_abstract_declarator
+            if self.consume_punctuator("(").is_some() {
+                // パラメータが0個の場合
+                if self.consume_punctuator(")").is_some() {
+                    let func_ty = Type::from(
+                        &TypeKind::Func {
+                            return_ty: abstract_ty,
+                            params: Vec::new(),
+                        },
+                        false,
+                    );
+                    abstract_ty = Box::new(func_ty);
+                    continue;
+                }
+
+                // パラメータが1個以上の場合
+                let params = self.parameter_type_list()?;
+                self.expect_punctuator(")")?;
+                let func_ty = Type::from(
+                    &TypeKind::Func {
+                        return_ty: abstract_ty,
+                        params,
+                    },
+                    false,
+                );
+                abstract_ty = Box::new(func_ty);
+                continue;
+            }
+            break;
+        }
+        Ok(abstract_ty)
     }
 
     // initializer ::= assignment_expr

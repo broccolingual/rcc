@@ -294,7 +294,7 @@ impl Ast {
     //                | ("++" | "--") unary_expr
     //                | ( "&" | "*" | "+" | "-" | "~" | "!") cast_expr
     //                | sizeof unary_expr
-    //                | sizeof "(" type_name ")" // 未実装
+    //                | sizeof "(" type_name ")"
     fn unary_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         if self.consume_punctuator("++").is_some() {
             // pre-increment
@@ -361,6 +361,18 @@ impl Ast {
         }
 
         if self.consume_keyword("sizeof").is_some() {
+            // sizeof ( type_name )
+            if self.peek_punctuator("(") {
+                let token_pos = self.token_pos;
+                self.consume_punctuator("(");
+                if let Ok(ty) = self.type_name() {
+                    self.expect_punctuator(")")?;
+                    let size = ty.size_of();
+                    return Ok(Some(Box::new(Node::new_num(size as i64))));
+                }
+                self.token_pos = token_pos; // 型名をパースできなかった場合、トークン位置を元に戻す
+            }
+
             // sizeof unary_expr
             let mut node = self.unary_expr()?;
             if let Some(n) = &mut node {

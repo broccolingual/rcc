@@ -260,6 +260,13 @@ impl Ast {
         }
     }
 
+    fn peek_punctuator(&mut self, sym: &str) -> bool {
+        match self.get_token() {
+            Some(token) => matches!(&token.kind, TokenKind::Punctuator(s) if s == sym),
+            _ => false,
+        }
+    }
+
     fn at_eof(&mut self) -> bool {
         self.tokens.is_empty()
             || matches!(
@@ -288,8 +295,7 @@ impl Ast {
             self.funcs.push(func);
             return Ok(());
         }
-
-        self.token_pos = token_pos;
+        self.token_pos = token_pos; // 関数定義でなかった場合、トークン位置を元に戻す
         // グローバル変数宣言
         if let Some(vars) = self.declaration()? {
             for var in vars {
