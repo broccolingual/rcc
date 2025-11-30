@@ -414,21 +414,10 @@ impl Ast {
     }
 
     // initializer ::= assignment_expr
-    //                 | braced_initializer
+    //                 | "{" initializer_list "}" // 未実装
+    //                 | "{" initializer_list "," "}" // 未実装
     fn initializer(&mut self) -> Result<Option<Box<Node>>, CompileError> {
-        if let Some(init) = self.braced_initializer()? {
-            return Ok(Some(init));
-        }
         self.assign_expr()
-    }
-
-    // braced_initializer ::= "{" "}" // TODO: その他未実装
-    fn braced_initializer(&mut self) -> Result<Option<Box<Node>>, CompileError> {
-        if self.consume_punctuator("{").is_some() {
-            self.expect_punctuator("}")?;
-            return Ok(None);
-        }
-        Ok(None)
     }
 }
 
