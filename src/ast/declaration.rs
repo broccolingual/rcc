@@ -149,7 +149,7 @@ impl Ast {
             return Ok(None);
         }
         let base_ty = Type::from_tsq(&specifiers).unwrap();
-        let members = self.struct_declarator_list(base_ty)?;
+        let members = self.struct_declarator_list(&base_ty)?;
         self.expect_punctuator(";")?;
         if members.is_empty() {
             return Ok(None);
@@ -158,13 +158,13 @@ impl Ast {
     }
 
     // struct_declarator_list ::= struct_declarator ("," struct_declarator)*
-    fn struct_declarator_list(&mut self, base_ty: Type) -> Result<Vec<Var>, CompileError> {
+    fn struct_declarator_list(&mut self, base_ty: &Type) -> Result<Vec<Var>, CompileError> {
         let mut members = Vec::new();
-        if let Some(member) = self.struct_declarator(base_ty.clone())? {
+        if let Some(member) = self.struct_declarator(base_ty)? {
             members.push(*member);
         }
         while self.consume_punctuator(",").is_some() {
-            if let Some(member) = self.struct_declarator(base_ty.clone())? {
+            if let Some(member) = self.struct_declarator(base_ty)? {
                 members.push(*member);
             }
         }
@@ -172,8 +172,8 @@ impl Ast {
     }
 
     // struct_declarator ::= declarator
-    fn struct_declarator(&mut self, base_ty: Type) -> Result<Option<Box<Var>>, CompileError> {
-        if let Ok(var) = self.declarator(base_ty) {
+    fn struct_declarator(&mut self, base_ty: &Type) -> Result<Option<Box<Var>>, CompileError> {
+        if let Ok(var) = self.declarator(base_ty.clone()) {
             return Ok(Some(var));
         }
         Ok(None)
@@ -339,7 +339,7 @@ impl Ast {
             });
         }
         let base_ty = Type::from_tsq(&specifiers).unwrap();
-        if let Ok(abstract_ty) = self.abstract_declarator(base_ty.clone()) {
+        if let Ok(abstract_ty) = self.abstract_declarator(&base_ty) {
             return Ok(abstract_ty);
         }
         Ok(Box::new(base_ty))
@@ -347,8 +347,8 @@ impl Ast {
 
     // abstract_declarator ::= pointer // 未実装
     //                         | pointer? direct_abstract_declarator
-    fn abstract_declarator(&mut self, base_ty: Type) -> Result<Box<Type>, CompileError> {
-        let ty = self.pointer(Box::new(base_ty));
+    fn abstract_declarator(&mut self, base_ty: &Type) -> Result<Box<Type>, CompileError> {
+        let ty = self.pointer(Box::new(base_ty.clone()));
         self.direct_abstract_declarator(ty)
     }
 
@@ -360,7 +360,7 @@ impl Ast {
         base_ty: Box<Type>,
     ) -> Result<Box<Type>, CompileError> {
         let mut current_ty = if self.consume_punctuator("(").is_some() {
-            let inner_ty = self.abstract_declarator(*base_ty.clone())?;
+            let inner_ty = self.abstract_declarator(&*base_ty)?;
             self.expect_punctuator(")")?;
             inner_ty
         } else {
