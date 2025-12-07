@@ -298,18 +298,60 @@ impl Ast {
     fn unary_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         if self.consume_punctuator("++").is_some() {
             // pre-increment
-            // TODO: ポインタ・配列のスケーリングを考慮
+            let mut operand = self.unary_expr()?;
+            operand.as_mut().unwrap().assign_types()?;
+            
+            // ポインタ・配列のスケーリングを考慮
+            if let Some(op) = &operand
+                && let Some(ty) = &op.ty
+                && ty.is_ptr_or_array()
+            {
+                // ++ptr を ptr += sizeof(*ptr) に変換
+                let size = ty.base_type().size_of();
+                let add_node = Some(Box::new(Node::new(
+                    NodeKind::Add,
+                    operand.clone(),
+                    Some(Box::new(Node::new_num(size as i64))),
+                )));
+                return Ok(Some(Box::new(Node::new(
+                    NodeKind::Assign,
+                    operand,
+                    add_node,
+                ))));
+            }
+            
             return Ok(Some(Box::new(Node::new_unary(
                 NodeKind::PreInc,
-                self.unary_expr()?,
+                operand,
             ))));
         }
         if self.consume_punctuator("--").is_some() {
             // pre-decrement
-            // TODO: ポインタ・配列のスケーリングを考慮
+            let mut operand = self.unary_expr()?;
+            operand.as_mut().unwrap().assign_types()?;
+            
+            // ポインタ・配列のスケーリングを考慮
+            if let Some(op) = &operand
+                && let Some(ty) = &op.ty
+                && ty.is_ptr_or_array()
+            {
+                // --ptr を ptr -= sizeof(*ptr) に変換
+                let size = ty.base_type().size_of();
+                let sub_node = Some(Box::new(Node::new(
+                    NodeKind::Sub,
+                    operand.clone(),
+                    Some(Box::new(Node::new_num(size as i64))),
+                )));
+                return Ok(Some(Box::new(Node::new(
+                    NodeKind::Assign,
+                    operand,
+                    sub_node,
+                ))));
+            }
+            
             return Ok(Some(Box::new(Node::new_unary(
                 NodeKind::PreDec,
-                self.unary_expr()?,
+                operand,
             ))));
         }
 
@@ -478,11 +520,65 @@ impl Ast {
             } else if self.consume_punctuator("++").is_some() {
                 // post-increment
                 node = self.assign_identifier(node)?; // 識別子を変数に割り当て
-                node = Some(Box::new(Node::new_unary(NodeKind::PostInc, node)));
+                
+                // ポインタ・配列のスケーリングを考慮
+                if let Some(n) = &node
+                    && let Some(ty) = &n.ty
+                    && ty.is_ptr_or_array()
+                {
+                    // ptr++ を (tmp = ptr, ptr = ptr + sizeof(*ptr), tmp) に変換
+                    // ただし、これを単純なノードで表現するために、
+                    // ptr++ を ptr += sizeof(*ptr) に変換し、後で減算して元の値を返すようにする
+                    let size = ty.base_type().size_of();
+                    let add_node = Some(Box::new(Node::new(
+                        NodeKind::Add,
+                        node.clone(),
+                        Some(Box::new(Node::new_num(size as i64))),
+                    )));
+                    let assign_node = Box::new(Node::new(
+                        NodeKind::Assign,
+                        node.clone(),
+                        add_node,
+                    ));
+                    // 代入後、元の値を返すために size を減算
+                    node = Some(Box::new(Node::new(
+                        NodeKind::Sub,
+                        Some(assign_node),
+                        Some(Box::new(Node::new_num(size as i64))),
+                    )));
+                } else {
+                    node = Some(Box::new(Node::new_unary(NodeKind::PostInc, node)));
+                }
             } else if self.consume_punctuator("--").is_some() {
                 // post-decrement
                 node = self.assign_identifier(node)?; // 識別子を変数に割り当て
-                node = Some(Box::new(Node::new_unary(NodeKind::PostDec, node)));
+                
+                // ポインタ・配列のスケーリングを考慮
+                if let Some(n) = &node
+                    && let Some(ty) = &n.ty
+                    && ty.is_ptr_or_array()
+                {
+                    // ptr-- を (tmp = ptr, ptr = ptr - sizeof(*ptr), tmp) に変換
+                    let size = ty.base_type().size_of();
+                    let sub_node = Some(Box::new(Node::new(
+                        NodeKind::Sub,
+                        node.clone(),
+                        Some(Box::new(Node::new_num(size as i64))),
+                    )));
+                    let assign_node = Box::new(Node::new(
+                        NodeKind::Assign,
+                        node.clone(),
+                        sub_node,
+                    ));
+                    // 代入後、元の値を返すために size を加算
+                    node = Some(Box::new(Node::new(
+                        NodeKind::Add,
+                        Some(assign_node),
+                        Some(Box::new(Node::new_num(size as i64))),
+                    )));
+                } else {
+                    node = Some(Box::new(Node::new_unary(NodeKind::PostDec, node)));
+                }
             } else {
                 node = self.assign_identifier(node)?; // 識別子を変数に割り当て
                 return Ok(node);
