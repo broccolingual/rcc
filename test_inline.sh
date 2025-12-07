@@ -205,7 +205,10 @@ assert 5 'int a; int *p; int **pp; a = 5; p = &a; pp = &p; return **pp;'
 echo + arrays
 assert 3 'int a[5]; a[0] = 3; return a[0];'
 assert 8 'int a[5]; a[0] = 3; a[1] = 5; return a[0] + a[1];'
-# assert 2 'int a[3]; *a = 1; *(a + 1) = 2; return a[1];' # TODO: 配列とポインタの相互変換
+assert 2 'int a[3]; *(a + 1) = 2; return a[1];'
+assert 1 'int a[2][3]; a[1][2] = 1; return a[1][2];'
+assert 5 'int a[2][3]; *(*(a + 1) + 2) = 5; return a[1][2];'
+assert 2 'int i = 2; int a[2][3]; a[1][i - 1] = 2; return a[1][1];'
 
 echo + goto and labels
 assert 5 'int a; a = 0; goto skip; a = 10; skip: a = a + 5; return a;'

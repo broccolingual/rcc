@@ -641,7 +641,13 @@ impl Generator {
                 }
                 NodeKind::Deref => {
                     self.gen_expr(&node.lhs);
-                    self.load(&node.lhs.as_ref().unwrap().ty);
+                    // 型が配列でない場合にロード
+                    // 配列型の場合、アドレスをスタックに積むだけ
+                    if let Some(ty) = &node.ty
+                        && !ty.is_array()
+                    {
+                        self.load(&Some(ty.clone()));
+                    }
                 }
                 NodeKind::LogicalAnd => {
                     let seq = self.label_seq;

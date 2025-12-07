@@ -431,14 +431,28 @@ impl Ast {
                 // 配列の場合は自動的にアドレスに変換
                 // 例: a[0] -> *(a + 0)
                 // 例: a[1][2] -> *(*(a + 1) + 2)
-                // TODO: 多次元配列アクセスの際の問題点の修正
                 node = self.assign_identifier(node)?; // 識別子を変数に割り当て
-                let add_node = Node::new(NodeKind::Add, node, self.expr()?);
-                node = Some(Box::new(Node::new_unary(
-                    NodeKind::Deref,
-                    Some(Box::new(add_node)),
-                )));
-                node.as_mut().unwrap().assign_types()?;
+                let index_expr = self.expr()?;
+                let scaled_add = if let Some(n) = &node
+                    && let Some(ty) = &n.ty
+                    && ty.is_ptr_or_array()
+                {
+                    // ポインタまたは配列型の場合、スケーリングを考慮
+                    let size = ty.base_type().size_of();
+                    let scaled_index = Some(Box::new(Node::new(
+                        NodeKind::Mul,
+                        index_expr,
+                        Some(Box::new(Node::new_num(size as i64))),
+                    )));
+                    Some(Box::new(Node::new(NodeKind::Add, node, scaled_index)))
+                } else {
+                    return Err(CompileError::InternalError {
+                        msg: "配列またはポインタ型ではないものに配列アクセスが行われました"
+                            .to_string(),
+                    })?;
+                };
+                node = Some(Box::new(Node::new_unary(NodeKind::Deref, scaled_add)));
+                node.as_mut().unwrap().assign_types()?; // nodeの型情報を設定
                 self.expect_punctuator("]")?;
             } else if self.consume_punctuator("(").is_some() {
                 let args = self.argument_expr_list()?;
