@@ -14,7 +14,7 @@ pub struct Var {
     pub name: String,
     pub offset: usize,
     pub ty: Box<Type>,
-    pub init: Option<Box<Node>>,
+    pub init: Vec<Option<Box<Node>>>,
 }
 
 impl Var {
@@ -23,7 +23,7 @@ impl Var {
             name: name.to_string(),
             offset: 0,
             ty: Box::new(ty),
-            init: None,
+            init: Vec::new(),
         }
     }
 }
@@ -31,8 +31,25 @@ impl Var {
 impl fmt::Debug for Var {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}: {:?} (offset: {})", self.name, self.ty, self.offset)?;
-        if self.init.is_some() {
-            write!(f, " = {:?}", self.init)?;
+        if !self.init.is_empty() {
+            if self.init.len() == 1 {
+                write!(f, " = ")?;
+            } else {
+                write!(f, " = {{ ")?;
+            }
+            for (i, init_node) in self.init.iter().enumerate() {
+                if let Some(node) = init_node {
+                    write!(f, "{:?}", node)?;
+                } else {
+                    write!(f, "None")?;
+                }
+                if i != self.init.len() - 1 {
+                    write!(f, ", ")?;
+                }
+            }
+            if self.init.len() > 1 {
+                write!(f, " }}")?;
+            }
         }
         Ok(())
     }

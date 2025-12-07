@@ -143,50 +143,63 @@ impl Generator {
             self.builder
                 .add_row(&format!(".size {}, {}", gvar.name, gvar.ty.size_of()), true);
             self.builder.add_row(&format!("{}:", gvar.name), false);
-            if let Some(init) = gvar.init.as_ref() {
-                match init.kind {
-                    NodeKind::Number { val } => match gvar.ty.size_of() {
-                        1 => {
-                            self.builder.add_row(&format!(".byte {}", val), true);
-                        }
-                        2 => {
-                            self.builder.add_row(&format!(".word {}", val), true);
-                        }
-                        4 => {
-                            self.builder.add_row(&format!(".long {}", val), true);
-                        }
-                        8 => {
-                            self.builder.add_row(&format!(".quad {}", val), true);
-                        }
-                        _ => panic!("未対応のグローバル変数初期化サイズ: {}", gvar.ty.size_of()),
-                    },
-                    NodeKind::Addr => {
-                        if let Some(lhs) = &init.lhs {
-                            match &lhs.kind {
-                                NodeKind::Var { name, is_local, .. } => {
-                                    if !*is_local {
-                                        self.builder.add_row(&format!(".quad {}", name), true);
-                                    } else {
-                                        panic!(
-                                            "グローバル変数の初期化式にローカル変数のアドレスは使用できません: {}",
-                                            name
-                                        );
-                                    }
+            if !gvar.init.is_empty() {
+                if gvar.init.len() == 1 {
+                    if let Some(init) = &gvar.init[0] {
+                        match init.kind {
+                            NodeKind::Number { val } => match gvar.ty.size_of() {
+                                1 => {
+                                    self.builder.add_row(&format!(".byte {}", val), true);
+                                }
+                                2 => {
+                                    self.builder.add_row(&format!(".word {}", val), true);
+                                }
+                                4 => {
+                                    self.builder.add_row(&format!(".long {}", val), true);
+                                }
+                                8 => {
+                                    self.builder.add_row(&format!(".quad {}", val), true);
                                 }
                                 _ => {
                                     panic!(
-                                        "未対応のグローバル変数初期化式のアドレス指定: {:?}",
-                                        lhs.kind
-                                    );
+                                        "未対応のグローバル変数初期化サイズ: {}",
+                                        gvar.ty.size_of()
+                                    )
+                                }
+                            },
+                            NodeKind::Addr => {
+                                if let Some(lhs) = &init.lhs {
+                                    match &lhs.kind {
+                                        NodeKind::Var { name, is_local, .. } => {
+                                            if !*is_local {
+                                                self.builder
+                                                    .add_row(&format!(".quad {}", name), true);
+                                            } else {
+                                                panic!(
+                                                    "グローバル変数の初期化式にローカル変数のアドレスは使用できません: {}",
+                                                    name
+                                                );
+                                            }
+                                        }
+                                        _ => {
+                                            panic!(
+                                                "未対応のグローバル変数初期化式のアドレス指定: {:?}",
+                                                lhs.kind
+                                            );
+                                        }
+                                    }
                                 }
                             }
+                            NodeKind::String { index, .. } => {
+                                self.builder
+                                    .add_row(&format!(".quad .L.str.{}", index), true);
+                            }
+                            _ => panic!("未対応のグローバル変数初期化式: {:?}", init.kind),
                         }
                     }
-                    NodeKind::String { index, .. } => {
-                        self.builder
-                            .add_row(&format!(".quad .L.str.{}", index), true);
-                    }
-                    _ => panic!("未対応のグローバル変数初期化式: {:?}", init.kind),
+                } else {
+                    // TODO: 配列や構造体の初期化
+                    unimplemented!("配列や構造体のグローバル変数初期化には未対応です");
                 }
             } else {
                 self.builder
@@ -241,17 +254,22 @@ impl Generator {
                 );
 
                 // initializerがある場合、初期化コードを生成
-                if arg.init.is_some() {
-                    self.gen_addr(&Some(Box::new(Node {
-                        kind: NodeKind::Var {
-                            name: arg.name.clone(),
-                            offset: arg.offset,
-                            is_local: true,
-                        },
-                        ..Default::default()
-                    }))); // 変数のアドレスをスタックに積む
-                    self.gen_expr(&arg.init); // 初期化式のコードを生成し、スタックに値を積む
-                    self.store(&Some(arg.ty.clone())); // スタックトップの値を変数に格納
+                if !arg.init.is_empty() {
+                    if arg.init.len() == 1 {
+                        self.gen_addr(&Some(Box::new(Node {
+                            kind: NodeKind::Var {
+                                name: arg.name.clone(),
+                                offset: arg.offset,
+                                is_local: true,
+                            },
+                            ..Default::default()
+                        }))); // 変数のアドレスをスタックに積む
+                        self.gen_expr(&arg.init[0]); // 初期化式のコードを生成し、スタックに値を積む
+                        self.store(&Some(arg.ty.clone())); // スタックトップの値を変数に格納
+                    } else {
+                        // TODO: 配列や構造体の初期化
+                        unimplemented!("配列や構造体のローカル変数初期化には未対応です");
+                    }
                 }
             }
 

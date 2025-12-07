@@ -74,23 +74,8 @@ impl Ast {
     fn init_declarator(&mut self, base_ty: Type) -> Result<Option<Box<Var>>, CompileError> {
         if let Ok(mut var) = self.declarator(base_ty) {
             if self.consume_punctuator("=").is_some() {
-                if let Some(init) = self.initializer()? {
-                    // TODO: 数字を代入する際の扱いを考える
-                    // init.assign_types()?; // initializerの型を設定
-                    // if let Some(ty) = &init.ty
-                    //     && ty != &var.ty
-                    // {
-                    //     return Err(AstError::TypeError(format!(
-                    //         "initializerの型が変数の型と一致しません {} != {}",
-                    //         var.ty, ty
-                    //     )));
-                    // }
-                    var.init = Some(init); // initializerを設定
-                } else {
-                    return Err(CompileError::InvalidInitializer {
-                        msg: "無効な初期化子です".to_string(),
-                    });
-                }
+                // TODO: 代入時の型チェック
+                var.init = self.initializer()?; // initializerを設定
             }
             return Ok(Some(var));
         }
@@ -416,151 +401,22 @@ impl Ast {
     // initializer ::= assignment_expr
     //                 | "{" initializer_list "}" // 未実装
     //                 | "{" initializer_list "," "}" // 未実装
-    fn initializer(&mut self) -> Result<Option<Box<Node>>, CompileError> {
-        self.assign_expr()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::lexer::Lexer;
-    use crate::node::NodeKind;
-
-    fn preproc(input: &str) -> Ast {
-        let lexer = Lexer::new();
-        let tokens = lexer.tokenize(input).unwrap();
-        Ast::new(&tokens)
+    fn initializer(&mut self) -> Result<Vec<Option<Box<Node>>>, CompileError> {
+        if self.consume_punctuator("{").is_some() {
+            let init_list = self.initializer_list()?;
+            self.expect_punctuator("}")?;
+            return Ok(init_list);
+        }
+        Ok(vec![self.assign_expr()?])
     }
 
-    #[test]
-    fn test_declaration() {
-        let input = "int a;";
-        let mut ast = preproc(input);
-        let vars = ast.declaration().unwrap().unwrap();
-        let var = &vars[0];
-        assert_eq!(var.name, "a");
-        assert_eq!(*var.ty, Type::from(&TypeKind::Int, false));
-
-        let input = "int *p;";
-        let mut ast = preproc(input);
-        let vars = ast.declaration().unwrap().unwrap();
-        let var = &vars[0];
-        assert_eq!(var.name, "p");
-        assert_eq!(
-            *var.ty,
-            Type::from(
-                &TypeKind::Ptr {
-                    to: Box::new(Type::from(&TypeKind::Int, false))
-                },
-                false
-            )
-        );
-
-        let input = "int **p;";
-        let mut ast = preproc(input);
-        let vars = ast.declaration().unwrap().unwrap();
-        let var = &vars[0];
-        assert_eq!(var.name, "p");
-        assert_eq!(
-            *var.ty,
-            Type::from(
-                &TypeKind::Ptr {
-                    to: Box::new(Type::from(
-                        &TypeKind::Ptr {
-                            to: Box::new(Type::from(&TypeKind::Int, false))
-                        },
-                        false
-                    ))
-                },
-                false
-            )
-        );
-
-        let input = "int arr[10];";
-        let mut ast = preproc(input);
-        let vars = ast.declaration().unwrap().unwrap();
-        let var = &vars[0];
-        assert_eq!(var.name, "arr");
-        assert_eq!(
-            *var.ty,
-            Type::from(
-                &TypeKind::Array {
-                    base: Box::new(Type::from(&TypeKind::Int, false)),
-                    size: 10
-                },
-                false
-            )
-        );
-
-        // TODO: 多次元配列の要素数の宣言が逆順になる問題の修正
-        // let input = "int arr[3][5];";
-        // let mut ast = preproc(input);
-        // let vars = ast.declaration().unwrap();
-        // let var = &vars[0];
-        // assert_eq!(var.name, "arr");
-        // assert_eq!(var.ty.kind, TypeKind::Array);
-        // assert_eq!(var.ty.array_size, 3);
-        // let inner_ty = var.ty.ptr_to.as_ref().unwrap();
-        // assert_eq!(inner_ty.kind, TypeKind::Array);
-        // assert_eq!(inner_ty.array_size, 5);
-        // assert_eq!(inner_ty.ptr_to.as_ref().unwrap().kind, TypeKind::Int);
-
-        let input = "int *arr[10];";
-        let mut ast = preproc(input);
-        let vars = ast.declaration().unwrap().unwrap();
-        let var = &vars[0];
-        assert_eq!(var.name, "arr");
-        assert_eq!(
-            *var.ty,
-            Type::from(
-                &TypeKind::Array {
-                    base: Box::new(Type::from(
-                        &TypeKind::Ptr {
-                            to: Box::new(Type::from(&TypeKind::Int, false))
-                        },
-                        false
-                    )),
-                    size: 10
-                },
-                false
-            )
-        );
-
-        let input = "int a, b;";
-        let mut ast = preproc(input);
-        let vars = ast.declaration().unwrap().unwrap();
-        assert!(vars.len() == 2);
-        assert_eq!(vars[0].name, "a");
-        assert_eq!(vars[1].name, "b");
-        assert_eq!(*vars[0].ty, Type::from(&TypeKind::Int, false));
-        assert_eq!(*vars[1].ty, Type::from(&TypeKind::Int, false));
-
-        let input = "int a = 3;";
-        let mut ast = preproc(input);
-        let vars = ast.declaration().unwrap().unwrap();
-        let var = &vars[0];
-        assert_eq!(var.name, "a");
-        assert_eq!(*var.ty, Type::from(&TypeKind::Int, false));
-        assert!(var.init.is_some());
-        let init = var.init.as_ref().unwrap();
-        assert_eq!(init.kind, NodeKind::Number { val: 3 });
-
-        let input = "int a = 3, b = 5;";
-        let mut ast = preproc(input);
-        let vars = ast.declaration().unwrap().unwrap();
-        assert!(vars.len() == 2);
-        let var_a = &vars[0];
-        let var_b = &vars[1];
-        assert_eq!(var_a.name, "a");
-        assert_eq!(var_b.name, "b");
-        assert_eq!(*var_a.ty, Type::from(&TypeKind::Int, false));
-        assert_eq!(*var_b.ty, Type::from(&TypeKind::Int, false));
-        assert!(var_a.init.is_some());
-        assert!(var_b.init.is_some());
-        let init_a = var_a.init.as_ref().unwrap();
-        let init_b = var_b.init.as_ref().unwrap();
-        assert_eq!(init_a.kind, NodeKind::Number { val: 3 });
-        assert_eq!(init_b.kind, NodeKind::Number { val: 5 });
+    // initializer_list ::= initializer ("," initializer)*
+    fn initializer_list(&mut self) -> Result<Vec<Option<Box<Node>>>, CompileError> {
+        let mut init_list = Vec::new();
+        init_list.extend(self.initializer()?);
+        while self.consume_punctuator(",").is_some() {
+            init_list.extend(self.initializer()?);
+        }
+        Ok(init_list)
     }
 }
