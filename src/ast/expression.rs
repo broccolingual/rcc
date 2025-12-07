@@ -299,25 +299,26 @@ impl Ast {
         if self.consume_punctuator("++").is_some() {
             // pre-increment
             let mut operand = self.unary_expr()?;
-            operand.as_mut().unwrap().assign_types()?;
-            
-            // ポインタ・配列のスケーリングを考慮
-            if let Some(op) = &operand
-                && let Some(ty) = &op.ty
-                && ty.is_ptr_or_array()
-            {
-                // ++ptr を ptr += sizeof(*ptr) に変換
-                let size = ty.base_type().size_of();
-                let add_node = Some(Box::new(Node::new(
-                    NodeKind::Add,
-                    operand.clone(),
-                    Some(Box::new(Node::new_num(size as i64))),
-                )));
-                return Ok(Some(Box::new(Node::new(
-                    NodeKind::Assign,
-                    operand,
-                    add_node,
-                ))));
+            if let Some(ref mut op) = operand {
+                op.assign_types()?;
+                
+                // ポインタ・配列のスケーリングを考慮
+                if let Some(ty) = &op.ty {
+                    if ty.is_ptr_or_array() {
+                        // ++ptr を ptr += sizeof(*ptr) に変換
+                        let size = ty.base_type().size_of();
+                        let add_node = Some(Box::new(Node::new(
+                            NodeKind::Add,
+                            operand.clone(),
+                            Some(Box::new(Node::new_num(size as i64))),
+                        )));
+                        return Ok(Some(Box::new(Node::new(
+                            NodeKind::Assign,
+                            operand,
+                            add_node,
+                        ))));
+                    }
+                }
             }
             
             return Ok(Some(Box::new(Node::new_unary(
@@ -328,25 +329,26 @@ impl Ast {
         if self.consume_punctuator("--").is_some() {
             // pre-decrement
             let mut operand = self.unary_expr()?;
-            operand.as_mut().unwrap().assign_types()?;
-            
-            // ポインタ・配列のスケーリングを考慮
-            if let Some(op) = &operand
-                && let Some(ty) = &op.ty
-                && ty.is_ptr_or_array()
-            {
-                // --ptr を ptr -= sizeof(*ptr) に変換
-                let size = ty.base_type().size_of();
-                let sub_node = Some(Box::new(Node::new(
-                    NodeKind::Sub,
-                    operand.clone(),
-                    Some(Box::new(Node::new_num(size as i64))),
-                )));
-                return Ok(Some(Box::new(Node::new(
-                    NodeKind::Assign,
-                    operand,
-                    sub_node,
-                ))));
+            if let Some(ref mut op) = operand {
+                op.assign_types()?;
+                
+                // ポインタ・配列のスケーリングを考慮
+                if let Some(ty) = &op.ty {
+                    if ty.is_ptr_or_array() {
+                        // --ptr を ptr -= sizeof(*ptr) に変換
+                        let size = ty.base_type().size_of();
+                        let sub_node = Some(Box::new(Node::new(
+                            NodeKind::Sub,
+                            operand.clone(),
+                            Some(Box::new(Node::new_num(size as i64))),
+                        )));
+                        return Ok(Some(Box::new(Node::new(
+                            NodeKind::Assign,
+                            operand,
+                            sub_node,
+                        ))));
+                    }
+                }
             }
             
             return Ok(Some(Box::new(Node::new_unary(
@@ -526,9 +528,9 @@ impl Ast {
                     && let Some(ty) = &n.ty
                     && ty.is_ptr_or_array()
                 {
-                    // ptr++ を (tmp = ptr, ptr = ptr + sizeof(*ptr), tmp) に変換
-                    // ただし、これを単純なノードで表現するために、
-                    // ptr++ を ptr += sizeof(*ptr) に変換し、後で減算して元の値を返すようにする
+                    // ptr++ の意味: 元の値を返し、ptr を sizeof(*ptr) だけ増やす
+                    // 実装: (ptr = ptr + sizeof(*ptr)) - sizeof(*ptr)
+                    // つまり、代入式は新しい値を返すので、それから size を引くことで元の値を得る
                     let size = ty.base_type().size_of();
                     let add_node = Some(Box::new(Node::new(
                         NodeKind::Add,
@@ -558,7 +560,9 @@ impl Ast {
                     && let Some(ty) = &n.ty
                     && ty.is_ptr_or_array()
                 {
-                    // ptr-- を (tmp = ptr, ptr = ptr - sizeof(*ptr), tmp) に変換
+                    // ptr-- の意味: 元の値を返し、ptr を sizeof(*ptr) だけ減らす
+                    // 実装: (ptr = ptr - sizeof(*ptr)) + sizeof(*ptr)
+                    // つまり、代入式は新しい値を返すので、それに size を足すことで元の値を得る
                     let size = ty.base_type().size_of();
                     let sub_node = Some(Box::new(Node::new(
                         NodeKind::Sub,
