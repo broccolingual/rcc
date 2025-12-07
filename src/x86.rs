@@ -354,16 +354,12 @@ impl Generator {
 
     // int を 1 加算
     fn inc(&mut self) {
-        self.builder.add_row("pop rax", true);
-        self.builder.add_row("inc rax", true);
-        self.builder.add_row("push rax", true);
+        self.builder.add_row("inc QWORD PTR [rsp]", true);
     }
 
     // int を 1 減算
     fn dec(&mut self) {
-        self.builder.add_row("pop rax", true);
-        self.builder.add_row("dec rax", true);
-        self.builder.add_row("push rax", true);
+        self.builder.add_row("dec QWORD PTR [rsp]", true);
     }
 
     // 文のコード生成
@@ -627,14 +623,12 @@ impl Generator {
                     self.builder.add_row("pop rax", true);
                     self.builder.add_row("cmp rax, 0", true);
                     self.builder.add_row("sete al", true);
-                    self.builder.add_row("movzb rax, al", true);
+                    self.builder.add_row("movzx rax, al", true);
                     self.builder.add_row("push rax", true);
                 }
                 NodeKind::BitNot => {
                     self.gen_expr(&node.lhs);
-                    self.builder.add_row("pop rax", true);
-                    self.builder.add_row("not rax", true);
-                    self.builder.add_row("push rax", true);
+                    self.builder.add_row("not QWORD PTR [rsp]", true);
                 }
                 NodeKind::Addr => {
                     self.gen_addr(&node.lhs);
@@ -753,22 +747,22 @@ impl Generator {
                 NodeKind::Eq => {
                     self.builder.add_row("cmp rax, rdi", true);
                     self.builder.add_row("sete al", true);
-                    self.builder.add_row("movzb rax, al", true);
+                    self.builder.add_row("movzx eax, al", true);
                 }
                 NodeKind::Ne => {
                     self.builder.add_row("cmp rax, rdi", true);
                     self.builder.add_row("setne al", true);
-                    self.builder.add_row("movzb rax, al", true);
+                    self.builder.add_row("movzx eax, al", true);
                 }
                 NodeKind::Lt => {
                     self.builder.add_row("cmp rax, rdi", true);
                     self.builder.add_row("setl al", true);
-                    self.builder.add_row("movzb rax, al", true);
+                    self.builder.add_row("movzx eax, al", true);
                 }
                 NodeKind::Le => {
                     self.builder.add_row("cmp rax, rdi", true);
                     self.builder.add_row("setle al", true);
-                    self.builder.add_row("movzb rax, al", true);
+                    self.builder.add_row("movzx eax, al", true);
                 }
                 _ => {}
             }
