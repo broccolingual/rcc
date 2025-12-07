@@ -222,7 +222,7 @@ impl Generator {
 
             // 関数のローカル変数に対応するスタック領域を確保
             // ローカル変数の最大オフセットに基づいてスタック領域を計算
-            let max_offset = func.locals.first().map_or(0, |arg| arg.offset);
+            let max_offset = func.locals.last().map_or(0, |arg| arg.offset);
             let stack_size = max_offset.div_ceil(16) * 16; // 16バイトアラインメント
             if stack_size > 0 {
                 self.builder

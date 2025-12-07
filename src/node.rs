@@ -230,6 +230,58 @@ impl Node {
         }
     }
 
+    pub fn scaled_add(
+        &mut self,
+        mut rhs: Option<Box<Node>>,
+    ) -> Result<Option<Box<Node>>, CompileError> {
+        if let Some(ty) = &self.ty {
+            if ty.is_ptr_or_array() {
+                let base_size = ty.base_type().size_of();
+                // ポインタ加算の場合、右辺をスケーリングする
+                rhs = Some(Box::new(Node::new(
+                    NodeKind::Mul,
+                    rhs,
+                    Some(Box::new(Node::new_num(base_size as i64))),
+                )));
+            }
+            Ok(Some(Box::new(Node::new(
+                NodeKind::Add,
+                Some(Box::new(self.clone())),
+                rhs,
+            ))))
+        } else {
+            Err(CompileError::InvalidExpression {
+                msg: "型情報が不足しています".to_string(),
+            })
+        }
+    }
+
+    pub fn scaled_sub(
+        &mut self,
+        mut rhs: Option<Box<Node>>,
+    ) -> Result<Option<Box<Node>>, CompileError> {
+        if let Some(ty) = &self.ty {
+            if ty.is_ptr_or_array() {
+                let base_size = ty.base_type().size_of();
+                // ポインタ減算の場合、右辺をスケーリングする
+                rhs = Some(Box::new(Node::new(
+                    NodeKind::Mul,
+                    rhs,
+                    Some(Box::new(Node::new_num(base_size as i64))),
+                )));
+            }
+            Ok(Some(Box::new(Node::new(
+                NodeKind::Sub,
+                Some(Box::new(self.clone())),
+                rhs,
+            ))))
+        } else {
+            Err(CompileError::InvalidExpression {
+                msg: "型情報が不足しています".to_string(),
+            })
+        }
+    }
+
     pub fn assign_types(&mut self) -> Result<(), CompileError> {
         if let Some(ref mut lhs) = self.lhs {
             lhs.assign_types()?;

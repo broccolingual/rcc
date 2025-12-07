@@ -223,40 +223,18 @@ impl Ast {
         loop {
             if self.consume_punctuator("+").is_some() {
                 // addition
-                node.as_mut().unwrap().assign_types()?; // lhs
-                let mut rhs = self.mul_expr()?;
-                rhs.as_mut().unwrap().assign_types()?; // rhs
-                if let Some(n) = &node
-                    && let Some(ty) = &n.ty
-                    && ty.is_ptr_or_array()
-                {
-                    // ポインタ減算の場合、スケーリングを考慮
-                    let size = ty.base_type().size_of();
-                    rhs = Some(Box::new(Node::new(
-                        NodeKind::Mul,
-                        rhs,
-                        Some(Box::new(Node::new_num(size as i64))),
-                    )));
+                if let Some(n) = &mut node {
+                    n.assign_types()?;
+                    let rhs = self.mul_expr()?;
+                    node = n.scaled_add(rhs)?;
                 }
-                node = Some(Box::new(Node::new(NodeKind::Add, node, rhs)));
             } else if self.consume_punctuator("-").is_some() {
                 // subtraction
-                node.as_mut().unwrap().assign_types()?; // lhs
-                let mut rhs = self.mul_expr()?;
-                rhs.as_mut().unwrap().assign_types()?; // rhs
-                if let Some(n) = &node
-                    && let Some(ty) = &n.ty
-                    && ty.is_ptr_or_array()
-                {
-                    // ポインタ減算の場合、スケーリングを考慮
-                    let size = ty.base_type().size_of();
-                    rhs = Some(Box::new(Node::new(
-                        NodeKind::Mul,
-                        rhs,
-                        Some(Box::new(Node::new_num(size as i64))),
-                    )));
+                if let Some(n) = &mut node {
+                    n.assign_types()?; // lhs
+                    let rhs = self.mul_expr()?;
+                    node = n.scaled_sub(rhs)?;
                 }
-                node = Some(Box::new(Node::new(NodeKind::Sub, node, rhs)));
             } else {
                 return Ok(node);
             }
@@ -298,17 +276,35 @@ impl Ast {
     fn unary_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         if self.consume_punctuator("++").is_some() {
             // pre-increment
-            return Ok(Some(Box::new(Node::new_unary(
-                NodeKind::PreInc,
-                self.unary_expr()?,
-            ))));
+            let mut node = self.unary_expr()?;
+            if let Some(n) = &mut node
+                && let Some(ty) = &n.ty
+                && ty.is_ptr_or_array()
+            {
+                let size = ty.base_type().size_of();
+                return Ok(Some(Box::new(Node::new(
+                    NodeKind::AddAssign,
+                    node,
+                    Some(Box::new(Node::new_num(size as i64))),
+                ))));
+            }
+            return Ok(Some(Box::new(Node::new_unary(NodeKind::PreInc, node))));
         }
         if self.consume_punctuator("--").is_some() {
             // pre-decrement
-            return Ok(Some(Box::new(Node::new_unary(
-                NodeKind::PreDec,
-                self.unary_expr()?,
-            ))));
+            let mut node = self.unary_expr()?;
+            if let Some(n) = &mut node
+                && let Some(ty) = &n.ty
+                && ty.is_ptr_or_array()
+            {
+                let size = ty.base_type().size_of();
+                return Ok(Some(Box::new(Node::new(
+                    NodeKind::SubAssign,
+                    node,
+                    Some(Box::new(Node::new_num(size as i64))),
+                ))));
+            }
+            return Ok(Some(Box::new(Node::new_unary(NodeKind::PreDec, node))));
         }
 
         if self.consume_punctuator("+").is_some() {
@@ -433,26 +429,13 @@ impl Ast {
                 // 例: a[1][2] -> *(*(a + 1) + 2)
                 node = self.assign_identifier(node)?; // 識別子を変数に割り当て
                 let index_expr = self.expr()?;
-                let scaled_add = if let Some(n) = &node
-                    && let Some(ty) = &n.ty
-                    && ty.is_ptr_or_array()
-                {
-                    // ポインタまたは配列型の場合、スケーリングを考慮
-                    let size = ty.base_type().size_of();
-                    let scaled_index = Some(Box::new(Node::new(
-                        NodeKind::Mul,
-                        index_expr,
-                        Some(Box::new(Node::new_num(size as i64))),
-                    )));
-                    Some(Box::new(Node::new(NodeKind::Add, node, scaled_index)))
-                } else {
-                    return Err(CompileError::InternalError {
-                        msg: "配列またはポインタ型ではないものに配列アクセスが行われました"
-                            .to_string(),
-                    })?;
-                };
-                node = Some(Box::new(Node::new_unary(NodeKind::Deref, scaled_add)));
-                node.as_mut().unwrap().assign_types()?; // nodeの型情報を設定
+                if let Some(n) = &mut node {
+                    let scaled_add = n.scaled_add(index_expr)?;
+                    node = Some(Box::new(Node::new_unary(NodeKind::Deref, scaled_add)));
+                }
+                if let Some(n) = &mut node {
+                    n.assign_types()?;
+                }
                 self.expect_punctuator("]")?;
             } else if self.consume_punctuator("(").is_some() {
                 let args = self.argument_expr_list()?;
@@ -476,11 +459,45 @@ impl Ast {
             } else if self.consume_punctuator("++").is_some() {
                 // post-increment
                 node = self.assign_identifier(node)?; // 識別子を変数に割り当て
-                node = Some(Box::new(Node::new_unary(NodeKind::PostInc, node)));
+                if let Some(n) = &mut node
+                    && let Some(ty) = &n.ty
+                    && ty.is_ptr_or_array()
+                {
+                    let size = ty.base_type().size_of();
+                    let assign_node = Some(Box::new(Node::new(
+                        NodeKind::AddAssign,
+                        node,
+                        Some(Box::new(Node::new_num(size as i64))),
+                    )));
+                    node = Some(Box::new(Node::new(
+                        NodeKind::Sub,
+                        assign_node,
+                        Some(Box::new(Node::new_num(size as i64))),
+                    )))
+                } else {
+                    node = Some(Box::new(Node::new_unary(NodeKind::PostInc, node)));
+                }
             } else if self.consume_punctuator("--").is_some() {
                 // post-decrement
                 node = self.assign_identifier(node)?; // 識別子を変数に割り当て
-                node = Some(Box::new(Node::new_unary(NodeKind::PostDec, node)));
+                if let Some(n) = &mut node
+                    && let Some(ty) = &n.ty
+                    && ty.is_ptr_or_array()
+                {
+                    let size = ty.base_type().size_of();
+                    let assign_node = Some(Box::new(Node::new(
+                        NodeKind::SubAssign,
+                        node,
+                        Some(Box::new(Node::new_num(size as i64))),
+                    )));
+                    node = Some(Box::new(Node::new(
+                        NodeKind::Add,
+                        assign_node,
+                        Some(Box::new(Node::new_num(size as i64))),
+                    )))
+                } else {
+                    node = Some(Box::new(Node::new_unary(NodeKind::PostDec, node)));
+                }
             } else {
                 node = self.assign_identifier(node)?; // 識別子を変数に割り当て
                 return Ok(node);
