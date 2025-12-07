@@ -360,7 +360,7 @@ impl Ast {
         base_ty: Box<Type>,
     ) -> Result<Box<Type>, CompileError> {
         let mut current_ty = if self.consume_punctuator("(").is_some() {
-            let inner_ty = self.abstract_declarator(&*base_ty)?;
+            let inner_ty = self.abstract_declarator(&base_ty)?;
             self.expect_punctuator(")")?;
             inner_ty
         } else {

@@ -1,15 +1,29 @@
 #!/bin/bash
 
+set -e
+
+mkdir -p ./bin
+
 cargo build
 
 assert() {
   expected="$1"
   input="$2"
 
-  ./target/debug/c-compiler -i "int main() { $input }" > ./bin/tmp.s
-  cc -g -o ./bin/tmp ./bin/tmp.s
+  ./target/debug/c-compiler -i "int main() { $input }" > ./bin/tmp.s || {
+    echo -e "\033[31m( ERROR )\033[0m Compilation failed: $input"
+    exit 1
+  }
+
+  cc -g -o ./bin/tmp ./bin/tmp.s || {
+    echo -e "\033[31m( ERROR )\033[0m Linking failed: $input"
+    exit 1
+  }
+
+  set +e
   ./bin/tmp
   actual="$?"
+  set -e
 
   if [ "$actual" = "$expected" ]; then
     echo -e "\033[32m( OK )\033[0m $input => $actual"
