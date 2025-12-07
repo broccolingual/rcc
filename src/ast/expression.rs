@@ -298,6 +298,7 @@ impl Ast {
     fn unary_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         if self.consume_punctuator("++").is_some() {
             // pre-increment
+            // TODO: ポインタ・配列のスケーリングを考慮
             return Ok(Some(Box::new(Node::new_unary(
                 NodeKind::PreInc,
                 self.unary_expr()?,
@@ -305,6 +306,7 @@ impl Ast {
         }
         if self.consume_punctuator("--").is_some() {
             // pre-decrement
+            // TODO: ポインタ・配列のスケーリングを考慮
             return Ok(Some(Box::new(Node::new_unary(
                 NodeKind::PreDec,
                 self.unary_expr()?,
