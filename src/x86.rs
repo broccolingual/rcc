@@ -270,25 +270,12 @@ impl Generator {
                         // 配列の初期化式
                         // 初期化式の数が配列サイズに満たない場合、残りを0で埋める
                         if arg.init.len() < size {
-                            for i in arg.init.len()..size {
-                                let size_spec = match base.align_of() {
-                                    1 => "BYTE PTR",
-                                    2 => "WORD PTR",
-                                    4 => "DWORD PTR",
-                                    8 => "QWORD PTR",
-                                    _ => {
-                                        panic!("未対応の配列初期化サイズ: {}", base.align_of());
-                                    }
-                                };
-                                self.builder.add_row(
-                                    &format!(
-                                        "mov {} [rbp-{}], 0",
-                                        size_spec,
-                                        arg.offset - i * base.align_of()
-                                    ),
-                                    true,
-                                );
-                            }
+                            self.builder
+                                .add_row(&format!("mov rcx, {}", arg.ty.size_of()), true); // 初期化するバイト数
+                            self.builder
+                                .add_row(&format!("lea rdi, [rbp-{}]", arg.offset), true); // 初期化開始アドレス
+                            self.builder.add_row("xor rax, rax", true); // raxを0クリア
+                            self.builder.add_row("rep stosb", true); // 0で初期化
                         }
                         // TODO: 多次元配列の初期化
                         for i in 0..arg.init.len().min(size) {
@@ -296,7 +283,7 @@ impl Generator {
                             self.builder
                                 .add_row(&format!("lea rax, [rbp-{}]", elem_offset), true);
                             self.builder.add_row("push rax", true); // 配列要素のアドレスをスタックに積む
-                            self.gen_expr(&arg.init[i].clone()); // 初期化式のコードを生成し、スタックに値を積む
+                            self.gen_expr(&arg.init[i]); // 初期化式のコードを生成し、スタックに値を積む
                             self.store(&Some(base.clone())); // スタックトップの値を配列要素に格納
                         }
                     } else {
