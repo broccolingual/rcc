@@ -1,7 +1,7 @@
 use crate::asm_builder::AsmBuilder;
 use crate::ast::Ast;
 use crate::node::{Node, NodeKind};
-use crate::types::Type;
+use crate::types::{Type, TypeKind};
 
 const ARG_REGS: [Reg; 6] = [Reg::Rdi, Reg::Rsi, Reg::Rdx, Reg::Rcx, Reg::R8, Reg::R9];
 
@@ -147,7 +147,7 @@ impl Generator {
                 if gvar.init.len() == 1 {
                     if let Some(init) = &gvar.init[0] {
                         match init.kind {
-                            NodeKind::Number { val } => match gvar.ty.size_of() {
+                            NodeKind::Number { val } => match gvar.ty.align_of() {
                                 1 => {
                                     self.builder.add_row(&format!(".byte {}", val), true);
                                 }
@@ -163,7 +163,7 @@ impl Generator {
                                 _ => {
                                     panic!(
                                         "未対応のグローバル変数初期化サイズ: {}",
-                                        gvar.ty.size_of()
+                                        gvar.ty.align_of()
                                     )
                                 }
                             },
@@ -266,9 +266,70 @@ impl Generator {
                         }))); // 変数のアドレスをスタックに積む
                         self.gen_expr(&arg.init[0]); // 初期化式のコードを生成し、スタックに値を積む
                         self.store(&Some(arg.ty.clone())); // スタックトップの値を変数に格納
+                    } else if let TypeKind::Array { ref base, size } = arg.ty.kind {
+                        // 配列の初期化式
+                        // 初期化式の数が配列サイズに満たない場合、残りを0で埋める
+                        if arg.init.len() < size {
+                            for i in arg.init.len()..size {
+                                match base.align_of() {
+                                    1 => {
+                                        self.builder.add_row(
+                                            &format!(
+                                                "mov BYTE PTR [rbp-{}], 0",
+                                                arg.offset - i * base.align_of()
+                                            ),
+                                            true,
+                                        );
+                                    }
+                                    2 => {
+                                        self.builder.add_row(
+                                            &format!(
+                                                "mov WORD PTR [rbp-{}], 0",
+                                                arg.offset - i * base.align_of()
+                                            ),
+                                            true,
+                                        );
+                                    }
+                                    4 => {
+                                        self.builder.add_row(
+                                            &format!(
+                                                "mov DWORD PTR [rbp-{}], 0",
+                                                arg.offset - i * base.align_of()
+                                            ),
+                                            true,
+                                        );
+                                    }
+                                    8 => {
+                                        self.builder.add_row(
+                                            &format!(
+                                                "mov QWORD PTR [rbp-{}], 0",
+                                                arg.offset - i * base.align_of()
+                                            ),
+                                            true,
+                                        );
+                                    }
+                                    _ => {
+                                        panic!("未対応の配列初期化サイズ: {}", base.align_of());
+                                    }
+                                }
+                            }
+                        }
+                        // TODO: 多次元配列の初期化
+                        for i in 0..arg.init.len().min(size) {
+                            self.gen_addr(&Some(Box::new(Node {
+                                kind: NodeKind::Var {
+                                    name: arg.name.clone(),
+                                    offset: arg.offset - i * base.align_of(),
+                                    is_local: true,
+                                },
+                                ..Default::default()
+                            }))); // 配列要素のアドレスをスタックに積む
+                            self.gen_expr(&arg.init[i].clone()); // 初期化式のコードを生成し、スタックに値を積む
+                            self.store(&Some(base.clone())); // スタックトップの値を配列要素に格納
+                        }
                     } else {
-                        // TODO: 配列や構造体の初期化
-                        unimplemented!("配列や構造体のローカル変数初期化には未対応です");
+                        // TODO: 構造体の初期化式
+                        unimplemented!("構造体のローカル変数初期化には未対応です");
                     }
                 }
             }
