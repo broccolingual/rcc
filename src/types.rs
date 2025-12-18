@@ -345,6 +345,15 @@ impl Type {
         }
     }
 
+    // ポインタもしくは配列の指している型を再帰的に取得
+    pub fn base_type_recursive(&self) -> &Type {
+        match &self.kind {
+            TypeKind::Ptr { to } => to.base_type_recursive(),
+            TypeKind::Array { base, .. } => base.base_type_recursive(),
+            _ => self,
+        }
+    }
+
     // 型が配列かどうか
     pub fn is_array(&self) -> bool {
         matches!(&self.kind, TypeKind::Array { .. })

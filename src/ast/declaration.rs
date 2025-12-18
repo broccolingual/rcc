@@ -399,11 +399,12 @@ impl Ast {
     }
 
     // initializer ::= assignment_expr
-    //                 | "{" initializer_list "}" // 未実装
-    //                 | "{" initializer_list "," "}" // 未実装
+    //                 | "{" initializer_list "}"
+    //                 | "{" initializer_list "," "}"
     fn initializer(&mut self) -> Result<Vec<Option<Box<Node>>>, CompileError> {
         if self.consume_punctuator("{").is_some() {
             let init_list = self.initializer_list()?;
+            self.consume_punctuator(","); // 末尾のカンマはあってもなくても良い
             self.expect_punctuator("}")?;
             return Ok(init_list);
         }

@@ -1,7 +1,7 @@
 use crate::asm_builder::AsmBuilder;
 use crate::ast::Ast;
 use crate::node::{Node, NodeKind};
-use crate::types::Type;
+use crate::types::{Type, TypeKind};
 
 const ARG_REGS: [Reg; 6] = [Reg::Rdi, Reg::Rsi, Reg::Rdx, Reg::Rcx, Reg::R8, Reg::R9];
 
@@ -266,9 +266,29 @@ impl Generator {
                         }))); // 変数のアドレスをスタックに積む
                         self.gen_expr(&arg.init[0]); // 初期化式のコードを生成し、スタックに値を積む
                         self.store(&Some(arg.ty.clone())); // スタックトップの値を変数に格納
+                    } else if let TypeKind::Array { ref base, size } = arg.ty.kind {
+                        // 配列の初期化式
+                        // 初期化式の数が配列サイズに満たない場合、残りを0で埋める
+                        if arg.init.len() < size {
+                            self.builder
+                                .add_row(&format!("mov rcx, {}", arg.ty.size_of()), true); // 初期化するバイト数
+                            self.builder
+                                .add_row(&format!("lea rdi, [rbp-{}]", arg.offset), true); // 初期化開始アドレス
+                            self.builder.add_row("xor rax, rax", true); // raxを0クリア
+                            self.builder.add_row("rep stosb", true); // 0で初期化
+                        }
+                        // TODO: 多次元配列の初期化
+                        for i in 0..arg.init.len().min(size) {
+                            let elem_offset = arg.offset - i * base.align_of();
+                            self.builder
+                                .add_row(&format!("lea rax, [rbp-{}]", elem_offset), true);
+                            self.builder.add_row("push rax", true); // 配列要素のアドレスをスタックに積む
+                            self.gen_expr(&arg.init[i]); // 初期化式のコードを生成し、スタックに値を積む
+                            self.store(&Some(base.clone())); // スタックトップの値を配列要素に格納
+                        }
                     } else {
-                        // TODO: 配列や構造体の初期化
-                        unimplemented!("配列や構造体のローカル変数初期化には未対応です");
+                        // TODO: 構造体の初期化式
+                        unimplemented!("構造体のローカル変数初期化には未対応です");
                     }
                 }
             }
