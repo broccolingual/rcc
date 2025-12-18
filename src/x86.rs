@@ -147,7 +147,7 @@ impl Generator {
                 if gvar.init.len() == 1 {
                     if let Some(init) = &gvar.init[0] {
                         match init.kind {
-                            NodeKind::Number { val } => match gvar.ty.align_of() {
+                            NodeKind::Number { val } => match gvar.ty.size_of() {
                                 1 => {
                                     self.builder.add_row(&format!(".byte {}", val), true);
                                 }
@@ -163,7 +163,7 @@ impl Generator {
                                 _ => {
                                     panic!(
                                         "未対応のグローバル変数初期化サイズ: {}",
-                                        gvar.ty.align_of()
+                                        gvar.ty.size_of()
                                     )
                                 }
                             },
@@ -271,59 +271,31 @@ impl Generator {
                         // 初期化式の数が配列サイズに満たない場合、残りを0で埋める
                         if arg.init.len() < size {
                             for i in arg.init.len()..size {
-                                match base.align_of() {
-                                    1 => {
-                                        self.builder.add_row(
-                                            &format!(
-                                                "mov BYTE PTR [rbp-{}], 0",
-                                                arg.offset - i * base.align_of()
-                                            ),
-                                            true,
-                                        );
-                                    }
-                                    2 => {
-                                        self.builder.add_row(
-                                            &format!(
-                                                "mov WORD PTR [rbp-{}], 0",
-                                                arg.offset - i * base.align_of()
-                                            ),
-                                            true,
-                                        );
-                                    }
-                                    4 => {
-                                        self.builder.add_row(
-                                            &format!(
-                                                "mov DWORD PTR [rbp-{}], 0",
-                                                arg.offset - i * base.align_of()
-                                            ),
-                                            true,
-                                        );
-                                    }
-                                    8 => {
-                                        self.builder.add_row(
-                                            &format!(
-                                                "mov QWORD PTR [rbp-{}], 0",
-                                                arg.offset - i * base.align_of()
-                                            ),
-                                            true,
-                                        );
-                                    }
+                                let size_spec = match base.align_of() {
+                                    1 => "BYTE PTR",
+                                    2 => "WORD PTR",
+                                    4 => "DWORD PTR",
+                                    8 => "QWORD PTR",
                                     _ => {
                                         panic!("未対応の配列初期化サイズ: {}", base.align_of());
                                     }
-                                }
+                                };
+                                self.builder.add_row(
+                                    &format!(
+                                        "mov {} [rbp-{}], 0",
+                                        size_spec,
+                                        arg.offset - i * base.align_of()
+                                    ),
+                                    true,
+                                );
                             }
                         }
                         // TODO: 多次元配列の初期化
                         for i in 0..arg.init.len().min(size) {
-                            self.gen_addr(&Some(Box::new(Node {
-                                kind: NodeKind::Var {
-                                    name: arg.name.clone(),
-                                    offset: arg.offset - i * base.align_of(),
-                                    is_local: true,
-                                },
-                                ..Default::default()
-                            }))); // 配列要素のアドレスをスタックに積む
+                            let elem_offset = arg.offset - i * base.align_of();
+                            self.builder
+                                .add_row(&format!("lea rax, [rbp-{}]", elem_offset), true);
+                            self.builder.add_row("push rax", true); // 配列要素のアドレスをスタックに積む
                             self.gen_expr(&arg.init[i].clone()); // 初期化式のコードを生成し、スタックに値を積む
                             self.store(&Some(base.clone())); // スタックトップの値を配列要素に格納
                         }

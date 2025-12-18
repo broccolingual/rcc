@@ -404,10 +404,7 @@ impl Ast {
     fn initializer(&mut self) -> Result<Vec<Option<Box<Node>>>, CompileError> {
         if self.consume_punctuator("{").is_some() {
             let init_list = self.initializer_list()?;
-            if self.consume_punctuator(",").is_some() {
-                self.expect_punctuator("}")?;
-                return Ok(init_list);
-            }
+            self.consume_punctuator(","); // 末尾のカンマはあってもなくても良い
             self.expect_punctuator("}")?;
             return Ok(init_list);
         }
