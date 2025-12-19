@@ -223,6 +223,7 @@ assert 255 'return 0xff;'
 echo + array initializers
 assert 6 'int a[3] = {1, 2, 3}; return a[0] + a[1] + a[2];'
 assert 3 'int a[3] = {1, 2}; return a[0] + a[1] + a[2];'
+assert 1 'int a[3] = {1}; return a[0] + a[1] + a[2];'
 assert 3 'int a[3] = {0, 1, 2, 3}; return a[0] + a[1] + a[2];'
 assert 6 'int x = 1; int y = 2; int z = 3; int *a[3] = {&x, &y, &z}; return *a[0] + *a[1] + *a[2];'
 # assert 21 'int a[2][3] = {{1,2,3}, {4,5,6}}; return a[0][0] + a[0][1] + a[0][2] + a[1][0] + a[1][1] + a[1][2];'

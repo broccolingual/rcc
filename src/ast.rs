@@ -59,6 +59,7 @@ pub struct Function {
     pub name: String,
     pub body: Vec<Box<Node>>,
     pub locals: Vec<Var>,
+    pub params_len: usize,
     pub return_ty: Type,
 }
 
@@ -68,6 +69,7 @@ impl Function {
             name: name.to_string(),
             body: Vec::new(),
             locals: Vec::new(),
+            params_len: 0,
             return_ty: Type::from(&TypeKind::Void, false),
         }
     }
@@ -344,6 +346,7 @@ impl Ast {
         };
         let mut func = Box::new(Function::new(&func_decl.name));
         if let TypeKind::Func { params, return_ty } = func_decl.ty.kind {
+            func.params_len = params.len();
             for param in params {
                 func.gen_lvar(param.clone())?;
             }
