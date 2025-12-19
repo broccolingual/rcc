@@ -1,3 +1,5 @@
+Lines of Code: 0
+
 # 雑記
 
 * Intel記法とAT&T記法でのレジスタのsrc，dstの違いに注意．

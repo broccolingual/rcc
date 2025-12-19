@@ -1,0 +1,43 @@
+name: Update Rust LoC
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  update-loc:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Tokei
+        run: |
+          curl -L https://github.com/XAMPPRocky/tokei/releases/download/v12.1.2/tokei-x86_64-unknown-linux-gnu.tar.gz | tar xvz
+          sudo mv tokei /usr/local/bin/
+
+      - name: Get Rust LoC
+        id: loc
+        run: |
+          # Rust(.rs)のコード行数のみを抽出
+          # --output json で解析し、Rustのcode（空白・コメント除外）を取得
+          RUST_LOC=$(tokei . --output json | jq '.Rust.code // 0')
+          echo "RUST_LOC=$RUST_LOC" >> $GITHUB_ENV
+
+      - name: Update README.md
+        run: |
+          # タグに挟まれた箇所の "Lines of Code: 数値" を置換
+          sed -i "//,//s/Lines of Code: [0-9]*/Lines of Code: ${{ env.RUST_LOC }}/" README.md
+
+      - name: Commit and Push
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add README.md
+          git commit -m "docs: update Rust lines of code (${{ env.RUST_LOC }})" || echo "No changes to commit"
+          git push
