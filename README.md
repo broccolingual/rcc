@@ -1,4 +1,4 @@
-<!-- LOC_START --> Lines of Code: 0 <!-- LOC_END -->
+<!-- LOC_START --> Lines of Code: 3341 <!-- LOC_END -->
 
 # 雑記
 
