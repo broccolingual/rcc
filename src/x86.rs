@@ -287,23 +287,26 @@ impl Generator {
     fn gen_local_init(&mut self, arg: &Var) {
         if let TypeKind::Array { ref base, size } = arg.ty.kind {
             // 配列の初期化式
-            // 初期化式の数が配列サイズに満たない場合、残りを0で埋める
-            if arg.init.len() < size {
-                self.builder
-                    .add_row(&format!("mov rcx, {}", arg.ty.size_of()), true); // 初期化するバイト数
-                self.builder
-                    .add_row(&format!("lea rdi, [rbp-{}]", arg.offset), true); // 初期化開始アドレス
-                self.builder.add_row("xor rax, rax", true); // raxを0クリア
-                self.builder.add_row("rep stosb", true); // 0で初期化
-            }
             // TODO: 多次元配列の初期化
-            for i in 0..arg.init.len().min(size) {
-                let elem_offset = arg.offset - i * base.align_of();
+            let init_len = arg.init.len().min(size);
+            for i in 0..init_len {
+                let elem_offset = arg.offset - i * base.size_of();
                 self.builder
                     .add_row(&format!("lea rax, [rbp-{}]", elem_offset), true);
                 self.builder.add_row("push rax", true); // 配列要素のアドレスをスタックに積む
                 self.gen_expr(&arg.init[i]); // 初期化式のコードを生成し、スタックに値を積む
                 self.store(&Some(base.clone())); // スタックトップの値を配列要素に格納
+            }
+            // 初期化式の数が配列サイズに満たない場合、残りを0で埋める
+            if arg.init.len() < size {
+                let zero_fill_offset = arg.offset - init_len * base.size_of();
+                let zero_fill_size = (size - init_len) * base.size_of();
+                self.builder
+                    .add_row(&format!("lea rdi, [rbp-{}]", zero_fill_offset), true); // 初期化開始アドレス
+                self.builder
+                    .add_row(&format!("mov rcx, {}", zero_fill_size), true); // 初期化するバイト数
+                self.builder.add_row("xor rax, rax", true); // raxを0クリア
+                self.builder.add_row("rep stosb", true); // 0で初期化
             }
         } else if let TypeKind::Struct { .. } = arg.ty.kind {
             // TODO: 構造体の初期化式
@@ -355,12 +358,12 @@ impl Generator {
     fn load(&mut self, ty: &Option<Box<Type>>) {
         self.builder.add_row("pop rax", true); // ロード先のアドレス
         if let Some(ty) = ty {
-            let inst = match ty.align_of() {
+            let inst = match ty.size_of() {
                 1 => "movsx rax, BYTE PTR [rax]",
                 2 => "movsx rax, WORD PTR [rax]",
                 4 => "movsxd rax, DWORD PTR [rax]",
                 8 => "mov rax, QWORD PTR [rax]",
-                _ => panic!("未対応のロードサイズ: {}", ty.align_of()),
+                _ => panic!("未対応のロードサイズ: {}", ty.size_of()),
             };
             self.builder.add_row(inst, true);
         } else {
@@ -374,12 +377,12 @@ impl Generator {
         self.builder.add_row("pop rdi", true); // ストアする値
         self.builder.add_row("pop rax", true); // ストア先のアドレス
         if let Some(ty) = ty {
-            let instruction = match ty.align_of() {
+            let instruction = match ty.size_of() {
                 1 => "mov BYTE PTR [rax], dil",
                 2 => "mov WORD PTR [rax], di",
                 4 => "mov DWORD PTR [rax], edi",
                 8 => "mov QWORD PTR [rax], rdi",
-                _ => panic!("未対応のストアサイズ: {}", ty.align_of()),
+                _ => panic!("未対応のストアサイズ: {}", ty.size_of()),
             };
             self.builder.add_row(instruction, true);
         } else {
