@@ -1,3 +1,5 @@
+use core::panic;
+
 use crate::asm_builder::AsmBuilder;
 use crate::ast::{Ast, Var};
 use crate::node::{Node, NodeKind};
@@ -262,18 +264,23 @@ impl Generator {
                     .add_row(&format!("sub rsp, {}", stack_size), true);
             }
 
-            // ローカル変数をスタックから読み出し
-            for (i, lvar) in func.locals.iter().enumerate() {
+            // 引数をレジスタからスタックへ読み出し
+            for (i, param) in func.locals.iter().take(func.params_len).enumerate() {
+                if i >= ARG_REGS.len() {
+                    panic!("6個を超える引数の関数には未対応です");
+                }
                 self.builder.add_row(
                     &format!(
                         "mov [rbp-{}], {}",
-                        lvar.offset,
-                        ARG_REGS[i].by_size(lvar.ty.align_of())
+                        param.offset,
+                        ARG_REGS[i].by_size(param.ty.align_of())
                     ),
                     true,
                 );
+            }
 
-                // initializerがある場合、初期化コードを生成
+            // ローカル変数の初期化
+            for lvar in func.locals.iter().skip(func.params_len) {
                 if !lvar.init.is_empty() {
                     self.gen_local_init(lvar);
                 }
