@@ -252,7 +252,7 @@ impl Generator {
             for (i, arg) in func.locals.iter().enumerate() {
                 self.builder.add_row(
                     &format!(
-                        "  mov [rbp-{}], {}",
+                        "mov [rbp-{}], {}",
                         arg.offset,
                         ARG_REGS[i].by_size(arg.ty.align_of())
                     ),
@@ -285,18 +285,7 @@ impl Generator {
     }
 
     fn gen_local_init(&mut self, arg: &Var) {
-        if arg.init.len() == 1 {
-            self.gen_addr(&Some(Box::new(Node {
-                kind: NodeKind::Var {
-                    name: arg.name.clone(),
-                    offset: arg.offset,
-                    is_local: true,
-                },
-                ..Default::default()
-            }))); // 変数のアドレスをスタックに積む
-            self.gen_expr(&arg.init[0]); // 初期化式のコードを生成し、スタックに値を積む
-            self.store(&Some(arg.ty.clone())); // スタックトップの値を変数に格納
-        } else if let TypeKind::Array { ref base, size } = arg.ty.kind {
+        if let TypeKind::Array { ref base, size } = arg.ty.kind {
             // 配列の初期化式
             // 初期化式の数が配列サイズに満たない場合、残りを0で埋める
             if arg.init.len() < size {
@@ -316,9 +305,22 @@ impl Generator {
                 self.gen_expr(&arg.init[i]); // 初期化式のコードを生成し、スタックに値を積む
                 self.store(&Some(base.clone())); // スタックトップの値を配列要素に格納
             }
-        } else {
+        } else if let TypeKind::Struct { .. } = arg.ty.kind {
             // TODO: 構造体の初期化式
             unimplemented!("構造体のローカル変数初期化には未対応です");
+        } else if arg.init.len() == 1 {
+            self.gen_addr(&Some(Box::new(Node {
+                kind: NodeKind::Var {
+                    name: arg.name.clone(),
+                    offset: arg.offset,
+                    is_local: true,
+                },
+                ..Default::default()
+            }))); // 変数のアドレスをスタックに積む
+            self.gen_expr(&arg.init[0]); // 初期化式のコードを生成し、スタックに値を積む
+            self.store(&Some(arg.ty.clone())); // スタックトップの値を変数に格納
+        } else {
+            panic!("スカラー変数の初期化式が複数あります: {}", arg.name);
         }
     }
 
