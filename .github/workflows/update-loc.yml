@@ -31,8 +31,7 @@ jobs:
 
       - name: Update README.md
         run: |
-          # タグに挟まれた箇所の "Lines of Code: 数値" を置換
-          sed -i "//,//s/Lines of Code: [0-9]*/Lines of Code: ${{ env.RUST_LOC }}/" README.md
+          sed -i "/<!-- LOC_START -->/,/<!-- LOC_END -->/s/Lines of Code: [0-9]*/Lines of Code: ${{ env.RUST_LOC }}/" README.md
 
       - name: Commit and Push
         run: |

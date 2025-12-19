@@ -1,4 +1,4 @@
-Lines of Code: 0
+<!-- LOC_START --> Lines of Code: 0 <!-- LOC_END -->
 
 # 雑記
 
