@@ -10,10 +10,10 @@ impl Ast {
     fn labeled_stmt(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         if let Some(name) = self.consume_ident() {
             if self.consume_punctuator(":").is_some() {
-                return Ok(Some(Box::new(Node::new_unary(
-                    NodeKind::Label { name },
-                    self.stmt()?,
-                ))));
+                return Ok(Some(Box::new(Node::new(NodeKind::Label {
+                    name,
+                    expr: self.stmt()?.unwrap(),
+                }))));
             } else {
                 // ラベル名ではなかった場合、トークンを元に戻す
                 self.retreat_token();
@@ -40,7 +40,7 @@ impl Ast {
                     });
                 }
             }
-            return Ok(Some(Box::new(Node::from(NodeKind::Block { body }))));
+            return Ok(Some(Box::new(Node::new(NodeKind::Block { body }))));
         }
         Ok(None)
     }
@@ -50,15 +50,15 @@ impl Ast {
     fn selection_stmt(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         if self.consume_keyword("if").is_some() {
             self.expect_punctuator("(")?;
-            let cond = self.expr()?;
+            let cond = self.expr()?.unwrap();
             self.expect_punctuator(")")?;
-            let then = self.stmt()?;
+            let then = self.stmt()?.unwrap();
             let els = if self.consume_keyword("else").is_some() {
                 self.stmt()?
             } else {
                 None
             };
-            return Ok(Some(Box::new(Node::from(NodeKind::If { cond, then, els }))));
+            return Ok(Some(Box::new(Node::new(NodeKind::If { cond, then, els }))));
         }
         Ok(None)
     }
@@ -69,20 +69,20 @@ impl Ast {
     fn iteration_stmt(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         if self.consume_keyword("while").is_some() {
             self.expect_punctuator("(")?;
-            let cond = self.expr()?;
+            let cond = self.expr()?.unwrap();
             self.expect_punctuator(")")?;
-            let then = self.stmt()?;
-            return Ok(Some(Box::new(Node::from(NodeKind::While { cond, then }))));
+            let then = self.stmt()?.unwrap();
+            return Ok(Some(Box::new(Node::new(NodeKind::While { cond, then }))));
         }
 
         if self.consume_keyword("do").is_some() {
-            let then = self.stmt()?;
+            let then = self.stmt()?.unwrap();
             self.expect_keyword("while")?;
             self.expect_punctuator("(")?;
-            let cond = self.expr()?;
+            let cond = self.expr()?.unwrap();
             self.expect_punctuator(")")?;
             self.expect_punctuator(";")?;
-            return Ok(Some(Box::new(Node::from(NodeKind::Do { then, cond }))));
+            return Ok(Some(Box::new(Node::new(NodeKind::Do { then, cond }))));
         }
 
         if self.consume_keyword("for").is_some() {
@@ -111,8 +111,8 @@ impl Ast {
             } else {
                 None
             };
-            let then = self.stmt()?;
-            return Ok(Some(Box::new(Node::from(NodeKind::For {
+            let then = self.stmt()?.unwrap();
+            return Ok(Some(Box::new(Node::new(NodeKind::For {
                 init,
                 cond,
                 inc,
@@ -132,17 +132,17 @@ impl Ast {
                 msg: "goto文の後に識別子が必要です".to_string(),
             })?;
             self.expect_punctuator(";")?;
-            return Ok(Some(Box::new(Node::from(NodeKind::Goto { name }))));
+            return Ok(Some(Box::new(Node::new(NodeKind::Goto { name }))));
         }
 
         if self.consume_keyword("continue").is_some() {
             self.expect_punctuator(";")?;
-            return Ok(Some(Box::new(Node::from(NodeKind::Continue))));
+            return Ok(Some(Box::new(Node::new(NodeKind::Continue))));
         }
 
         if self.consume_keyword("break").is_some() {
             self.expect_punctuator(";")?;
-            return Ok(Some(Box::new(Node::from(NodeKind::Break))));
+            return Ok(Some(Box::new(Node::new(NodeKind::Break))));
         }
 
         if self.consume_keyword("return").is_some() {
@@ -153,7 +153,7 @@ impl Ast {
                         found: TypeKind::Void,
                     });
                 }
-                return Ok(Some(Box::new(Node::from(NodeKind::Return))));
+                return Ok(Some(Box::new(Node::new(NodeKind::Return { expr: None }))));
             }
             let mut node = self.expr()?;
             if let Some(n) = &mut node {
@@ -169,7 +169,7 @@ impl Ast {
                 }
             }
             self.expect_punctuator(";")?;
-            return Ok(Some(Box::new(Node::new_unary(NodeKind::Return, node))));
+            return Ok(Some(Box::new(Node::new(NodeKind::Return { expr: node }))));
         }
         Ok(None)
     }
@@ -212,7 +212,7 @@ impl Ast {
     // expr_stmt ::= expr? ";"
     fn expr_stmt(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         if self.consume_punctuator(";").is_some() {
-            Ok(Some(Box::new(Node::from(NodeKind::Nop))))
+            Ok(Some(Box::new(Node::new(NodeKind::Nop))))
         } else {
             let expr_node = self.expr()?;
             self.expect_punctuator(";")?;

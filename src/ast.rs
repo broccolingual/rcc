@@ -14,7 +14,7 @@ pub struct Var {
     pub name: String,
     pub offset: usize,
     pub ty: Box<Type>,
-    pub init: Vec<Option<Box<Node>>>,
+    pub init: Vec<Node>,
 }
 
 impl Var {
@@ -38,11 +38,7 @@ impl fmt::Debug for Var {
                 write!(f, " = {{ ")?;
             }
             for (i, init_node) in self.init.iter().enumerate() {
-                if let Some(node) = init_node {
-                    write!(f, "{:?}", node)?;
-                } else {
-                    write!(f, "None")?;
-                }
+                write!(f, "{:?}", init_node)?;
                 if i != self.init.len() - 1 {
                     write!(f, ", ")?;
                 }

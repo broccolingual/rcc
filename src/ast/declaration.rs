@@ -401,17 +401,21 @@ impl Ast {
     // initializer ::= assignment_expr
     //                 | "{" initializer_list "}"
     //                 | "{" initializer_list "," "}" // 未対応（initializer_listの処理と重複して問題が発生）
-    fn initializer(&mut self) -> Result<Vec<Option<Box<Node>>>, CompileError> {
+    fn initializer(&mut self) -> Result<Vec<Node>, CompileError> {
         if self.consume_punctuator("{").is_some() {
             let init_list = self.initializer_list()?;
             self.expect_punctuator("}")?;
             return Ok(init_list);
         }
-        Ok(vec![self.assign_expr()?])
+        Ok(vec![*self.assign_expr()?.ok_or_else(|| {
+            CompileError::InvalidDeclaration {
+                msg: "初期化式が必要です".to_string(),
+            }
+        })?])
     }
 
     // initializer_list ::= initializer ("," initializer)*
-    fn initializer_list(&mut self) -> Result<Vec<Option<Box<Node>>>, CompileError> {
+    fn initializer_list(&mut self) -> Result<Vec<Node>, CompileError> {
         let mut init_list = Vec::new();
         init_list.extend(self.initializer()?);
         while self.consume_punctuator(",").is_some() {
