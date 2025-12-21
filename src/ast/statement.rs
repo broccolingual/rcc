@@ -1,9 +1,6 @@
-use std::ops::Deref;
-
 use crate::ast::Ast;
 use crate::errors::CompileError;
 use crate::node::{Node, NodeKind};
-use crate::types::TypeKind;
 
 impl Ast {
     // TODO: case文, default文の実装
@@ -147,27 +144,26 @@ impl Ast {
 
         if self.consume_keyword("return").is_some() {
             if self.consume_punctuator(";").is_some() {
-                if TypeKind::Void != self.get_current_func()?.return_ty.kind {
-                    return Err(CompileError::InvalidReturnType {
-                        expected: self.get_current_func()?.return_ty.clone().kind,
-                        found: TypeKind::Void,
-                    });
-                }
+                // TODO: プロトタイプ宣言実装まで保留
+                // if TypeKind::Void != self.get_current_func()?.return_ty.kind {
+                //     return Err(CompileError::InvalidReturnType {
+                //         expected: self.get_current_func()?.return_ty.clone().kind,
+                //         found: TypeKind::Void,
+                //     });
+                // }
                 return Ok(Some(Box::new(Node::new(NodeKind::Return { expr: None }))));
             }
-            let mut node = self.expr()?;
-            if let Some(n) = &mut node {
-                n.assign_types()?;
-                if let Some(ret_ty) = &n.ty {
-                    let func_ret_ty = &self.get_current_func()?.return_ty;
-                    if ret_ty.deref() != func_ret_ty {
-                        return Err(CompileError::InvalidReturnType {
-                            expected: func_ret_ty.kind.clone(),
-                            found: ret_ty.kind.clone(),
-                        });
-                    }
-                }
-            }
+            let node = self.expr()?;
+            // TODO: プロトタイプ宣言実装まで保留
+            // if let Some(n) = &mut node {
+            //     // let func_ret_ty = &self.get_current_func()?.return_ty;
+            //     // if &n.ty != func_ret_ty {
+            //     //     return Err(CompileError::InvalidReturnType {
+            //     //         expected: func_ret_ty.kind.clone(),
+            //     //         found: n.ty.kind.clone(),
+            //     //     });
+            //     // }
+            // }
             self.expect_punctuator(";")?;
             return Ok(Some(Box::new(Node::new(NodeKind::Return { expr: node }))));
         }

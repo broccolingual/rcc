@@ -586,10 +586,8 @@ impl Generator {
             }
             NodeKind::Var { .. } => {
                 self.gen_addr(node);
-                if let Some(ty) = &node.ty
-                    && !ty.is_array()
-                {
-                    self.load(ty);
+                if !node.ty.is_array() {
+                    self.load(&node.ty);
                 }
             }
             NodeKind::BinaryOp { op, lhs, rhs } => {
@@ -678,20 +676,20 @@ impl Generator {
             BinaryOp::Assign => {
                 self.gen_addr(lhs);
                 self.gen_expr(rhs);
-                self.store(lhs.ty.as_ref().unwrap());
+                self.store(&lhs.ty);
             }
             _ => {
                 self.gen_addr(lhs);
                 self.builder.add_row("push [rsp]", true);
-                self.load(lhs.ty.as_ref().unwrap());
+                self.load(&lhs.ty);
                 self.gen_expr(rhs);
                 self.gen_binary(op);
-                self.store(lhs.ty.as_ref().unwrap());
+                self.store(&lhs.ty);
             }
         }
     }
 
-    fn gen_unary(&mut self, op: &UnaryOp, expr: &Node, ty: &Option<Box<Type>>) {
+    fn gen_unary(&mut self, op: &UnaryOp, expr: &Node, ty: &Type) {
         match op {
             UnaryOp::BitNot => {
                 self.gen_expr(expr);
@@ -711,40 +709,38 @@ impl Generator {
                 self.gen_expr(expr);
                 // 型が配列でない場合にロード
                 // 配列型の場合、アドレスをスタックに積むだけ
-                if let Some(ty) = ty
-                    && !ty.is_array()
-                {
+                if !ty.is_array() {
                     self.load(ty);
                 }
             }
             UnaryOp::PreInc => {
                 self.gen_addr(expr);
                 self.builder.add_row("push [rsp]", true);
-                self.load(expr.ty.as_ref().unwrap());
+                self.load(&expr.ty);
                 self.inc();
-                self.store(expr.ty.as_ref().unwrap());
+                self.store(&expr.ty);
             }
             UnaryOp::PreDec => {
                 self.gen_addr(expr);
                 self.builder.add_row("push [rsp]", true);
-                self.load(expr.ty.as_ref().unwrap());
+                self.load(&expr.ty);
                 self.dec();
-                self.store(expr.ty.as_ref().unwrap());
+                self.store(&expr.ty);
             }
             UnaryOp::PostInc => {
                 self.gen_addr(expr);
                 self.builder.add_row("push [rsp]", true);
-                self.load(expr.ty.as_ref().unwrap());
+                self.load(&expr.ty);
                 self.inc();
-                self.store(expr.ty.as_ref().unwrap());
+                self.store(&expr.ty);
                 self.dec();
             }
             UnaryOp::PostDec => {
                 self.gen_addr(expr);
                 self.builder.add_row("push [rsp]", true);
-                self.load(expr.ty.as_ref().unwrap());
+                self.load(&expr.ty);
                 self.dec();
-                self.store(expr.ty.as_ref().unwrap());
+                self.store(&expr.ty);
                 self.inc();
             }
         }

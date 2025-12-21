@@ -47,11 +47,7 @@ impl Ast {
             let then = self.expr()?.unwrap(); // 真の場合の式
             self.expect_punctuator(":")?;
             let els = self.cond_expr()?.unwrap(); // 偽の場合の式
-            return Ok(Some(Box::new(Node::new(NodeKind::Ternary {
-                cond,
-                then,
-                els,
-            }))));
+            return Ok(Some(Box::new(Node::new_ternary(cond, then, els)?)));
         }
         Ok(node)
     }
@@ -64,10 +60,10 @@ impl Ast {
         loop {
             if self.consume_punctuator("||").is_some() {
                 // logical or
-                node = Some(Box::new(Node::new(NodeKind::LogicalOr {
-                    lhs: node.unwrap(),
-                    rhs: self.logical_and_expr()?.unwrap(),
-                })));
+                node = Some(Box::new(Node::new_logical_or(
+                    node.unwrap(),
+                    self.logical_and_expr()?.unwrap(),
+                )?));
             } else {
                 return Ok(node);
             }
@@ -82,10 +78,10 @@ impl Ast {
         loop {
             if self.consume_punctuator("&&").is_some() {
                 // logical and
-                node = Some(Box::new(Node::new(NodeKind::LogicalAnd {
-                    lhs: node.unwrap(),
-                    rhs: self.inclusive_or_expr()?.unwrap(),
-                })));
+                node = Some(Box::new(Node::new_logical_and(
+                    node.unwrap(),
+                    self.inclusive_or_expr()?.unwrap(),
+                )?));
             } else {
                 return Ok(node);
             }
@@ -104,7 +100,7 @@ impl Ast {
                     BinaryOp::BitOr,
                     node.unwrap(),
                     self.exclusive_or_expr()?.unwrap(),
-                )));
+                )?));
             } else {
                 return Ok(node);
             }
@@ -123,7 +119,7 @@ impl Ast {
                     BinaryOp::BitXor,
                     node.unwrap(),
                     self.and_expr()?.unwrap(),
-                )));
+                )?));
             } else {
                 return Ok(node);
             }
@@ -142,7 +138,7 @@ impl Ast {
                     BinaryOp::BitAnd,
                     node.unwrap(),
                     self.equality_expr()?.unwrap(),
-                )));
+                )?));
             } else {
                 return Ok(node);
             }
@@ -161,14 +157,14 @@ impl Ast {
                     BinaryOp::Eq,
                     node.unwrap(),
                     self.relational_expr()?.unwrap(),
-                )));
+                )?));
             } else if self.consume_punctuator("!=").is_some() {
                 // not equal
                 node = Some(Box::new(Node::new_binary(
                     BinaryOp::Ne,
                     node.unwrap(),
                     self.relational_expr()?.unwrap(),
-                )));
+                )?));
             } else {
                 return Ok(node);
             }
@@ -187,28 +183,28 @@ impl Ast {
                     BinaryOp::Lt,
                     node.unwrap(),
                     self.shift_expr()?.unwrap(),
-                )));
+                )?));
             } else if self.consume_punctuator("<=").is_some() {
                 // less than or equal
                 node = Some(Box::new(Node::new_binary(
                     BinaryOp::Le,
                     node.unwrap(),
                     self.shift_expr()?.unwrap(),
-                )));
+                )?));
             } else if self.consume_punctuator(">").is_some() {
                 // greater than
                 node = Some(Box::new(Node::new_binary(
                     BinaryOp::Lt,
                     self.shift_expr()?.unwrap(),
                     node.unwrap(),
-                )));
+                )?));
             } else if self.consume_punctuator(">=").is_some() {
                 // greater than or equal
                 node = Some(Box::new(Node::new_binary(
                     BinaryOp::Le,
                     self.shift_expr()?.unwrap(),
                     node.unwrap(),
-                )));
+                )?));
             } else {
                 return Ok(node);
             }
@@ -227,14 +223,14 @@ impl Ast {
                     BinaryOp::Shl,
                     node.unwrap(),
                     self.add_expr()?.unwrap(),
-                )));
+                )?));
             } else if self.consume_punctuator(">>").is_some() {
                 // right shift
                 node = Some(Box::new(Node::new_binary(
                     BinaryOp::Shr,
                     node.unwrap(),
                     self.add_expr()?.unwrap(),
-                )));
+                )?));
             } else {
                 return Ok(node);
             }
@@ -250,16 +246,12 @@ impl Ast {
             if self.consume_punctuator("+").is_some() {
                 // addition
                 if let Some(n) = &mut node {
-                    n.assign_types()?;
-                    let rhs = self.mul_expr()?;
-                    node = n.scaled_add(rhs)?;
+                    node = n.scaled_add(self.mul_expr()?)?;
                 }
             } else if self.consume_punctuator("-").is_some() {
                 // subtraction
                 if let Some(n) = &mut node {
-                    n.assign_types()?; // lhs
-                    let rhs = self.mul_expr()?;
-                    node = n.scaled_sub(rhs)?;
+                    node = n.scaled_sub(self.mul_expr()?)?;
                 }
             } else {
                 return Ok(node);
@@ -279,21 +271,21 @@ impl Ast {
                     BinaryOp::Mul,
                     node.unwrap(),
                     self.cast_expr()?.unwrap(),
-                )));
+                )?));
             } else if self.consume_punctuator("/").is_some() {
                 // division
                 node = Some(Box::new(Node::new_binary(
                     BinaryOp::Div,
                     node.unwrap(),
                     self.cast_expr()?.unwrap(),
-                )));
+                )?));
             } else if self.consume_punctuator("%").is_some() {
                 // remainder
                 node = Some(Box::new(Node::new_binary(
                     BinaryOp::Rem,
                     node.unwrap(),
                     self.cast_expr()?.unwrap(),
-                )));
+                )?));
             } else {
                 return Ok(node);
             }
@@ -316,10 +308,9 @@ impl Ast {
             // pre-increment
             let mut node = self.unary_expr()?;
             if let Some(n) = &mut node
-                && let Some(ty) = &n.ty
-                && ty.is_ptr_or_array()
+                && n.ty.is_ptr_or_array()
             {
-                let size = ty.base_type().size_of();
+                let size = n.ty.base_type().size_of();
                 return Ok(Some(Box::new(Node::new_assign(
                     BinaryOp::Add,
                     node.unwrap(),
@@ -329,16 +320,15 @@ impl Ast {
             return Ok(Some(Box::new(Node::new_unary(
                 UnaryOp::PreInc,
                 node.unwrap(),
-            ))));
+            )?)));
         }
         if self.consume_punctuator("--").is_some() {
             // pre-decrement
             let mut node = self.unary_expr()?;
             if let Some(n) = &mut node
-                && let Some(ty) = &n.ty
-                && ty.is_ptr_or_array()
+                && n.ty.is_ptr_or_array()
             {
-                let size = ty.base_type().size_of();
+                let size = n.ty.base_type().size_of();
                 return Ok(Some(Box::new(Node::new_assign(
                     BinaryOp::Sub,
                     node.unwrap(),
@@ -348,7 +338,7 @@ impl Ast {
             return Ok(Some(Box::new(Node::new_unary(
                 UnaryOp::PreDec,
                 node.unwrap(),
-            ))));
+            )?)));
         }
 
         if self.consume_punctuator("+").is_some() {
@@ -361,43 +351,35 @@ impl Ast {
                 BinaryOp::Sub,
                 Box::new(Node::new_num(0)),
                 self.cast_expr()?.unwrap(),
-            ))));
+            )?)));
         }
         if self.consume_punctuator("&").is_some() {
             // address-of
-            let mut node = Box::new(Node::new_unary(UnaryOp::Addr, self.cast_expr()?.unwrap()));
-            node.assign_types()?;
-            if node.ty.is_none() {
-                return Err(CompileError::InternalError {
-                    msg: "＆演算子の型情報が設定されていません".to_string(),
-                })?;
-            }
-            return Ok(Some(node));
+            return Ok(Some(Box::new(Node::new_unary(
+                UnaryOp::Addr,
+                self.cast_expr()?.unwrap(),
+            )?)));
         }
         if self.consume_punctuator("*").is_some() {
             // dereference
-            let mut node = Box::new(Node::new_unary(UnaryOp::Deref, self.cast_expr()?.unwrap()));
-            node.assign_types()?;
-            if node.ty.is_none() {
-                return Err(CompileError::InternalError {
-                    msg: "*演算子の型情報が設定されていません".to_string(),
-                })?;
-            }
-            return Ok(Some(node));
+            return Ok(Some(Box::new(Node::new_unary(
+                UnaryOp::Deref,
+                self.cast_expr()?.unwrap(),
+            )?)));
         }
         if self.consume_punctuator("~").is_some() {
             // bitwise not
             return Ok(Some(Box::new(Node::new_unary(
                 UnaryOp::BitNot,
                 self.cast_expr()?.unwrap(),
-            ))));
+            )?)));
         }
         if self.consume_punctuator("!").is_some() {
             // logical not
             return Ok(Some(Box::new(Node::new_unary(
                 UnaryOp::LogicalNot,
                 self.cast_expr()?.unwrap(),
-            ))));
+            )?)));
         }
 
         if self.consume_keyword("sizeof").is_some() {
@@ -416,15 +398,8 @@ impl Ast {
             // sizeof unary_expr
             let mut node = self.unary_expr()?;
             if let Some(n) = &mut node {
-                n.assign_types()?;
-                if let Some(ty) = &n.ty {
-                    let size = ty.size_of();
-                    return Ok(Some(Box::new(Node::new_num(size as i64))));
-                } else {
-                    return Err(CompileError::InternalError {
-                        msg: "sizeof演算子の型情報が設定されていません".to_string(),
-                    })?;
-                }
+                let size = n.ty.size_of();
+                return Ok(Some(Box::new(Node::new_num(size as i64))));
             }
         }
 
@@ -475,10 +450,7 @@ impl Ast {
                 let index_expr = self.expr()?;
                 if let Some(n) = &mut node {
                     let scaled_add = n.scaled_add(index_expr)?.unwrap();
-                    node = Some(Box::new(Node::new_unary(UnaryOp::Deref, scaled_add)));
-                }
-                if let Some(n) = &mut node {
-                    n.assign_types()?;
+                    node = Some(Box::new(Node::new_unary(UnaryOp::Deref, scaled_add)?));
                 }
                 self.expect_punctuator("]")?;
             } else if self.consume_punctuator("(").is_some() {
@@ -504,10 +476,9 @@ impl Ast {
                 // post-increment
                 node = self.assign_identifier(node)?; // 識別子を変数に割り当て
                 if let Some(n) = &mut node
-                    && let Some(ty) = &n.ty
-                    && ty.is_ptr_or_array()
+                    && n.ty.is_ptr_or_array()
                 {
-                    let size = ty.base_type().size_of();
+                    let size = n.ty.base_type().size_of();
                     let assign_node = Box::new(Node::new_assign(
                         BinaryOp::Add,
                         node.unwrap(),
@@ -517,18 +488,17 @@ impl Ast {
                         BinaryOp::Sub,
                         assign_node,
                         Box::new(Node::new_num(size as i64)),
-                    )))
+                    )?))
                 } else {
-                    node = Some(Box::new(Node::new_unary(UnaryOp::PostInc, node.unwrap())));
+                    node = Some(Box::new(Node::new_unary(UnaryOp::PostInc, node.unwrap())?));
                 }
             } else if self.consume_punctuator("--").is_some() {
                 // post-decrement
                 node = self.assign_identifier(node)?; // 識別子を変数に割り当て
                 if let Some(n) = &mut node
-                    && let Some(ty) = &n.ty
-                    && ty.is_ptr_or_array()
+                    && n.ty.is_ptr_or_array()
                 {
-                    let size = ty.base_type().size_of();
+                    let size = n.ty.base_type().size_of();
                     let assign_node = Box::new(Node::new_assign(
                         BinaryOp::Sub,
                         node.unwrap(),
@@ -538,9 +508,9 @@ impl Ast {
                         BinaryOp::Add,
                         assign_node,
                         Box::new(Node::new_num(size as i64)),
-                    )))
+                    )?))
                 } else {
-                    node = Some(Box::new(Node::new_unary(UnaryOp::PostDec, node.unwrap())));
+                    node = Some(Box::new(Node::new_unary(UnaryOp::PostDec, node.unwrap())?));
                 }
             } else {
                 node = self.assign_identifier(node)?; // 識別子を変数に割り当て

@@ -143,7 +143,7 @@ pub enum NodeKind {
 #[derive(Clone, PartialEq, Eq)]
 pub struct Node {
     pub kind: NodeKind,
-    pub ty: Option<Box<Type>>,
+    pub ty: Type,
 }
 
 impl fmt::Debug for Node {
@@ -200,40 +200,299 @@ impl Default for Node {
     fn default() -> Self {
         Node {
             kind: NodeKind::Nop,
-            ty: None,
+            ty: Type::default(),
         }
     }
 }
 
 impl Node {
     pub fn new(kind: NodeKind) -> Self {
-        Node { kind, ty: None }
+        Node {
+            kind,
+            ty: Type::default(),
+        }
     }
 
-    pub fn new_binary(op: BinaryOp, lhs: Box<Node>, rhs: Box<Node>) -> Self {
-        Node {
+    pub fn new_binary(op: BinaryOp, lhs: Box<Node>, rhs: Box<Node>) -> Result<Self, CompileError> {
+        let ty = match op {
+            BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => {
+                let lhs_ty = &lhs.ty;
+                let rhs_ty = &rhs.ty;
+
+                if lhs_ty.is_scalar() && rhs_ty.is_scalar() {
+                    // 両方ともスカラー型の場合、大きい方の型に合わせる
+                    if lhs_ty.size_of() >= rhs_ty.size_of() {
+                        lhs_ty.clone()
+                    } else {
+                        rhs_ty.clone()
+                    }
+                } else if lhs_ty.is_ptr_or_array() && rhs_ty.is_scalar() {
+                    // 左辺がポインタ/配列型、右辺がスカラー型の場合、左辺の型を結果型とする
+                    lhs_ty.clone()
+                } else if lhs_ty.is_scalar() && rhs_ty.is_ptr_or_array() {
+                    // 右辺がポインタ/配列型、左辺がスカラー型の場合、右辺の型を結果型とする
+                    rhs_ty.clone()
+                } else {
+                    return Err(CompileError::InvalidExpression {
+                        msg: format!(
+                            "算術演算子はスカラー型またはポインタ/配列型にのみ適用可能です: {:?} と {:?}",
+                            lhs_ty, rhs_ty
+                        ),
+                    });
+                }
+            }
+            BinaryOp::Rem => {
+                let lhs_ty = &lhs.ty;
+                let rhs_ty = &rhs.ty;
+
+                if lhs_ty.is_integer() && rhs_ty.is_integer() {
+                    // 両方とも整数型の場合、大きい方の型に合わせる
+                    if lhs_ty.size_of() >= rhs_ty.size_of() {
+                        lhs_ty.clone()
+                    } else {
+                        rhs_ty.clone()
+                    }
+                } else {
+                    return Err(CompileError::InvalidExpression {
+                        msg: format!(
+                            "剰余演算子は整数型にのみ適用可能です: {:?} と {:?}",
+                            lhs_ty, rhs_ty
+                        ),
+                    });
+                }
+            }
+            BinaryOp::BitAnd | BinaryOp::BitOr | BinaryOp::BitXor => {
+                let lhs_ty = &lhs.ty;
+                let rhs_ty = &rhs.ty;
+
+                if lhs_ty.is_integer() && rhs_ty.is_integer() {
+                    // 両方とも整数型の場合、大きい方の型に合わせる
+                    if lhs_ty.size_of() >= rhs_ty.size_of() {
+                        lhs_ty.clone()
+                    } else {
+                        rhs_ty.clone()
+                    }
+                } else {
+                    return Err(CompileError::InvalidExpression {
+                        msg: format!(
+                            "ビット演算子は整数型にのみ適用可能です: {:?} と {:?}",
+                            lhs_ty, rhs_ty
+                        ),
+                    });
+                }
+            }
+            BinaryOp::Shl | BinaryOp::Shr => {
+                let lhs_ty = &lhs.ty;
+                let rhs_ty = &rhs.ty;
+
+                if lhs_ty.is_integer() && rhs_ty.is_integer() {
+                    // 両方とも整数型の場合、昇格後の型を結果型とする
+                    Type::from(&TypeKind::Int, false)
+                } else {
+                    return Err(CompileError::InvalidExpression {
+                        msg: format!(
+                            "シフト演算子は整数型にのみ適用可能です: {:?} と {:?}",
+                            lhs_ty, rhs_ty
+                        ),
+                    });
+                }
+            }
+            BinaryOp::Eq | BinaryOp::Ne | BinaryOp::Lt | BinaryOp::Le => {
+                let lhs_ty = &lhs.ty;
+                let rhs_ty = &rhs.ty;
+
+                if lhs_ty.is_scalar() && rhs_ty.is_scalar()
+                    || lhs_ty.is_ptr_or_array() && rhs_ty.is_ptr_or_array()
+                {
+                    // 両方ともスカラー型の場合、結果型はint型とする
+                    Type::from(&TypeKind::Int, false)
+                } else {
+                    return Err(CompileError::InvalidExpression {
+                        msg: format!(
+                            "比較演算子はスカラー型またはポインタ/配列型にのみ適用可能です: {:?} と {:?}",
+                            lhs_ty, rhs_ty
+                        ),
+                    });
+                }
+            }
+            BinaryOp::Assign => lhs.ty.clone(),
+        };
+
+        Ok(Node {
             kind: NodeKind::BinaryOp { op, lhs, rhs },
-            ty: None,
-        }
+            ty,
+        })
     }
 
-    pub fn new_unary(op: UnaryOp, expr: Box<Node>) -> Self {
-        Node {
+    pub fn new_unary(op: UnaryOp, expr: Box<Node>) -> Result<Self, CompileError> {
+        let ty = match op {
+            UnaryOp::BitNot => {
+                let expr_ty = &expr.ty;
+
+                if expr_ty.is_integer() {
+                    Type::from(&TypeKind::Int, false) // 整数拡張
+                } else {
+                    return Err(CompileError::InvalidExpression {
+                        msg: format!("ビット否定演算子は整数型にのみ適用可能です: {:?}", expr_ty),
+                    });
+                }
+            }
+            UnaryOp::LogicalNot => {
+                let expr_ty = &expr.ty;
+
+                if expr_ty.is_scalar() || expr_ty.is_ptr_or_array() {
+                    Type::from(&TypeKind::Int, false) // 結果型はint型
+                } else {
+                    return Err(CompileError::InvalidExpression {
+                        msg: format!(
+                            "論理否定演算子はスカラー型またはポインタ/配列型にのみ適用可能です: {:?}",
+                            expr_ty
+                        ),
+                    });
+                }
+            }
+            UnaryOp::Addr => {
+                let expr_ty = &expr.ty;
+
+                // アドレス演算子の型はポインタ型にする
+                Type::from(
+                    &TypeKind::Ptr {
+                        to: Box::new(expr_ty.clone()),
+                    },
+                    false,
+                )
+            }
+            UnaryOp::Deref => {
+                let expr_ty = &expr.ty;
+
+                // デリファレンス演算子の型はポインタの指す型にする
+                if !expr_ty.is_ptr_or_array() {
+                    return Err(CompileError::InvalidExpression {
+                        msg: format!(
+                            "デリファレンス演算子はポインタ/配列型にのみ適用可能です: {:?}",
+                            expr_ty
+                        ),
+                    });
+                }
+                expr_ty.base_type().clone()
+            }
+            UnaryOp::PreInc | UnaryOp::PreDec | UnaryOp::PostInc | UnaryOp::PostDec => {
+                let expr_ty = &expr.ty;
+
+                // インクリメント・デクリメント演算子の型はオペランドの型とする
+                expr_ty.clone()
+            }
+        };
+
+        Ok(Node {
             kind: NodeKind::UnaryOp { op, expr },
-            ty: None,
-        }
+            ty,
+        })
     }
 
     pub fn new_assign(op: BinaryOp, lhs: Box<Node>, rhs: Box<Node>) -> Self {
+        let ty = lhs.ty.clone(); // 代入演算子の型は左辺の型とする
+
         Node {
             kind: NodeKind::Assign { op, lhs, rhs },
-            ty: None,
+            ty,
         }
+    }
+
+    pub fn new_logical_and(lhs: Box<Node>, rhs: Box<Node>) -> Result<Self, CompileError> {
+        let lhs_ty = &lhs.ty;
+        let rhs_ty = &rhs.ty;
+
+        let ty = if lhs_ty.is_scalar() && rhs_ty.is_scalar()
+            || lhs_ty.is_ptr_or_array() && rhs_ty.is_ptr_or_array()
+        {
+            // 両方ともスカラー型の場合、結果型はint型とする
+            Type::from(&TypeKind::Int, false)
+        } else {
+            return Err(CompileError::InvalidExpression {
+                msg: format!(
+                    "論理演算子はスカラー型またはポインタ/配列型にのみ適用可能です: {:?} と {:?}",
+                    lhs_ty, rhs_ty
+                ),
+            });
+        };
+
+        Ok(Node {
+            kind: NodeKind::LogicalAnd { lhs, rhs },
+            ty,
+        })
+    }
+
+    pub fn new_logical_or(lhs: Box<Node>, rhs: Box<Node>) -> Result<Self, CompileError> {
+        let lhs_ty = &lhs.ty;
+        let rhs_ty = &rhs.ty;
+
+        let ty = if lhs_ty.is_scalar() && rhs_ty.is_scalar()
+            || lhs_ty.is_ptr_or_array() && rhs_ty.is_ptr_or_array()
+        {
+            // 両方ともスカラー型の場合、結果型はint型とする
+            Type::from(&TypeKind::Int, false)
+        } else {
+            return Err(CompileError::InvalidExpression {
+                msg: format!(
+                    "論理演算子はスカラー型またはポインタ/配列型にのみ適用可能です: {:?} と {:?}",
+                    lhs_ty, rhs_ty
+                ),
+            });
+        };
+
+        Ok(Node {
+            kind: NodeKind::LogicalOr { lhs, rhs },
+            ty,
+        })
+    }
+
+    pub fn new_ternary(
+        cond: Box<Node>,
+        then: Box<Node>,
+        els: Box<Node>,
+    ) -> Result<Self, CompileError> {
+        let cond_ty = &cond.ty;
+        let then_ty = &then.ty;
+        let els_ty = &els.ty;
+
+        let ty = if cond_ty.is_scalar() || cond_ty.is_ptr_or_array() {
+            if then_ty == els_ty {
+                // then節とelse節の型が同じ場合、その型を結果型とする
+                then_ty.clone()
+            } else if then_ty.is_scalar() && els_ty.is_scalar() {
+                // 両方ともスカラー型の場合、大きい方の型に合わせる
+                if then_ty.size_of() >= els_ty.size_of() {
+                    then_ty.clone()
+                } else {
+                    els_ty.clone()
+                }
+            } else {
+                return Err(CompileError::InvalidExpression {
+                    msg: format!(
+                        "条件演算子のthen節とelse節は同じ型か、両方ともスカラー型である必要があります: {:?} と {:?}",
+                        then_ty, els_ty
+                    ),
+                });
+            }
+        } else {
+            return Err(CompileError::InvalidExpression {
+                msg: format!(
+                    "条件演算子の条件式はスカラー型にのみ適用可能です: {:?}",
+                    cond_ty
+                ),
+            });
+        };
+
+        Ok(Node {
+            kind: NodeKind::Ternary { cond, then, els },
+            ty,
+        })
     }
 
     pub fn new_num(val: i64) -> Self {
         let mut node = Node::new(NodeKind::Number { val });
-        node.ty = Some(Box::new(Type::from(&TypeKind::Int, false)));
+        node.ty = Type::from(&TypeKind::Int, false);
         node
     }
 
@@ -243,7 +502,7 @@ impl Node {
             offset,
             is_local,
         });
-        node.ty = Some(Box::new(ty.clone()));
+        node.ty = ty.clone();
         node
     }
 
@@ -269,322 +528,39 @@ impl Node {
         &mut self,
         mut rhs: Option<Box<Node>>,
     ) -> Result<Option<Box<Node>>, CompileError> {
-        if let Some(ty) = &self.ty {
-            if ty.is_ptr_or_array() {
-                let base_size = ty.base_type().size_of();
-                // ポインタ加算の場合、右辺をスケーリングする
-                rhs = Some(Box::new(Node::new_binary(
-                    BinaryOp::Mul,
-                    rhs.unwrap(),
-                    Box::new(Node::new_num(base_size as i64)),
-                )));
-            }
-            Ok(Some(Box::new(Node::new_binary(
-                BinaryOp::Add,
-                Box::new(self.clone()),
+        if self.ty.is_ptr_or_array() {
+            let base_size = self.ty.base_type().size_of();
+            // ポインタ加算の場合、右辺をスケーリングする
+            rhs = Some(Box::new(Node::new_binary(
+                BinaryOp::Mul,
                 rhs.unwrap(),
-            ))))
-        } else {
-            Err(CompileError::InvalidExpression {
-                msg: "型情報が不足しています".to_string(),
-            })
+                Box::new(Node::new_num(base_size as i64)),
+            )?));
         }
+        Ok(Some(Box::new(Node::new_binary(
+            BinaryOp::Add,
+            Box::new(self.clone()),
+            rhs.unwrap(),
+        )?)))
     }
 
     pub fn scaled_sub(
         &mut self,
         mut rhs: Option<Box<Node>>,
     ) -> Result<Option<Box<Node>>, CompileError> {
-        if let Some(ty) = &self.ty {
-            if ty.is_ptr_or_array() {
-                let base_size = ty.base_type().size_of();
-                // ポインタ減算の場合、右辺をスケーリングする
-                rhs = Some(Box::new(Node::new_binary(
-                    BinaryOp::Mul,
-                    rhs.unwrap(),
-                    Box::new(Node::new_num(base_size as i64)),
-                )));
-            }
-            Ok(Some(Box::new(Node::new_binary(
-                BinaryOp::Sub,
-                Box::new(self.clone()),
+        if self.ty.is_ptr_or_array() {
+            let base_size = self.ty.base_type().size_of();
+            // ポインタ減算の場合、右辺をスケーリングする
+            rhs = Some(Box::new(Node::new_binary(
+                BinaryOp::Mul,
                 rhs.unwrap(),
-            ))))
-        } else {
-            Err(CompileError::InvalidExpression {
-                msg: "型情報が不足しています".to_string(),
-            })
+                Box::new(Node::new_num(base_size as i64)),
+            )?));
         }
-    }
-
-    pub fn assign_types(&mut self) -> Result<(), CompileError> {
-        match self.kind {
-            NodeKind::BinaryOp {
-                ref op,
-                ref mut lhs,
-                ref mut rhs,
-            } => {
-                lhs.assign_types()?;
-                rhs.assign_types()?;
-                match op {
-                    BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => {
-                        let lhs_ty = lhs.ty.as_ref().unwrap();
-                        let rhs_ty = rhs.ty.as_ref().unwrap();
-
-                        if lhs_ty.is_scalar() && rhs_ty.is_scalar() {
-                            // 両方ともスカラー型の場合、大きい方の型に合わせる
-                            if lhs_ty.size_of() >= rhs_ty.size_of() {
-                                self.ty = Some(lhs_ty.clone());
-                            } else {
-                                self.ty = Some(rhs_ty.clone());
-                            }
-                        } else if lhs_ty.is_ptr_or_array() && rhs_ty.is_scalar() {
-                            // 左辺がポインタ/配列型、右辺がスカラー型の場合、左辺の型を結果型とする
-                            self.ty = Some(lhs_ty.clone());
-                        } else if lhs_ty.is_scalar() && rhs_ty.is_ptr_or_array() {
-                            // 右辺がポインタ/配列型、左辺がスカラー型の場合、右辺の型を結果型とする
-                            self.ty = Some(rhs_ty.clone());
-                        } else {
-                            return Err(CompileError::InvalidExpression {
-                                msg: format!(
-                                    "算術演算子はスカラー型またはポインタ/配列型にのみ適用可能です: {:?} と {:?}",
-                                    lhs_ty, rhs_ty
-                                ),
-                            });
-                        }
-                    }
-                    BinaryOp::Rem => {
-                        let lhs_ty = lhs.ty.as_ref().unwrap();
-                        let rhs_ty = rhs.ty.as_ref().unwrap();
-
-                        if lhs_ty.is_integer() && rhs_ty.is_integer() {
-                            // 両方とも整数型の場合、大きい方の型に合わせる
-                            if lhs_ty.size_of() >= rhs_ty.size_of() {
-                                self.ty = Some(lhs_ty.clone());
-                            } else {
-                                self.ty = Some(rhs_ty.clone());
-                            }
-                        } else {
-                            return Err(CompileError::InvalidExpression {
-                                msg: format!(
-                                    "剰余演算子は整数型にのみ適用可能です: {:?} と {:?}",
-                                    lhs_ty, rhs_ty
-                                ),
-                            });
-                        }
-                    }
-                    BinaryOp::BitAnd | BinaryOp::BitOr | BinaryOp::BitXor => {
-                        let lhs_ty = lhs.ty.as_ref().unwrap();
-                        let rhs_ty = rhs.ty.as_ref().unwrap();
-
-                        if lhs_ty.is_integer() && rhs_ty.is_integer() {
-                            // 両方とも整数型の場合、大きい方の型に合わせる
-                            if lhs_ty.size_of() >= rhs_ty.size_of() {
-                                self.ty = Some(lhs_ty.clone());
-                            } else {
-                                self.ty = Some(rhs_ty.clone());
-                            }
-                        } else {
-                            return Err(CompileError::InvalidExpression {
-                                msg: format!(
-                                    "ビット演算子は整数型にのみ適用可能です: {:?} と {:?}",
-                                    lhs_ty, rhs_ty
-                                ),
-                            });
-                        }
-                    }
-                    BinaryOp::Shl | BinaryOp::Shr => {
-                        let lhs_ty = lhs.ty.as_ref().unwrap();
-                        let rhs_ty = rhs.ty.as_ref().unwrap();
-
-                        if lhs_ty.is_integer() && rhs_ty.is_integer() {
-                            // 両方とも整数型の場合、昇格後の型を結果型とする
-                            self.ty = Some(Box::new(Type::from(&TypeKind::Int, false)));
-                        } else {
-                            return Err(CompileError::InvalidExpression {
-                                msg: format!(
-                                    "シフト演算子は整数型にのみ適用可能です: {:?} と {:?}",
-                                    lhs_ty, rhs_ty
-                                ),
-                            });
-                        }
-                    }
-                    BinaryOp::Eq | BinaryOp::Ne | BinaryOp::Lt | BinaryOp::Le => {
-                        let lhs_ty = lhs.ty.as_ref().unwrap();
-                        let rhs_ty = rhs.ty.as_ref().unwrap();
-
-                        if lhs_ty.is_scalar() && rhs_ty.is_scalar()
-                            || lhs_ty.is_ptr_or_array() && rhs_ty.is_ptr_or_array()
-                        {
-                            // 両方ともスカラー型の場合、結果型はint型とする
-                            self.ty = Some(Box::new(Type::from(&TypeKind::Int, false)));
-                        } else {
-                            return Err(CompileError::InvalidExpression {
-                                msg: format!(
-                                    "比較演算子はスカラー型またはポインタ/配列型にのみ適用可能です: {:?} と {:?}",
-                                    lhs_ty, rhs_ty
-                                ),
-                            });
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            NodeKind::UnaryOp {
-                ref op,
-                ref mut expr,
-            } => {
-                expr.assign_types()?;
-                match op {
-                    UnaryOp::BitNot => {
-                        let expr_ty = expr.ty.as_ref().unwrap();
-
-                        if expr_ty.is_integer() {
-                            self.ty = Some(Box::new(Type::from(&TypeKind::Int, false))); // 整数拡張
-                        } else {
-                            return Err(CompileError::InvalidExpression {
-                                msg: format!(
-                                    "ビット否定演算子は整数型にのみ適用可能です: {:?}",
-                                    expr_ty
-                                ),
-                            });
-                        }
-                    }
-                    UnaryOp::LogicalNot => {
-                        let expr_ty = expr.ty.as_ref().unwrap();
-
-                        if expr_ty.is_scalar() || expr_ty.is_ptr_or_array() {
-                            self.ty = Some(Box::new(Type::from(&TypeKind::Int, false))); // 結果型はint型
-                        } else {
-                            return Err(CompileError::InvalidExpression {
-                                msg: format!(
-                                    "論理否定演算子はスカラー型またはポインタ/配列型にのみ適用可能です: {:?}",
-                                    expr_ty
-                                ),
-                            });
-                        }
-                    }
-                    UnaryOp::Addr => {
-                        let expr_ty = expr.ty.as_ref().unwrap();
-
-                        // アドレス演算子の型はポインタ型にする
-                        self.ty = Some(Box::new(Type::from(
-                            &TypeKind::Ptr {
-                                to: expr_ty.clone(),
-                            },
-                            false,
-                        )));
-                    }
-                    UnaryOp::Deref => {
-                        let expr_ty = expr.ty.as_ref().unwrap();
-
-                        // デリファレンス演算子の型はポインタの指す型にする
-                        if !expr_ty.is_ptr_or_array() {
-                            return Err(CompileError::InvalidExpression {
-                                msg: format!(
-                                    "デリファレンス演算子はポインタ/配列型にのみ適用可能です: {:?}",
-                                    expr_ty
-                                ),
-                            });
-                        }
-                        self.ty = Some(Box::new(expr_ty.base_type().clone()));
-                    }
-                    UnaryOp::PreInc | UnaryOp::PreDec | UnaryOp::PostInc | UnaryOp::PostDec => {
-                        let expr_ty = expr.ty.as_ref().unwrap();
-
-                        // インクリメント・デクリメント演算子の型はオペランドの型とする
-                        self.ty = Some(expr_ty.clone());
-                    }
-                }
-            }
-            NodeKind::Assign {
-                ref mut lhs,
-                ref mut rhs,
-                ..
-            } => {
-                lhs.assign_types()?;
-                rhs.assign_types()?;
-                let lhs_ty = lhs.ty.as_ref().unwrap();
-
-                self.ty = Some(lhs_ty.clone()); // 代入演算子の型は左辺の型とする
-            }
-            NodeKind::LogicalAnd {
-                ref mut lhs,
-                ref mut rhs,
-            }
-            | NodeKind::LogicalOr {
-                ref mut lhs,
-                ref mut rhs,
-            } => {
-                lhs.assign_types()?;
-                rhs.assign_types()?;
-                let lhs_ty = lhs.ty.as_ref().unwrap();
-                let rhs_ty = rhs.ty.as_ref().unwrap();
-
-                if lhs_ty.is_scalar() && rhs_ty.is_scalar()
-                    || lhs_ty.is_ptr_or_array() && rhs_ty.is_ptr_or_array()
-                {
-                    // 両方ともスカラー型の場合、結果型はint型とする
-                    self.ty = Some(Box::new(Type::from(&TypeKind::Int, false)));
-                } else {
-                    return Err(CompileError::InvalidExpression {
-                        msg: format!(
-                            "論理演算子はスカラー型またはポインタ/配列型にのみ適用可能です: {:?} と {:?}",
-                            lhs_ty, rhs_ty
-                        ),
-                    });
-                }
-            }
-            NodeKind::Ternary {
-                ref mut cond,
-                ref mut then,
-                ref mut els,
-            } => {
-                cond.assign_types()?;
-                then.assign_types()?;
-                els.assign_types()?;
-
-                let cond_ty = cond.ty.as_ref().unwrap();
-                let then_ty = then.ty.as_ref().unwrap();
-                let els_ty = els.ty.as_ref().unwrap();
-                if cond_ty.is_scalar() || cond_ty.is_ptr_or_array() {
-                    if then_ty == els_ty {
-                        // then節とelse節の型が同じ場合、その型を結果型とする
-                        self.ty = Some(then_ty.clone());
-                    } else if then_ty.is_scalar() && els_ty.is_scalar() {
-                        // 両方ともスカラー型の場合、大きい方の型に合わせる
-                        if then_ty.size_of() >= els_ty.size_of() {
-                            self.ty = Some(then_ty.clone());
-                        } else {
-                            self.ty = Some(els_ty.clone());
-                        }
-                    } else {
-                        return Err(CompileError::InvalidExpression {
-                            msg: format!(
-                                "条件演算子のthen節とelse節は同じ型か、両方ともスカラー型である必要があります: {:?} と {:?}",
-                                then_ty, els_ty
-                            ),
-                        });
-                    }
-                } else {
-                    return Err(CompileError::InvalidExpression {
-                        msg: format!(
-                            "条件演算子の条件式はスカラー型にのみ適用可能です: {:?}",
-                            cond_ty
-                        ),
-                    });
-                }
-            }
-            NodeKind::Number { .. } => {
-                // 数値リテラルの型はすでに設定されているはず
-            }
-            NodeKind::Var { .. } => {
-                // 変数の型はすでに設定されているはず
-            }
-            _ => {
-                // その他のノードは型を設定しない
-            }
-        }
-        Ok(())
+        Ok(Some(Box::new(Node::new_binary(
+            BinaryOp::Sub,
+            Box::new(self.clone()),
+            rhs.unwrap(),
+        )?)))
     }
 }

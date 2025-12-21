@@ -213,6 +213,12 @@ impl fmt::Debug for Type {
     }
 }
 
+impl Default for Type {
+    fn default() -> Self {
+        Type::from(&TypeKind::Void, false)
+    }
+}
+
 impl Type {
     pub fn from(kind: &TypeKind, is_const: bool) -> Self {
         match *kind {
