@@ -1,19 +1,16 @@
-use std::ops::Deref;
-
 use crate::ast::Ast;
 use crate::errors::CompileError;
 use crate::node::{Node, NodeKind};
-use crate::types::TypeKind;
 
 impl Ast {
     // TODO: case文, default文の実装
     fn labeled_stmt(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         if let Some(name) = self.consume_ident() {
             if self.consume_punctuator(":").is_some() {
-                return Ok(Some(Box::new(Node::new_unary(
-                    NodeKind::Label { name },
-                    self.stmt()?,
-                ))));
+                let expr = self.stmt()?.ok_or_else(|| CompileError::InvalidStatement {
+                    msg: "ラベルの後に文がありません".to_string(),
+                })?;
+                return Ok(Some(Box::new(Node::new(NodeKind::Label { name, expr }))));
             } else {
                 // ラベル名ではなかった場合、トークンを元に戻す
                 self.retreat_token();
@@ -36,11 +33,11 @@ impl Ast {
                     body.push(stmt);
                 } else {
                     return Err(CompileError::InvalidStatement {
-                        msg: "compound statement内で無効な文が見つかりました".to_string(),
+                        msg: "ブロック内で無効な文が見つかりました".to_string(),
                     });
                 }
             }
-            return Ok(Some(Box::new(Node::from(NodeKind::Block { body }))));
+            return Ok(Some(Box::new(Node::new(NodeKind::Block { body }))));
         }
         Ok(None)
     }
@@ -50,15 +47,19 @@ impl Ast {
     fn selection_stmt(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         if self.consume_keyword("if").is_some() {
             self.expect_punctuator("(")?;
-            let cond = self.expr()?;
+            let cond = self.expr()?.ok_or_else(|| CompileError::InvalidStatement {
+                msg: "if文の条件式がありません".to_string(),
+            })?;
             self.expect_punctuator(")")?;
-            let then = self.stmt()?;
+            let then = self.stmt()?.ok_or_else(|| CompileError::InvalidStatement {
+                msg: "if文のthen文がありません".to_string(),
+            })?;
             let els = if self.consume_keyword("else").is_some() {
                 self.stmt()?
             } else {
                 None
             };
-            return Ok(Some(Box::new(Node::from(NodeKind::If { cond, then, els }))));
+            return Ok(Some(Box::new(Node::new(NodeKind::If { cond, then, els }))));
         }
         Ok(None)
     }
@@ -69,20 +70,28 @@ impl Ast {
     fn iteration_stmt(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         if self.consume_keyword("while").is_some() {
             self.expect_punctuator("(")?;
-            let cond = self.expr()?;
+            let cond = self.expr()?.ok_or_else(|| CompileError::InvalidStatement {
+                msg: "while文の条件式がありません".to_string(),
+            })?;
             self.expect_punctuator(")")?;
-            let then = self.stmt()?;
-            return Ok(Some(Box::new(Node::from(NodeKind::While { cond, then }))));
+            let then = self.stmt()?.ok_or_else(|| CompileError::InvalidStatement {
+                msg: "while文のthen文がありません".to_string(),
+            })?;
+            return Ok(Some(Box::new(Node::new(NodeKind::While { cond, then }))));
         }
 
         if self.consume_keyword("do").is_some() {
-            let then = self.stmt()?;
+            let then = self.stmt()?.ok_or_else(|| CompileError::InvalidStatement {
+                msg: "do-while文のthen文がありません".to_string(),
+            })?;
             self.expect_keyword("while")?;
             self.expect_punctuator("(")?;
-            let cond = self.expr()?;
+            let cond = self.expr()?.ok_or_else(|| CompileError::InvalidStatement {
+                msg: "do-while文の条件式がありません".to_string(),
+            })?;
             self.expect_punctuator(")")?;
             self.expect_punctuator(";")?;
-            return Ok(Some(Box::new(Node::from(NodeKind::Do { then, cond }))));
+            return Ok(Some(Box::new(Node::new(NodeKind::Do { then, cond }))));
         }
 
         if self.consume_keyword("for").is_some() {
@@ -111,8 +120,10 @@ impl Ast {
             } else {
                 None
             };
-            let then = self.stmt()?;
-            return Ok(Some(Box::new(Node::from(NodeKind::For {
+            let then = self.stmt()?.ok_or_else(|| CompileError::InvalidStatement {
+                msg: "for文のthen文がありません".to_string(),
+            })?;
+            return Ok(Some(Box::new(Node::new(NodeKind::For {
                 init,
                 cond,
                 inc,
@@ -129,47 +140,46 @@ impl Ast {
     fn jump_stmt(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         if self.consume_keyword("goto").is_some() {
             let name = self.consume_ident().ok_or(CompileError::InvalidStatement {
-                msg: "goto文の後に識別子が必要です".to_string(),
+                msg: "goto文の後にラベル名が必要です".to_string(),
             })?;
             self.expect_punctuator(";")?;
-            return Ok(Some(Box::new(Node::from(NodeKind::Goto { name }))));
+            return Ok(Some(Box::new(Node::new(NodeKind::Goto { name }))));
         }
 
         if self.consume_keyword("continue").is_some() {
             self.expect_punctuator(";")?;
-            return Ok(Some(Box::new(Node::from(NodeKind::Continue))));
+            return Ok(Some(Box::new(Node::new(NodeKind::Continue))));
         }
 
         if self.consume_keyword("break").is_some() {
             self.expect_punctuator(";")?;
-            return Ok(Some(Box::new(Node::from(NodeKind::Break))));
+            return Ok(Some(Box::new(Node::new(NodeKind::Break))));
         }
 
         if self.consume_keyword("return").is_some() {
             if self.consume_punctuator(";").is_some() {
-                if TypeKind::Void != self.get_current_func()?.return_ty.kind {
-                    return Err(CompileError::InvalidReturnType {
-                        expected: self.get_current_func()?.return_ty.clone().kind,
-                        found: TypeKind::Void,
-                    });
-                }
-                return Ok(Some(Box::new(Node::from(NodeKind::Return))));
+                // TODO: プロトタイプ宣言実装まで保留
+                // if TypeKind::Void != self.get_current_func()?.return_ty.kind {
+                //     return Err(CompileError::InvalidReturnType {
+                //         expected: self.get_current_func()?.return_ty.clone().kind,
+                //         found: TypeKind::Void,
+                //     });
+                // }
+                return Ok(Some(Box::new(Node::new(NodeKind::Return { expr: None }))));
             }
-            let mut node = self.expr()?;
-            if let Some(n) = &mut node {
-                n.assign_types()?;
-                if let Some(ret_ty) = &n.ty {
-                    let func_ret_ty = &self.get_current_func()?.return_ty;
-                    if ret_ty.deref() != func_ret_ty {
-                        return Err(CompileError::InvalidReturnType {
-                            expected: func_ret_ty.kind.clone(),
-                            found: ret_ty.kind.clone(),
-                        });
-                    }
-                }
-            }
+            let node = self.expr()?;
+            // TODO: プロトタイプ宣言実装まで保留
+            // if let Some(n) = &mut node {
+            //     // let func_ret_ty = &self.get_current_func()?.return_ty;
+            //     // if &n.ty != func_ret_ty {
+            //     //     return Err(CompileError::InvalidReturnType {
+            //     //         expected: func_ret_ty.kind.clone(),
+            //     //         found: n.ty.kind.clone(),
+            //     //     });
+            //     // }
+            // }
             self.expect_punctuator(";")?;
-            return Ok(Some(Box::new(Node::new_unary(NodeKind::Return, node))));
+            return Ok(Some(Box::new(Node::new(NodeKind::Return { expr: node }))));
         }
         Ok(None)
     }
@@ -212,7 +222,7 @@ impl Ast {
     // expr_stmt ::= expr? ";"
     fn expr_stmt(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         if self.consume_punctuator(";").is_some() {
-            Ok(Some(Box::new(Node::from(NodeKind::Nop))))
+            Ok(Some(Box::new(Node::new(NodeKind::Nop))))
         } else {
             let expr_node = self.expr()?;
             self.expect_punctuator(";")?;

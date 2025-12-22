@@ -2,7 +2,7 @@ use core::str::FromStr;
 
 use crate::ast::Ast;
 use crate::errors::CompileError;
-use crate::node::{Node, NodeKind};
+use crate::node::{BinaryOp, Node, NodeKind, UnaryOp};
 
 impl Ast {
     // const_expr ::= cond_expr
@@ -20,14 +20,22 @@ impl Ast {
     //                 | ("=" | "*=" | "/=" | "%=" | "+=" | "-=" | "<<=" | ">>=" | "&=" | "^=" | "|=") assign_expr
     pub(super) fn assign_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         let mut node = self.cond_expr()?;
-        let assignment_ops = [
+        let assign_op_str_list = [
             "=", "*=", "/=", "%=", "+=", "-=", "<<=", ">>=", "&=", "^=", "|=",
         ];
-        for op in &assignment_ops {
-            if self.consume_punctuator(op).is_some()
-                && let Ok(kind) = NodeKind::from_str(op)
+        for assign_op_str in &assign_op_str_list {
+            if self.consume_punctuator(assign_op_str).is_some()
+                && let Ok(kind) = BinaryOp::from_str(assign_op_str)
             {
-                node = Some(Box::new(Node::new(kind, node, self.assign_expr()?)));
+                let lhs = node.ok_or_else(|| CompileError::InvalidExpression {
+                    msg: "代入式の左辺値がありません".to_string(),
+                })?;
+                let rhs = self
+                    .assign_expr()?
+                    .ok_or_else(|| CompileError::InvalidExpression {
+                        msg: "代入式の右辺値がありません".to_string(),
+                    })?;
+                node = Some(Box::new(Node::new_assign(kind, lhs, rhs)));
                 break;
             }
         }
@@ -39,15 +47,21 @@ impl Ast {
     fn cond_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         let node = self.logical_or_expr()?;
         if self.consume_punctuator("?").is_some() {
-            let cond = node;
-            let then = self.expr()?;
+            let cond = node.ok_or_else(|| CompileError::InvalidExpression {
+                msg: "三項演算子の条件式がありません".to_string(),
+            })?;
+            let then = self
+                .expr()?
+                .ok_or_else(|| CompileError::InvalidExpression {
+                    msg: "三項演算子のthenの場合の式がありません".to_string(),
+                })?;
             self.expect_punctuator(":")?;
-            let els = self.cond_expr()?;
-            return Ok(Some(Box::new(Node::from(NodeKind::Ternary {
-                cond,
-                then,
-                els,
-            }))));
+            let els = self
+                .cond_expr()?
+                .ok_or_else(|| CompileError::InvalidExpression {
+                    msg: "三項演算子のelseの場合の式がありません".to_string(),
+                })?;
+            return Ok(Some(Box::new(Node::new_ternary(cond, then, els)?)));
         }
         Ok(node)
     }
@@ -60,11 +74,15 @@ impl Ast {
         loop {
             if self.consume_punctuator("||").is_some() {
                 // logical or
-                node = Some(Box::new(Node::new(
-                    NodeKind::LogicalOr,
-                    node,
-                    self.logical_and_expr()?,
-                )));
+                let lhs = node.ok_or_else(|| CompileError::InvalidExpression {
+                    msg: "'||'演算子の左辺値がありません".to_string(),
+                })?;
+                let rhs =
+                    self.logical_and_expr()?
+                        .ok_or_else(|| CompileError::InvalidExpression {
+                            msg: "'||'演算子の右辺値がありません".to_string(),
+                        })?;
+                node = Some(Box::new(Node::new_logical_or(lhs, rhs)?));
             } else {
                 return Ok(node);
             }
@@ -79,11 +97,15 @@ impl Ast {
         loop {
             if self.consume_punctuator("&&").is_some() {
                 // logical and
-                node = Some(Box::new(Node::new(
-                    NodeKind::LogicalAnd,
-                    node,
-                    self.inclusive_or_expr()?,
-                )));
+                let lhs = node.ok_or_else(|| CompileError::InvalidExpression {
+                    msg: "'&&'演算子の左辺値がありません".to_string(),
+                })?;
+                let rhs =
+                    self.inclusive_or_expr()?
+                        .ok_or_else(|| CompileError::InvalidExpression {
+                            msg: "'&&'演算子の右辺値がありません".to_string(),
+                        })?;
+                node = Some(Box::new(Node::new_logical_and(lhs, rhs)?));
             } else {
                 return Ok(node);
             }
@@ -98,11 +120,15 @@ impl Ast {
         loop {
             if self.consume_punctuator("|").is_some() {
                 // bitwise or
-                node = Some(Box::new(Node::new(
-                    NodeKind::BitOr,
-                    node,
-                    self.exclusive_or_expr()?,
-                )));
+                let lhs = node.ok_or_else(|| CompileError::InvalidExpression {
+                    msg: "'|'演算子の左辺値がありません".to_string(),
+                })?;
+                let rhs =
+                    self.exclusive_or_expr()?
+                        .ok_or_else(|| CompileError::InvalidExpression {
+                            msg: "'|'演算子の右辺値がありません".to_string(),
+                        })?;
+                node = Some(Box::new(Node::new_binary(BinaryOp::BitOr, lhs, rhs)?));
             } else {
                 return Ok(node);
             }
@@ -117,11 +143,15 @@ impl Ast {
         loop {
             if self.consume_punctuator("^").is_some() {
                 // bitwise xor
-                node = Some(Box::new(Node::new(
-                    NodeKind::BitXor,
-                    node,
-                    self.and_expr()?,
-                )));
+                let lhs = node.ok_or_else(|| CompileError::InvalidExpression {
+                    msg: "'^'演算子の左辺値がありません".to_string(),
+                })?;
+                let rhs = self
+                    .and_expr()?
+                    .ok_or_else(|| CompileError::InvalidExpression {
+                        msg: "'^'演算子の右辺値がありません".to_string(),
+                    })?;
+                node = Some(Box::new(Node::new_binary(BinaryOp::BitXor, lhs, rhs)?));
             } else {
                 return Ok(node);
             }
@@ -136,11 +166,15 @@ impl Ast {
         loop {
             if self.consume_punctuator("&").is_some() {
                 //bitwise and
-                node = Some(Box::new(Node::new(
-                    NodeKind::BitAnd,
-                    node,
-                    self.equality_expr()?,
-                )));
+                let lhs = node.ok_or_else(|| CompileError::InvalidExpression {
+                    msg: "'&'演算子の左辺値がありません".to_string(),
+                })?;
+                let rhs = self
+                    .equality_expr()?
+                    .ok_or_else(|| CompileError::InvalidExpression {
+                        msg: "'&'演算子の右辺値がありません".to_string(),
+                    })?;
+                node = Some(Box::new(Node::new_binary(BinaryOp::BitAnd, lhs, rhs)?));
             } else {
                 return Ok(node);
             }
@@ -155,18 +189,26 @@ impl Ast {
         loop {
             if self.consume_punctuator("==").is_some() {
                 // equal
-                node = Some(Box::new(Node::new(
-                    NodeKind::Eq,
-                    node,
-                    self.relational_expr()?,
-                )));
+                let lhs = node.ok_or_else(|| CompileError::InvalidExpression {
+                    msg: "'=='演算子の左辺値がありません".to_string(),
+                })?;
+                let rhs =
+                    self.relational_expr()?
+                        .ok_or_else(|| CompileError::InvalidExpression {
+                            msg: "'=='演算子の右辺値がありません".to_string(),
+                        })?;
+                node = Some(Box::new(Node::new_binary(BinaryOp::Eq, lhs, rhs)?));
             } else if self.consume_punctuator("!=").is_some() {
                 // not equal
-                node = Some(Box::new(Node::new(
-                    NodeKind::Ne,
-                    node,
-                    self.relational_expr()?,
-                )));
+                let lhs = node.ok_or_else(|| CompileError::InvalidExpression {
+                    msg: "'!='演算子の左辺値がありません".to_string(),
+                })?;
+                let rhs =
+                    self.relational_expr()?
+                        .ok_or_else(|| CompileError::InvalidExpression {
+                            msg: "'!='演算子の右辺値がありません".to_string(),
+                        })?;
+                node = Some(Box::new(Node::new_binary(BinaryOp::Ne, lhs, rhs)?));
             } else {
                 return Ok(node);
             }
@@ -181,16 +223,48 @@ impl Ast {
         loop {
             if self.consume_punctuator("<").is_some() {
                 // less than
-                node = Some(Box::new(Node::new(NodeKind::Lt, node, self.shift_expr()?)));
+                let lhs = node.ok_or_else(|| CompileError::InvalidExpression {
+                    msg: "'<'演算子の左辺値がありません".to_string(),
+                })?;
+                let rhs = self
+                    .shift_expr()?
+                    .ok_or_else(|| CompileError::InvalidExpression {
+                        msg: "'<'演算子の右辺値がありません".to_string(),
+                    })?;
+                node = Some(Box::new(Node::new_binary(BinaryOp::Lt, lhs, rhs)?));
             } else if self.consume_punctuator("<=").is_some() {
                 // less than or equal
-                node = Some(Box::new(Node::new(NodeKind::Le, node, self.shift_expr()?)));
+                let lhs = node.ok_or_else(|| CompileError::InvalidExpression {
+                    msg: "'<='演算子の左辺値がありません".to_string(),
+                })?;
+                let rhs = self
+                    .shift_expr()?
+                    .ok_or_else(|| CompileError::InvalidExpression {
+                        msg: "'<='演算子の右辺値がありません".to_string(),
+                    })?;
+                node = Some(Box::new(Node::new_binary(BinaryOp::Le, lhs, rhs)?));
             } else if self.consume_punctuator(">").is_some() {
                 // greater than
-                node = Some(Box::new(Node::new(NodeKind::Lt, self.shift_expr()?, node)));
+                let lhs = self
+                    .shift_expr()?
+                    .ok_or_else(|| CompileError::InvalidExpression {
+                        msg: "'>'演算子の左辺値がありません".to_string(),
+                    })?;
+                let rhs = node.ok_or_else(|| CompileError::InvalidExpression {
+                    msg: "'>'演算子の右辺値がありません".to_string(),
+                })?;
+                node = Some(Box::new(Node::new_binary(BinaryOp::Lt, lhs, rhs)?));
             } else if self.consume_punctuator(">=").is_some() {
                 // greater than or equal
-                node = Some(Box::new(Node::new(NodeKind::Le, self.shift_expr()?, node)));
+                let lhs = self
+                    .shift_expr()?
+                    .ok_or_else(|| CompileError::InvalidExpression {
+                        msg: "'>='演算子の左辺値がありません".to_string(),
+                    })?;
+                let rhs = node.ok_or_else(|| CompileError::InvalidExpression {
+                    msg: "'>='演算子の右辺値がありません".to_string(),
+                })?;
+                node = Some(Box::new(Node::new_binary(BinaryOp::Le, lhs, rhs)?));
             } else {
                 return Ok(node);
             }
@@ -205,10 +279,26 @@ impl Ast {
         loop {
             if self.consume_punctuator("<<").is_some() {
                 // left shift
-                node = Some(Box::new(Node::new(NodeKind::Shl, node, self.add_expr()?)));
+                let lhs = node.ok_or_else(|| CompileError::InvalidExpression {
+                    msg: "'<<'演算子の左辺値がありません".to_string(),
+                })?;
+                let rhs = self
+                    .add_expr()?
+                    .ok_or_else(|| CompileError::InvalidExpression {
+                        msg: "'<<'演算子の右辺値がありません".to_string(),
+                    })?;
+                node = Some(Box::new(Node::new_binary(BinaryOp::Shl, lhs, rhs)?));
             } else if self.consume_punctuator(">>").is_some() {
                 // right shift
-                node = Some(Box::new(Node::new(NodeKind::Shr, node, self.add_expr()?)));
+                let lhs = node.ok_or_else(|| CompileError::InvalidExpression {
+                    msg: "'>>'演算子の左辺値がありません".to_string(),
+                })?;
+                let rhs = self
+                    .add_expr()?
+                    .ok_or_else(|| CompileError::InvalidExpression {
+                        msg: "'>>'演算子の右辺値がありません".to_string(),
+                    })?;
+                node = Some(Box::new(Node::new_binary(BinaryOp::Shr, lhs, rhs)?));
             } else {
                 return Ok(node);
             }
@@ -224,16 +314,12 @@ impl Ast {
             if self.consume_punctuator("+").is_some() {
                 // addition
                 if let Some(n) = &mut node {
-                    n.assign_types()?;
-                    let rhs = self.mul_expr()?;
-                    node = n.scaled_add(rhs)?;
+                    node = n.scaled_add(self.mul_expr()?)?;
                 }
             } else if self.consume_punctuator("-").is_some() {
                 // subtraction
                 if let Some(n) = &mut node {
-                    n.assign_types()?; // lhs
-                    let rhs = self.mul_expr()?;
-                    node = n.scaled_sub(rhs)?;
+                    node = n.scaled_sub(self.mul_expr()?)?;
                 }
             } else {
                 return Ok(node);
@@ -249,13 +335,37 @@ impl Ast {
         loop {
             if self.consume_punctuator("*").is_some() {
                 // multiplication
-                node = Some(Box::new(Node::new(NodeKind::Mul, node, self.cast_expr()?)));
+                let lhs = node.ok_or_else(|| CompileError::InvalidExpression {
+                    msg: "'*'演算子の左辺値がありません".to_string(),
+                })?;
+                let rhs = self
+                    .cast_expr()?
+                    .ok_or_else(|| CompileError::InvalidExpression {
+                        msg: "'*'演算子の右辺値がありません".to_string(),
+                    })?;
+                node = Some(Box::new(Node::new_binary(BinaryOp::Mul, lhs, rhs)?));
             } else if self.consume_punctuator("/").is_some() {
                 // division
-                node = Some(Box::new(Node::new(NodeKind::Div, node, self.cast_expr()?)));
+                let lhs = node.ok_or_else(|| CompileError::InvalidExpression {
+                    msg: "'/'演算子の左辺値がありません".to_string(),
+                })?;
+                let rhs = self
+                    .cast_expr()?
+                    .ok_or_else(|| CompileError::InvalidExpression {
+                        msg: "'/'演算子の右辺値がありません".to_string(),
+                    })?;
+                node = Some(Box::new(Node::new_binary(BinaryOp::Div, lhs, rhs)?));
             } else if self.consume_punctuator("%").is_some() {
                 // remainder
-                node = Some(Box::new(Node::new(NodeKind::Rem, node, self.cast_expr()?)));
+                let lhs = node.ok_or_else(|| CompileError::InvalidExpression {
+                    msg: "'%'演算子の左辺値がありません".to_string(),
+                })?;
+                let rhs = self
+                    .cast_expr()?
+                    .ok_or_else(|| CompileError::InvalidExpression {
+                        msg: "'%'演算子の右辺値がありません".to_string(),
+                    })?;
+                node = Some(Box::new(Node::new_binary(BinaryOp::Rem, lhs, rhs)?));
             } else {
                 return Ok(node);
             }
@@ -276,35 +386,37 @@ impl Ast {
     fn unary_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         if self.consume_punctuator("++").is_some() {
             // pre-increment
-            let mut node = self.unary_expr()?;
-            if let Some(n) = &mut node
-                && let Some(ty) = &n.ty
-                && ty.is_ptr_or_array()
-            {
-                let size = ty.base_type().size_of();
-                return Ok(Some(Box::new(Node::new(
-                    NodeKind::AddAssign,
+            let node = self
+                .unary_expr()?
+                .ok_or_else(|| CompileError::InvalidExpression {
+                    msg: "単項'++'の後に式がありません".to_string(),
+                })?;
+            if node.ty.is_ptr_or_array() {
+                let size = node.ty.base_type().size_of();
+                return Ok(Some(Box::new(Node::new_assign(
+                    BinaryOp::Add,
                     node,
-                    Some(Box::new(Node::new_num(size as i64))),
+                    Box::new(Node::new_num(size as i64)),
                 ))));
             }
-            return Ok(Some(Box::new(Node::new_unary(NodeKind::PreInc, node))));
+            return Ok(Some(Box::new(Node::new_unary(UnaryOp::PreInc, node)?)));
         }
         if self.consume_punctuator("--").is_some() {
             // pre-decrement
-            let mut node = self.unary_expr()?;
-            if let Some(n) = &mut node
-                && let Some(ty) = &n.ty
-                && ty.is_ptr_or_array()
-            {
-                let size = ty.base_type().size_of();
-                return Ok(Some(Box::new(Node::new(
-                    NodeKind::SubAssign,
+            let node = self
+                .unary_expr()?
+                .ok_or_else(|| CompileError::InvalidExpression {
+                    msg: "単項'--'の後に式がありません".to_string(),
+                })?;
+            if node.ty.is_ptr_or_array() {
+                let size = node.ty.base_type().size_of();
+                return Ok(Some(Box::new(Node::new_assign(
+                    BinaryOp::Sub,
                     node,
-                    Some(Box::new(Node::new_num(size as i64))),
+                    Box::new(Node::new_num(size as i64)),
                 ))));
             }
-            return Ok(Some(Box::new(Node::new_unary(NodeKind::PreDec, node))));
+            return Ok(Some(Box::new(Node::new_unary(UnaryOp::PreDec, node)?)));
         }
 
         if self.consume_punctuator("+").is_some() {
@@ -313,47 +425,52 @@ impl Ast {
         }
         if self.consume_punctuator("-").is_some() {
             // unary minus
-            return Ok(Some(Box::new(Node::new(
-                NodeKind::Sub,
-                Some(Box::new(Node::new_num(0))),
-                self.cast_expr()?,
-            ))));
+            let expr = self
+                .cast_expr()?
+                .ok_or_else(|| CompileError::InvalidExpression {
+                    msg: "単項'-'の後に式がありません".to_string(),
+                })?;
+            return Ok(Some(Box::new(Node::new_binary(
+                BinaryOp::Sub,
+                Box::new(Node::new_num(0)),
+                expr,
+            )?)));
         }
         if self.consume_punctuator("&").is_some() {
             // address-of
-            let mut node = Box::new(Node::new_unary(NodeKind::Addr, self.cast_expr()?));
-            node.assign_types()?;
-            if node.ty.is_none() {
-                return Err(CompileError::InternalError {
-                    msg: "＆演算子の型情報が設定されていません".to_string(),
+            let expr = self
+                .cast_expr()?
+                .ok_or_else(|| CompileError::InvalidExpression {
+                    msg: "単項'&'の後に式がありません".to_string(),
                 })?;
-            }
-            return Ok(Some(node));
+            return Ok(Some(Box::new(Node::new_unary(UnaryOp::Addr, expr)?)));
         }
         if self.consume_punctuator("*").is_some() {
             // dereference
-            let mut node = Box::new(Node::new_unary(NodeKind::Deref, self.cast_expr()?));
-            node.assign_types()?;
-            if node.ty.is_none() {
-                return Err(CompileError::InternalError {
-                    msg: "*演算子の型情報が設定されていません".to_string(),
+            let expr = self
+                .cast_expr()?
+                .ok_or_else(|| CompileError::InvalidExpression {
+                    msg: "単項'*'の後に式がありません".to_string(),
                 })?;
-            }
-            return Ok(Some(node));
+            return Ok(Some(Box::new(Node::new_unary(UnaryOp::Deref, expr)?)));
         }
         if self.consume_punctuator("~").is_some() {
             // bitwise not
-            return Ok(Some(Box::new(Node::new_unary(
-                NodeKind::BitNot,
-                self.cast_expr()?,
-            ))));
+            let expr = self
+                .cast_expr()?
+                .ok_or_else(|| CompileError::InvalidExpression {
+                    msg: "単項'~'の後に式がありません".to_string(),
+                })?;
+            return Ok(Some(Box::new(Node::new_unary(UnaryOp::BitNot, expr)?)));
         }
         if self.consume_punctuator("!").is_some() {
             // logical not
-            return Ok(Some(Box::new(Node::new_unary(
-                NodeKind::LogicalNot,
-                self.cast_expr()?,
-            ))));
+            let expr = self
+                .cast_expr()?
+                .ok_or_else(|| CompileError::InvalidExpression {
+                    msg: "単項'!'の後に式がありません".to_string(),
+                })?;
+            return Ok(Some(Box::new(Node::new_unary(UnaryOp::LogicalNot, expr)?)));
         }
 
         if self.consume_keyword("sizeof").is_some() {
@@ -372,15 +489,8 @@ impl Ast {
             // sizeof unary_expr
             let mut node = self.unary_expr()?;
             if let Some(n) = &mut node {
-                n.assign_types()?;
-                if let Some(ty) = &n.ty {
-                    let size = ty.size_of();
-                    return Ok(Some(Box::new(Node::new_num(size as i64))));
-                } else {
-                    return Err(CompileError::InternalError {
-                        msg: "sizeof演算子の型情報が設定されていません".to_string(),
-                    })?;
-                }
+                let size = n.ty.size_of();
+                return Ok(Some(Box::new(Node::new_num(size as i64))));
             }
         }
 
@@ -430,17 +540,18 @@ impl Ast {
                 node = self.assign_identifier(node)?; // 識別子を変数に割り当て
                 let index_expr = self.expr()?;
                 if let Some(n) = &mut node {
-                    let scaled_add = n.scaled_add(index_expr)?;
-                    node = Some(Box::new(Node::new_unary(NodeKind::Deref, scaled_add)));
-                }
-                if let Some(n) = &mut node {
-                    n.assign_types()?;
+                    let scaled_add =
+                        n.scaled_add(index_expr)?
+                            .ok_or_else(|| CompileError::InternalError {
+                                msg: "配列のインデックス計算に失敗しました".to_string(),
+                            })?;
+                    node = Some(Box::new(Node::new_unary(UnaryOp::Deref, scaled_add)?));
                 }
                 self.expect_punctuator("]")?;
             } else if self.consume_punctuator("(").is_some() {
                 let args = self.argument_expr_list()?;
                 self.expect_punctuator(")")?;
-                node = Some(Box::new(Node::from(NodeKind::Call {
+                node = Some(Box::new(Node::new(NodeKind::Call {
                     name: if let Some(n) = &node
                         && let NodeKind::Identifier { name } = &n.kind
                     {
@@ -459,44 +570,44 @@ impl Ast {
             } else if self.consume_punctuator("++").is_some() {
                 // post-increment
                 node = self.assign_identifier(node)?; // 識別子を変数に割り当て
-                if let Some(n) = &mut node
-                    && let Some(ty) = &n.ty
-                    && ty.is_ptr_or_array()
-                {
-                    let size = ty.base_type().size_of();
-                    let assign_node = Some(Box::new(Node::new(
-                        NodeKind::AddAssign,
-                        node,
-                        Some(Box::new(Node::new_num(size as i64))),
-                    )));
-                    node = Some(Box::new(Node::new(
-                        NodeKind::Sub,
+                let expr = node.ok_or_else(|| CompileError::InvalidExpression {
+                    msg: "単項'++'の前に式がありません".to_string(),
+                })?;
+                if expr.ty.is_ptr_or_array() {
+                    let size = expr.ty.base_type().size_of();
+                    let assign_node = Box::new(Node::new_assign(
+                        BinaryOp::Add,
+                        expr,
+                        Box::new(Node::new_num(size as i64)),
+                    ));
+                    node = Some(Box::new(Node::new_binary(
+                        BinaryOp::Sub,
                         assign_node,
-                        Some(Box::new(Node::new_num(size as i64))),
-                    )))
+                        Box::new(Node::new_num(size as i64)),
+                    )?))
                 } else {
-                    node = Some(Box::new(Node::new_unary(NodeKind::PostInc, node)));
+                    node = Some(Box::new(Node::new_unary(UnaryOp::PostInc, expr)?));
                 }
             } else if self.consume_punctuator("--").is_some() {
                 // post-decrement
                 node = self.assign_identifier(node)?; // 識別子を変数に割り当て
-                if let Some(n) = &mut node
-                    && let Some(ty) = &n.ty
-                    && ty.is_ptr_or_array()
-                {
-                    let size = ty.base_type().size_of();
-                    let assign_node = Some(Box::new(Node::new(
-                        NodeKind::SubAssign,
-                        node,
-                        Some(Box::new(Node::new_num(size as i64))),
-                    )));
-                    node = Some(Box::new(Node::new(
-                        NodeKind::Add,
+                let expr = node.ok_or_else(|| CompileError::InvalidExpression {
+                    msg: "単項'--'の前に式がありません".to_string(),
+                })?;
+                if expr.ty.is_ptr_or_array() {
+                    let size = expr.ty.base_type().size_of();
+                    let assign_node = Box::new(Node::new_assign(
+                        BinaryOp::Sub,
+                        expr,
+                        Box::new(Node::new_num(size as i64)),
+                    ));
+                    node = Some(Box::new(Node::new_binary(
+                        BinaryOp::Add,
                         assign_node,
-                        Some(Box::new(Node::new_num(size as i64))),
-                    )))
+                        Box::new(Node::new_num(size as i64)),
+                    )?))
                 } else {
-                    node = Some(Box::new(Node::new_unary(NodeKind::PostDec, node)));
+                    node = Some(Box::new(Node::new_unary(UnaryOp::PostDec, expr)?));
                 }
             } else {
                 node = self.assign_identifier(node)?; // 識別子を変数に割り当て
@@ -541,12 +652,12 @@ impl Ast {
         }
 
         if let Some(name) = self.consume_ident() {
-            let node = Node::from(NodeKind::Identifier { name: name.clone() });
+            let node = Node::new(NodeKind::Identifier { name: name.clone() });
             return Ok(Some(Box::new(node)));
         }
 
         if let Some(string) = self.consume_string() {
-            let node = Node::from(NodeKind::String {
+            let node = Node::new(NodeKind::String {
                 val: string.clone(),
                 index: self.string_literals.len() as i64,
             });

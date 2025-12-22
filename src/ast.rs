@@ -13,8 +13,8 @@ use crate::types::{AlignUp, Type, TypeKind};
 pub struct Var {
     pub name: String,
     pub offset: usize,
-    pub ty: Box<Type>,
-    pub init: Vec<Option<Box<Node>>>,
+    pub ty: Type,
+    pub init: Vec<Node>,
 }
 
 impl Var {
@@ -22,7 +22,7 @@ impl Var {
         Var {
             name: name.to_string(),
             offset: 0,
-            ty: Box::new(ty),
+            ty,
             init: Vec::new(),
         }
     }
@@ -38,11 +38,7 @@ impl fmt::Debug for Var {
                 write!(f, " = {{ ")?;
             }
             for (i, init_node) in self.init.iter().enumerate() {
-                if let Some(node) = init_node {
-                    write!(f, "{:?}", node)?;
-                } else {
-                    write!(f, "None")?;
-                }
+                write!(f, "{:?}", init_node)?;
                 if i != self.init.len() - 1 {
                     write!(f, ", ")?;
                 }
@@ -115,8 +111,8 @@ pub struct Ast {
     tokens: Vec<Token>,
     token_pos: usize,
     pub globals: Vec<Var>,
-    pub funcs: Vec<Box<Function>>,
-    current_func: Option<Box<Function>>,
+    pub funcs: Vec<Function>,
+    current_func: Option<Function>,
     pub string_literals: Vec<String>,
 }
 
@@ -132,7 +128,7 @@ impl Ast {
         }
     }
 
-    fn get_current_func(&mut self) -> Result<&mut Box<Function>, CompileError> {
+    fn get_current_func(&mut self) -> Result<&mut Function, CompileError> {
         self.current_func
             .as_mut()
             .ok_or_else(|| CompileError::InternalError {
@@ -328,7 +324,7 @@ impl Ast {
     }
 
     // func_def ::= declaration_specifier declarator compound_stmt
-    fn func_def(&mut self) -> Result<Option<Box<Function>>, CompileError> {
+    fn func_def(&mut self) -> Result<Option<Function>, CompileError> {
         let specifier = self.declaration_specifier()?;
         let base_kind = if let Some(specifier) = specifier {
             Type::from_ds(&vec![specifier]).unwrap()
@@ -337,14 +333,14 @@ impl Ast {
                 msg: "関数定義の型指定子が無効です".to_string(),
             });
         };
-        let func_decl = if let Ok(var) = self.declarator(base_kind) {
+        let func_decl = if let Ok(var) = self.declarator(&base_kind) {
             var
         } else {
             return Err(CompileError::InvalidDeclaration {
                 msg: "関数定義のパースに失敗しました".to_string(),
             });
         };
-        let mut func = Box::new(Function::new(&func_decl.name));
+        let mut func = Function::new(&func_decl.name);
         if let TypeKind::Func { params, return_ty } = func_decl.ty.kind {
             func.params_len = params.len();
             for param in params {
