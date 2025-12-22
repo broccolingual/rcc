@@ -13,7 +13,10 @@ impl Ast {
         if specifiers.is_empty() {
             return Ok(None);
         }
-        let base_ty = Type::from_ds(&specifiers).unwrap();
+        let base_ty =
+            Type::from_ds(&specifiers).ok_or_else(|| CompileError::InvalidDeclaration {
+                msg: "無効な型指定子です".to_string(),
+            })?;
         let vars = self.init_declarator_list(base_ty)?;
         if vars.is_empty() {
             return Ok(None);
@@ -133,7 +136,10 @@ impl Ast {
         if specifiers.is_empty() {
             return Ok(None);
         }
-        let base_ty = Type::from_tsq(&specifiers).unwrap();
+        let base_ty =
+            Type::from_tsq(&specifiers).ok_or_else(|| CompileError::InvalidDeclaration {
+                msg: "無効な型指定子です".to_string(),
+            })?;
         let members = self.struct_declarator_list(&base_ty)?;
         self.expect_punctuator(";")?;
         if members.is_empty() {
@@ -305,7 +311,10 @@ impl Ast {
     fn parameter_declaration(&mut self) -> Result<Box<Var>, CompileError> {
         let specifiers = self.declaration_specifiers()?;
         if !specifiers.is_empty() {
-            let base_kind = Type::from_ds(&specifiers).unwrap();
+            let base_kind =
+                Type::from_ds(&specifiers).ok_or_else(|| CompileError::InvalidDeclaration {
+                    msg: "無効な型指定子です".to_string(),
+                })?;
             if let Ok(var) = self.declarator(base_kind) {
                 return Ok(var);
             }
@@ -323,7 +332,10 @@ impl Ast {
                 msg: "無効な型名です".to_string(),
             });
         }
-        let base_ty = Type::from_tsq(&specifiers).unwrap();
+        let base_ty =
+            Type::from_tsq(&specifiers).ok_or_else(|| CompileError::InvalidDeclaration {
+                msg: "無効な型指定子です".to_string(),
+            })?;
         if let Ok(abstract_ty) = self.abstract_declarator(&base_ty) {
             return Ok(abstract_ty);
         }

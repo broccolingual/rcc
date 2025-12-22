@@ -422,13 +422,13 @@ impl Generator {
 
                 self.gen_expr(cond);
                 self.test_zero();
-                if els.is_some() {
+                if let Some(els_node) = els {
                     // else節あり
                     self.builder.add_row(&format!("je .L.else.{}", seq), true);
                     self.gen_stmt(then);
                     self.builder.add_row(&format!("jmp .L.end.{}", seq), true);
                     self.builder.add_row(&format!(".L.else.{}:", seq), false);
-                    self.gen_stmt(&els.clone().unwrap());
+                    self.gen_stmt(els_node);
                     self.builder.add_row(&format!(".L.end.{}:", seq), false);
                 } else {
                     // else節なし

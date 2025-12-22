@@ -526,41 +526,51 @@ impl Node {
 
     pub fn scaled_add(
         &mut self,
-        mut rhs: Option<Box<Node>>,
+        rhs: Option<Box<Node>>,
     ) -> Result<Option<Box<Node>>, CompileError> {
-        if self.ty.is_ptr_or_array() {
+        let rhs = rhs.ok_or_else(|| CompileError::InvalidExpression {
+            msg: "expression required after '+' operator".to_string(),
+        })?;
+        let rhs = if self.ty.is_ptr_or_array() {
             let base_size = self.ty.base_type().size_of();
             // ポインタ加算の場合、右辺をスケーリングする
-            rhs = Some(Box::new(Node::new_binary(
+            Box::new(Node::new_binary(
                 BinaryOp::Mul,
-                rhs.unwrap(),
+                rhs,
                 Box::new(Node::new_num(base_size as i64)),
-            )?));
-        }
+            )?)
+        } else {
+            rhs
+        };
         Ok(Some(Box::new(Node::new_binary(
             BinaryOp::Add,
             Box::new(self.clone()),
-            rhs.unwrap(),
+            rhs,
         )?)))
     }
 
     pub fn scaled_sub(
         &mut self,
-        mut rhs: Option<Box<Node>>,
+        rhs: Option<Box<Node>>,
     ) -> Result<Option<Box<Node>>, CompileError> {
-        if self.ty.is_ptr_or_array() {
+        let rhs = rhs.ok_or_else(|| CompileError::InvalidExpression {
+            msg: "expression required after '-' operator".to_string(),
+        })?;
+        let rhs = if self.ty.is_ptr_or_array() {
             let base_size = self.ty.base_type().size_of();
             // ポインタ減算の場合、右辺をスケーリングする
-            rhs = Some(Box::new(Node::new_binary(
+            Box::new(Node::new_binary(
                 BinaryOp::Mul,
-                rhs.unwrap(),
+                rhs,
                 Box::new(Node::new_num(base_size as i64)),
-            )?));
-        }
+            )?)
+        } else {
+            rhs
+        };
         Ok(Some(Box::new(Node::new_binary(
             BinaryOp::Sub,
             Box::new(self.clone()),
-            rhs.unwrap(),
+            rhs,
         )?)))
     }
 }
