@@ -323,23 +323,45 @@ impl Type {
 
     // TODO: constやvolatileの情報も扱う
     pub fn from_ds(declaration_specifiers: &Vec<DeclarationSpecifier>) -> Option<Self> {
+        let mut ty = Type::default();
+        let mut has_type_specifier = false;
         for specifier in declaration_specifiers {
-            if let DeclarationSpecifier::TypeSpecifierQualifier(tsq) = specifier
-                && let TypeSpecifierQualifier::TypeSpecifier(ty) = tsq
-            {
-                return Some(Type::from(ty, false));
+            match specifier {
+                DeclarationSpecifier::TypeSpecifierQualifier(tsq) => match tsq {
+                    TypeSpecifierQualifier::TypeQualifier(tq) => {
+                        if *tq == TypeQualifierKind::Const {
+                            ty.is_const = true;
+                        }
+                    }
+                    TypeSpecifierQualifier::TypeSpecifier(ty_kind) => {
+                        ty = Type::from(ty_kind, ty.is_const);
+                        has_type_specifier = true;
+                    }
+                },
+                DeclarationSpecifier::StorageClassSpecifier(_) => {}
+                DeclarationSpecifier::FunctionSpecifier(_) => {}
             }
         }
-        None
+        if has_type_specifier { Some(ty) } else { None }
     }
 
     pub fn from_tsq(type_specifier_qualifiers: &Vec<TypeSpecifierQualifier>) -> Option<Self> {
+        let mut ty = Type::default();
+        let mut has_type_specifier = false;
         for specifier in type_specifier_qualifiers {
-            if let TypeSpecifierQualifier::TypeSpecifier(ty) = specifier {
-                return Some(Type::from(ty, false));
+            match specifier {
+                TypeSpecifierQualifier::TypeQualifier(tq) => {
+                    if *tq == TypeQualifierKind::Const {
+                        ty.is_const = true;
+                    }
+                }
+                TypeSpecifierQualifier::TypeSpecifier(ty_kind) => {
+                    ty = Type::from(ty_kind, ty.is_const);
+                    has_type_specifier = true;
+                }
             }
         }
-        None
+        if has_type_specifier { Some(ty) } else { None }
     }
 
     // ポインタもしくは配列の指している型を取得

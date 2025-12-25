@@ -18,6 +18,9 @@ pub enum CompileError {
     UndefinedIdentifier {
         name: String,
     },
+    ReadOnlyLvalue {
+        name: String,
+    },
     Redeclaration {
         name: String,
     },
@@ -67,6 +70,9 @@ impl fmt::Display for CompileError {
             }
             CompileError::UndefinedIdentifier { name } => {
                 write!(f, "undefined identifier: '{}'", name)
+            }
+            CompileError::ReadOnlyLvalue { name } => {
+                write!(f, "attempt to assign to read-only variable: '{}'", name)
             }
             CompileError::Redeclaration { name } => {
                 write!(f, "redeclaration of variable: '{}'", name)

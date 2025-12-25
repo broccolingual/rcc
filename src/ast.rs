@@ -323,17 +323,17 @@ impl Ast {
         })
     }
 
-    // func_def ::= declaration_specifier declarator compound_stmt
+    // func_def ::= declaration_specifiers declarator compound_stmt
     fn func_def(&mut self) -> Result<Option<Function>, CompileError> {
-        let specifier = self.declaration_specifier()?;
-        let base_kind = if let Some(specifier) = specifier {
-            Type::from_ds(&vec![specifier]).unwrap()
-        } else {
-            return Err(CompileError::InvalidTypeSpecifier {
-                msg: "関数定義の型指定子が無効です".to_string(),
-            });
-        };
-        let func_decl = self.declarator(&base_kind)?;
+        let specifiers = self.declaration_specifiers()?;
+        if specifiers.is_empty() {
+            return Ok(None);
+        }
+        let base_ty =
+            Type::from_ds(&specifiers).ok_or_else(|| CompileError::InvalidDeclaration {
+                msg: "関数の基本型の解決に失敗しました".to_string(),
+            })?;
+        let func_decl = self.declarator(&base_ty)?;
         let mut func = Function::new(&func_decl.name);
         if let TypeKind::Func { params, return_ty } = func_decl.ty.kind {
             func.params_len = params.len();

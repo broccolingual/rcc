@@ -35,6 +35,11 @@ impl Ast {
                 let lhs = node.ok_or_else(|| CompileError::InvalidExpression {
                     msg: "代入式の左辺値がありません".to_string(),
                 })?;
+                if let NodeKind::Var { name, .. } = &lhs.kind
+                    && lhs.ty.is_const
+                {
+                    return Err(CompileError::ReadOnlyLvalue { name: name.clone() });
+                }
                 let rhs = self
                     .assign_expr()?
                     .ok_or_else(|| CompileError::InvalidExpression {
