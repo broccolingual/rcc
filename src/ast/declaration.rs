@@ -261,7 +261,8 @@ impl Ast {
         // "[" type_qualifier_list? assignment_expression? "]"
         if self.consume_punctuator("[").is_some() {
             self.type_qualifier_list(); // 現状は型修飾子を無視
-            let array_size = self.expect_number()? as usize; // TODO: assign_exprに置き換え
+            // TODO: assign_exprに置き換え，サイズが省略された場合の対応
+            let array_size = self.expect_number()? as usize;
             self.expect_punctuator("]")?;
             let inner_ty = self.parse_postfix_declarators(base_ty)?;
             Ok(Type::from(

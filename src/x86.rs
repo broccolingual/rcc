@@ -178,9 +178,48 @@ impl Generator {
     }
 
     fn emit_global_init(&mut self, gvar: &Var) {
-        if let TypeKind::Array { .. } = gvar.ty.kind {
-            // TODO: 配列の初期化式
-            unimplemented!("配列のグローバル変数初期化には未対応です");
+        if let TypeKind::Array { ref base, size } = gvar.ty.kind {
+            // TODO: 多次元配列の初期化、文字列リテラルによる初期化
+            let init_len = gvar.init.len().min(size);
+            for i in 0..init_len {
+                let init = &gvar.init[i];
+                match &init.kind {
+                    NodeKind::Number { val } => {
+                        self.emit_data_value(val, base.size_of());
+                    }
+                    NodeKind::UnaryOp {
+                        op: UnaryOp::Addr,
+                        expr,
+                    } => match &expr.kind {
+                        NodeKind::Var { name, is_local, .. } => {
+                            if !is_local {
+                                self.builder.add_row(&format!(".quad {}", name), true);
+                            } else {
+                                panic!(
+                                    "グローバル変数の初期化式にローカル変数のアドレスは使用できません: {}",
+                                    name
+                                );
+                            }
+                        }
+                        _ => {
+                            panic!(
+                                "未対応のグローバル変数初期化式のアドレス指定: {:?}",
+                                expr.kind
+                            );
+                        }
+                    },
+                    NodeKind::String { index, .. } => {
+                        self.builder
+                            .add_row(&format!(".quad .L.str.{}", index), true);
+                    }
+                    _ => panic!("未対応のグローバル変数初期化式: {:?}", init.kind),
+                }
+            }
+            if gvar.init.len() < size {
+                let zero_fill_size = (size - gvar.init.len()) * base.size_of();
+                self.builder
+                    .add_row(&format!(".zero {}", zero_fill_size), true);
+            }
         } else if let TypeKind::Struct { .. } = gvar.ty.kind {
             // TODO: 構造体の初期化式
             unimplemented!("構造体のグローバル変数初期化には未対応です");
@@ -195,7 +234,7 @@ impl Generator {
                     expr,
                 } => match &expr.kind {
                     NodeKind::Var { name, is_local, .. } => {
-                        if !*is_local {
+                        if !is_local {
                             self.builder.add_row(&format!(".quad {}", name), true);
                         } else {
                             panic!(
