@@ -506,6 +506,115 @@ impl Node {
         node
     }
 
+    // 定数式を評価して、その値を返す
+    pub fn eval_const_expr(&self) -> Result<i64, CompileError> {
+        match &self.kind {
+            NodeKind::Number { val } => Ok(*val),
+            NodeKind::UnaryOp { op, expr } => {
+                let val = expr.eval_const_expr()?;
+                match op {
+                    UnaryOp::BitNot => Ok(!val),
+                    UnaryOp::LogicalNot => Ok(if val == 0 { 1 } else { 0 }),
+                    _ => Err(CompileError::InvalidExpression {
+                        msg: format!("定数式に不正な単項演算子が含まれています: {:?}", op),
+                    }),
+                }
+            }
+            NodeKind::BinaryOp { op, lhs, rhs } => {
+                let lval = lhs.eval_const_expr()?;
+                let rval = rhs.eval_const_expr()?;
+                match op {
+                    BinaryOp::Add => Ok(lval + rval),
+                    BinaryOp::Sub => Ok(lval - rval),
+                    BinaryOp::Mul => Ok(lval * rval),
+                    BinaryOp::Div => {
+                        if rval == 0 {
+                            return Err(CompileError::InvalidExpression {
+                                msg: "定数式の除算でゼロ除算が発生しました".to_string(),
+                            });
+                        }
+                        Ok(lval / rval)
+                    }
+                    BinaryOp::Rem => {
+                        if rval == 0 {
+                            return Err(CompileError::InvalidExpression {
+                                msg: "定数式の剰余演算でゼロ除算が発生しました".to_string(),
+                            });
+                        }
+                        Ok(lval % rval)
+                    }
+                    BinaryOp::Shl => {
+                        if !(0..64).contains(&rval) {
+                            return Err(CompileError::InvalidExpression {
+                                msg: "定数式の左シフト演算で不正なシフト量が指定されました"
+                                    .to_string(),
+                            });
+                        }
+                        Ok(lval << rval)
+                    }
+                    BinaryOp::Shr => {
+                        if !(0..64).contains(&rval) {
+                            return Err(CompileError::InvalidExpression {
+                                msg: "定数式の右シフト演算で不正なシフト量が指定されました"
+                                    .to_string(),
+                            });
+                        }
+                        Ok(lval >> rval)
+                    }
+                    BinaryOp::BitAnd => Ok(lval & rval),
+                    BinaryOp::BitOr => Ok(lval | rval),
+                    BinaryOp::BitXor => Ok(lval ^ rval),
+                    BinaryOp::Eq => Ok(if lval == rval { 1 } else { 0 }),
+                    BinaryOp::Ne => Ok(if lval != rval { 1 } else { 0 }),
+                    BinaryOp::Lt => Ok(if lval < rval { 1 } else { 0 }),
+                    BinaryOp::Le => Ok(if lval <= rval { 1 } else { 0 }),
+                    _ => Err(CompileError::InvalidExpression {
+                        msg: format!("定数式に不正な二項演算子が含まれています: {:?}", op),
+                    }),
+                }
+            }
+            NodeKind::Ternary { cond, then, els } => {
+                let cond_val = cond.eval_const_expr()?;
+                if cond_val != 0 {
+                    then.eval_const_expr()
+                } else {
+                    els.eval_const_expr()
+                }
+            }
+            NodeKind::LogicalAnd { lhs, rhs } => {
+                let lval = lhs.eval_const_expr()?;
+                if lval == 0 {
+                    Ok(0)
+                } else {
+                    let rval = rhs.eval_const_expr()?;
+                    Ok(if rval != 0 { 1 } else { 0 })
+                }
+            }
+            NodeKind::LogicalOr { lhs, rhs } => {
+                let lval = lhs.eval_const_expr()?;
+                if lval != 0 {
+                    Ok(1)
+                } else {
+                    let rval = rhs.eval_const_expr()?;
+                    Ok(if rval != 0 { 1 } else { 0 })
+                }
+            }
+            NodeKind::Var { name, is_local, .. } => {
+                if *is_local {
+                    Err(CompileError::InvalidExpression {
+                        msg: format!("定数式にローカル変数 '{}' が含まれています", name),
+                    })
+                } else {
+                    // TODO: グローバル変数の定数式評価
+                    unimplemented!("グローバル変数の定数式評価は未実装です");
+                }
+            }
+            _ => Err(CompileError::InvalidExpression {
+                msg: "定数式に不正なノードが含まれています".to_string(),
+            }),
+        }
+    }
+
     pub fn is_expr(&self) -> bool {
         match self.kind {
             // 値を返さない文

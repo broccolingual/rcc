@@ -79,6 +79,19 @@ impl Ast {
             if self.consume_punctuator("=").is_some() {
                 // TODO: 代入時の型チェック
                 var.init = self.initializer()?; // initializerを設定
+                match var.ty.kind {
+                    // サイズ不明な配列型の場合、初期化子の要素数でサイズを決定
+                    TypeKind::Array { ref base, ref size } if *size == 0 => {
+                        var.ty = Type::from(
+                            &TypeKind::Array {
+                                base: base.clone(),
+                                size: var.init.len(),
+                            },
+                            var.ty.is_const,
+                        );
+                    }
+                    _ => {}
+                }
             }
             return Ok(Some(var));
         }
@@ -261,8 +274,17 @@ impl Ast {
         // "[" type_qualifier_list? assignment_expression? "]"
         if self.consume_punctuator("[").is_some() {
             self.type_qualifier_list(); // 現状は型修飾子を無視
-            // TODO: assign_exprに置き換え，サイズが省略された場合の対応
-            let array_size = self.expect_number()? as usize;
+            // TODO: assign_exprに置き換え
+            let array_size = if self.peek_punctuator("]") {
+                0
+            } else {
+                let size_expr =
+                    self.assign_expr()?
+                        .ok_or_else(|| CompileError::InvalidDeclaration {
+                            msg: "配列のサイズが必要です".to_string(),
+                        })?;
+                size_expr.eval_const_expr()? as usize
+            };
             self.expect_punctuator("]")?;
             let inner_ty = self.parse_postfix_declarators(base_ty)?;
             Ok(Type::from(

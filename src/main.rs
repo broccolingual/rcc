@@ -62,7 +62,10 @@ fn main() {
     }
 
     let mut generator = Generator::default();
-    generator.gen_asm(&ast);
+    if let Err(e) = generator.gen_asm(&ast) {
+        eprintln!("Compile Error: {}", e);
+        return;
+    }
 
     if args.debug {
         // println!("=== Tokens ===");
