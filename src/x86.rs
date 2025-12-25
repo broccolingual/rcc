@@ -221,7 +221,7 @@ impl Generator {
                             .add_row(&format!(".quad .L.str.{}", index), true);
                     }
                     _ => {
-                        let val = init.eval_const_expr().unwrap();
+                        let val = init.eval_const_expr()?;
                         self.emit_data_value(&val, base.size_of())?;
                     }
                 }
@@ -267,7 +267,7 @@ impl Generator {
                         .add_row(&format!(".quad .L.str.{}", index), true);
                 }
                 _ => {
-                    let val = init.eval_const_expr().unwrap();
+                    let val = init.eval_const_expr()?;
                     self.emit_data_value(&val, gvar.ty.size_of())?;
                 }
             }
