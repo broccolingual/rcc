@@ -544,7 +544,7 @@ impl Node {
                         Ok(lval % rval)
                     }
                     BinaryOp::Shl => {
-                        if rval < 0 || rval >= 64 {
+                        if !(0..64).contains(&rval) {
                             return Err(CompileError::InvalidExpression {
                                 msg: "定数式の左シフト演算で不正なシフト量が指定されました"
                                     .to_string(),
@@ -553,7 +553,7 @@ impl Node {
                         Ok(lval << rval)
                     }
                     BinaryOp::Shr => {
-                        if rval < 0 || rval >= 64 {
+                        if !(0..64).contains(&rval) {
                             return Err(CompileError::InvalidExpression {
                                 msg: "定数式の右シフト演算で不正なシフト量が指定されました"
                                     .to_string(),

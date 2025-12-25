@@ -2,6 +2,7 @@ use core::panic;
 
 use crate::asm_builder::AsmBuilder;
 use crate::ast::{Ast, Var};
+use crate::errors::CompileError;
 use crate::node::{BinaryOp, Node, NodeKind, UnaryOp};
 use crate::types::{Type, TypeKind};
 
@@ -142,21 +143,26 @@ impl Generator {
         }
     }
 
-    fn emit_data_value(&mut self, val: &i64, size: usize) {
+    fn emit_data_value(&mut self, val: &i64, size: usize) -> Result<(), CompileError> {
         let directive = match size {
             1 => "byte",
             2 => "word",
             4 => "long",
             8 => "quad",
-            _ => panic!("未対応のグローバル変数初期化サイズ: {}", size),
+            _ => {
+                return Err(CompileError::InvalidExpression {
+                    msg: format!("不正なデータサイズ: {}", size),
+                });
+            }
         };
         self.builder
             .add_row(&format!(".{} {}", directive, val), true);
+        Ok(())
     }
 
-    fn emit_data(&mut self, ast: &Ast) {
+    fn emit_data(&mut self, ast: &Ast) -> Result<(), CompileError> {
         if ast.globals.is_empty() {
-            return;
+            return Ok(());
         }
         self.builder.add_row(".data", true);
         for gvar in ast.globals.iter() {
@@ -169,15 +175,16 @@ impl Generator {
                 .add_row(&format!(".size {}, {}", gvar.name, gvar.ty.size_of()), true);
             self.builder.add_row(&format!("{}:", gvar.name), false);
             if !gvar.init.is_empty() {
-                self.emit_global_init(gvar);
+                self.emit_global_init(gvar)?;
             } else {
                 self.builder
                     .add_row(&format!(".zero {}", gvar.ty.size_of()), true);
             }
         }
+        Ok(())
     }
 
-    fn emit_global_init(&mut self, gvar: &Var) {
+    fn emit_global_init(&mut self, gvar: &Var) -> Result<(), CompileError> {
         if let TypeKind::Array { ref base, size } = gvar.ty.kind {
             // TODO: 多次元配列の初期化、文字列リテラルによる初期化
             let init_len = gvar.init.len().min(size);
@@ -192,17 +199,21 @@ impl Generator {
                             if !is_local {
                                 self.builder.add_row(&format!(".quad {}", name), true);
                             } else {
-                                panic!(
-                                    "グローバル変数の初期化式にローカル変数のアドレスは使用できません: {}",
-                                    name
-                                );
+                                return Err(CompileError::InvalidExpression {
+                                    msg: format!(
+                                        "グローバル変数の初期化式にローカル変数のアドレスは使用できません: {}",
+                                        name
+                                    ),
+                                });
                             }
                         }
                         _ => {
-                            panic!(
-                                "未対応のグローバル変数初期化式のアドレス指定: {:?}",
-                                expr.kind
-                            );
+                            return Err(CompileError::InvalidExpression {
+                                msg: format!(
+                                    "未対応のグローバル変数初期化式のアドレス指定: {:?}",
+                                    expr.kind
+                                ),
+                            });
                         }
                     },
                     NodeKind::String { index, .. } => {
@@ -211,7 +222,7 @@ impl Generator {
                     }
                     _ => {
                         let val = init.eval_const_expr().unwrap();
-                        self.emit_data_value(&val, base.size_of());
+                        self.emit_data_value(&val, base.size_of())?;
                     }
                 }
             }
@@ -234,17 +245,21 @@ impl Generator {
                         if !is_local {
                             self.builder.add_row(&format!(".quad {}", name), true);
                         } else {
-                            panic!(
-                                "グローバル変数の初期化式にローカル変数のアドレスは使用できません: {}",
-                                name
-                            );
+                            return Err(CompileError::InvalidExpression {
+                                msg: format!(
+                                    "グローバル変数の初期化式にローカル変数のアドレスは使用できません: {}",
+                                    name
+                                ),
+                            });
                         }
                     }
                     _ => {
-                        panic!(
-                            "未対応のグローバル変数初期化式のアドレス指定: {:?}",
-                            expr.kind
-                        );
+                        return Err(CompileError::InvalidExpression {
+                            msg: format!(
+                                "未対応のグローバル変数初期化式のアドレス指定: {:?}",
+                                expr.kind
+                            ),
+                        });
                     }
                 },
                 NodeKind::String { index, .. } => {
@@ -253,15 +268,15 @@ impl Generator {
                 }
                 _ => {
                     let val = init.eval_const_expr().unwrap();
-                    self.emit_data_value(&val, gvar.ty.size_of());
+                    self.emit_data_value(&val, gvar.ty.size_of())?;
                 }
             }
         } else {
-            panic!(
-                "スカラー型グローバル変数の初期化式が複数あります: {}",
-                gvar.name
-            );
+            return Err(CompileError::InvalidExpression {
+                msg: format!("スカラー変数の初期化式が複数あります: {}", gvar.name),
+            });
         }
+        Ok(())
     }
 
     fn emit_epilogue(&mut self) {
@@ -270,10 +285,10 @@ impl Generator {
     }
 
     // ASTからアセンブリコードを生成
-    pub fn gen_asm(&mut self, ast: &Ast) {
+    pub fn gen_asm(&mut self, ast: &Ast) -> Result<(), CompileError> {
         self.emit_prologue();
         self.emit_rodata(ast); // 文字列リテラルの定義
-        self.emit_data(ast); // グローバル変数の定義
+        self.emit_data(ast)?; // グローバル変数の定義
 
         // 関数の定義
         self.builder.add_row(".text", true);
@@ -304,7 +319,7 @@ impl Generator {
             // 引数をレジスタからスタックへ読み出し
             for (i, param) in func.locals.iter().take(func.params_len).enumerate() {
                 if i >= ARG_REGS.len() {
-                    panic!("6個を超える引数の関数には未対応です");
+                    unimplemented!("6個を超える引数の関数には未対応です");
                 }
                 self.builder.add_row(
                     &format!(
@@ -319,17 +334,17 @@ impl Generator {
             // ローカル変数の初期化
             for lvar in func.locals.iter().skip(func.params_len) {
                 if !lvar.init.is_empty() {
-                    self.gen_local_init(lvar);
+                    self.gen_local_init(lvar)?;
                 }
             }
 
             // 関数本体のコード生成
             for node in func.body.iter() {
                 if node.is_expr() {
-                    self.gen_expr(node);
+                    self.gen_expr(node)?;
                     self.builder.add_row("pop rax", true); // 式の結果を捨てる
                 } else {
-                    self.gen_stmt(node);
+                    self.gen_stmt(node)?;
                 }
             }
 
@@ -340,9 +355,10 @@ impl Generator {
             self.builder.add_row("ret", true);
         }
         self.emit_epilogue();
+        Ok(())
     }
 
-    fn gen_local_init(&mut self, lvar: &Var) {
+    fn gen_local_init(&mut self, lvar: &Var) -> Result<(), CompileError> {
         if let TypeKind::Array { ref base, size } = lvar.ty.kind {
             // 配列の初期化式
             // TODO: 多次元配列の初期化、文字列リテラルによる初期化
@@ -352,8 +368,8 @@ impl Generator {
                 self.builder
                     .add_row(&format!("lea rax, [rbp-{}]", elem_offset), true);
                 self.builder.add_row("push rax", true); // 配列要素のアドレスをスタックに積む
-                self.gen_expr(&lvar.init[i]); // 初期化式のコードを生成し、スタックに値を積む
-                self.store(base); // スタックトップの値を配列要素に格納
+                self.gen_expr(&lvar.init[i])?; // 初期化式のコードを生成し、スタックに値を積む
+                self.store(base)?; // スタックトップの値を配列要素に格納
             }
             // 初期化式の数が配列サイズに満たない場合、残りを0で埋める
             if lvar.init.len() < size {
@@ -377,22 +393,25 @@ impl Generator {
                     is_local: true,
                 },
                 ..Default::default()
-            })); // 変数のアドレスをスタックに積む
-            self.gen_expr(&lvar.init[0]); // 初期化式のコードを生成し、スタックに値を積む
-            self.store(&lvar.ty); // スタックトップの値を変数に格納
+            }))?; // 変数のアドレスをスタックに積む
+            self.gen_expr(&lvar.init[0])?; // 初期化式のコードを生成し、スタックに値を積む
+            self.store(&lvar.ty)?; // スタックトップの値を変数に格納
         } else {
-            panic!("スカラー変数の初期化式が複数あります: {}", lvar.name);
+            return Err(CompileError::InvalidExpression {
+                msg: format!("スカラー変数の初期化式が複数あります: {}", lvar.name),
+            });
         }
+        Ok(())
     }
 
     // 変数やデリファレンスのアドレスをスタックに積む
-    fn gen_addr(&mut self, node: &Node) {
+    fn gen_addr(&mut self, node: &Node) -> Result<(), CompileError> {
         match &node.kind {
             NodeKind::UnaryOp {
                 op: UnaryOp::Deref,
                 expr,
             } => {
-                self.gen_expr(expr); // ポインタの値を取得
+                self.gen_expr(expr)?; // ポインタの値を取得
             }
             NodeKind::Var {
                 name,
@@ -409,26 +428,36 @@ impl Generator {
                 }
                 self.builder.add_row("push rax", true); // 変数のアドレスをスタックに積む
             }
-            _ => panic!("代入の左辺値が変数ではありません: {:?}", node.kind),
+            _ => {
+                return Err(CompileError::InvalidExpression {
+                    msg: format!("アドレスを取得できない式です: {:?}", node.kind),
+                });
+            }
         }
+        Ok(())
     }
 
     // スタックトップのアドレスから値を読み出してスタックに積む
-    fn load(&mut self, ty: &Type) {
+    fn load(&mut self, ty: &Type) -> Result<(), CompileError> {
         self.builder.add_row("pop rax", true); // ロード先のアドレス
         let inst = match ty.size_of() {
             1 => "movsx rax, BYTE PTR [rax]",
             2 => "movsx rax, WORD PTR [rax]",
             4 => "movsxd rax, DWORD PTR [rax]",
             8 => "mov rax, QWORD PTR [rax]",
-            _ => panic!("未対応のロードサイズ: {}", ty.size_of()),
+            _ => {
+                return Err(CompileError::InvalidExpression {
+                    msg: format!("不正なロードサイズ: {}", ty.size_of()),
+                });
+            }
         };
         self.builder.add_row(inst, true);
         self.builder.add_row("push rax", true); // 読み出した値をスタックに積む
+        Ok(())
     }
 
     // スタックトップの値をアドレスに格納する
-    fn store(&mut self, ty: &Type) {
+    fn store(&mut self, ty: &Type) -> Result<(), CompileError> {
         self.builder.add_row("pop rdi", true); // ストアする値
         self.builder.add_row("pop rax", true); // ストア先のアドレス
         let instruction = match ty.size_of() {
@@ -436,10 +465,15 @@ impl Generator {
             2 => "mov WORD PTR [rax], di",
             4 => "mov DWORD PTR [rax], edi",
             8 => "mov QWORD PTR [rax], rdi",
-            _ => panic!("未対応のストアサイズ: {}", ty.size_of()),
+            _ => {
+                return Err(CompileError::InvalidExpression {
+                    msg: format!("不正なストアサイズ: {}", ty.size_of()),
+                });
+            }
         };
         self.builder.add_row(instruction, true);
         self.builder.add_row("push rdi", true); // ストアした値をスタックに戻す
+        Ok(())
     }
 
     // int を 1 加算
@@ -453,26 +487,26 @@ impl Generator {
     }
 
     // 文のコード生成
-    fn gen_stmt(&mut self, node: &Node) {
+    fn gen_stmt(&mut self, node: &Node) -> Result<(), CompileError> {
         match &node.kind {
             NodeKind::If { cond, then, els } => {
                 let seq = self.label_seq;
                 self.label_seq += 1;
 
-                self.gen_expr(cond);
+                self.gen_expr(cond)?;
                 self.test_zero();
                 if let Some(els_node) = els {
                     // else節あり
                     self.builder.add_row(&format!("je .L.else.{}", seq), true);
-                    self.gen_stmt(then);
+                    self.gen_stmt(then)?;
                     self.builder.add_row(&format!("jmp .L.end.{}", seq), true);
                     self.builder.add_row(&format!(".L.else.{}:", seq), false);
-                    self.gen_stmt(els_node);
+                    self.gen_stmt(els_node)?;
                     self.builder.add_row(&format!(".L.end.{}:", seq), false);
                 } else {
                     // else節なし
                     self.builder.add_row(&format!("je .L.end.{}", seq), true);
-                    self.gen_stmt(then);
+                    self.gen_stmt(then)?;
                     self.builder.add_row(&format!(".L.end.{}:", seq), false);
                 }
             }
@@ -486,10 +520,10 @@ impl Generator {
 
                 self.builder
                     .add_row(&format!(".L.continue.{}:", seq), false);
-                self.gen_expr(cond);
+                self.gen_expr(cond)?;
                 self.test_zero();
                 self.builder.add_row(&format!("je .L.break.{}", seq), true);
-                self.gen_stmt(then);
+                self.gen_stmt(then)?;
                 self.builder
                     .add_row(&format!("jmp .L.continue.{}", seq), true);
                 self.builder.add_row(&format!(".L.break.{}:", seq), false);
@@ -511,27 +545,27 @@ impl Generator {
                 self.continue_seq = seq;
                 if let Some(init) = init.as_ref() {
                     if init.is_expr() {
-                        self.gen_expr(init);
+                        self.gen_expr(init)?;
                         self.builder.add_row("pop rax", true); // 初期化式の結果を捨てる
                     } else {
-                        self.gen_stmt(init);
+                        self.gen_stmt(init)?;
                     }
                 }
                 self.builder.add_row(&format!(".L.begin.{}:", seq), false);
                 if let Some(cond) = cond.as_ref() {
-                    self.gen_expr(cond);
+                    self.gen_expr(cond)?;
                     self.test_zero();
                     self.builder.add_row(&format!("je .L.break.{}", seq), true);
                 }
-                self.gen_stmt(then);
+                self.gen_stmt(then)?;
                 self.builder
                     .add_row(&format!(".L.continue.{}:", seq), false);
                 if let Some(inc) = inc.as_ref() {
                     if inc.is_expr() {
-                        self.gen_expr(inc);
+                        self.gen_expr(inc)?;
                         self.builder.add_row("pop rax", true); // 増分式の結果を捨てる
                     } else {
-                        self.gen_stmt(inc);
+                        self.gen_stmt(inc)?;
                     }
                 }
                 self.builder.add_row(&format!("jmp .L.begin.{}", seq), true);
@@ -549,10 +583,10 @@ impl Generator {
                 self.continue_seq = seq;
 
                 self.builder.add_row(&format!(".L.begin.{}:", seq), false);
-                self.gen_stmt(then);
+                self.gen_stmt(then)?;
                 self.builder
                     .add_row(&format!(".L.continue.{}:", seq), false);
-                self.gen_expr(cond);
+                self.gen_expr(cond)?;
                 self.test_zero();
                 self.builder.add_row(&format!("jne .L.begin.{}", seq), true);
                 self.builder.add_row(&format!(".L.break.{}:", seq), false);
@@ -563,10 +597,10 @@ impl Generator {
             NodeKind::Block { body } => {
                 for node in body.iter() {
                     if node.is_expr() {
-                        self.gen_expr(node);
+                        self.gen_expr(node)?;
                         self.builder.add_row("pop rax", true); // ブロック内の各文の結果を捨てる
                     } else {
-                        self.gen_stmt(node);
+                        self.gen_stmt(node)?;
                     }
                 }
             }
@@ -590,15 +624,15 @@ impl Generator {
                     false,
                 );
                 if expr.is_expr() {
-                    self.gen_expr(expr);
+                    self.gen_expr(expr)?;
                     self.builder.add_row("pop rax", true); // ラベル付き文の結果を捨てる
                 } else {
-                    self.gen_stmt(expr);
+                    self.gen_stmt(expr)?;
                 }
             }
             NodeKind::Return { expr } => {
                 if let Some(expr) = expr {
-                    self.gen_expr(expr);
+                    self.gen_expr(expr)?;
                     self.builder.add_row("pop rax", true);
                 }
                 self.builder
@@ -606,14 +640,15 @@ impl Generator {
             }
             NodeKind::Nop => {}
             _ => {
-                self.gen_expr(node);
+                self.gen_expr(node)?;
                 self.builder.add_row("pop rax", true); // 式の結果を捨てる
             }
         }
+        Ok(())
     }
 
     // 式のコード生成
-    fn gen_expr(&mut self, node: &Node) {
+    fn gen_expr(&mut self, node: &Node) -> Result<(), CompileError> {
         match &node.kind {
             NodeKind::Number { val } => {
                 self.builder.add_row(&format!("push {}", val), true);
@@ -624,31 +659,31 @@ impl Generator {
                 self.builder.add_row("push rax", true); // 文字列リテラルのアドレスをスタックに積む
             }
             NodeKind::Var { .. } => {
-                self.gen_addr(node);
+                self.gen_addr(node)?;
                 if !node.ty.is_array() {
-                    self.load(&node.ty);
+                    self.load(&node.ty)?;
                 }
             }
             NodeKind::BinaryOp { op, lhs, rhs } => {
                 // 二項演算子
-                self.gen_expr(lhs);
-                self.gen_expr(rhs);
-                self.gen_binary(op);
+                self.gen_expr(lhs)?;
+                self.gen_expr(rhs)?;
+                self.gen_binary(op)?;
             }
             NodeKind::UnaryOp { op, expr } => {
                 // 単項演算子
-                self.gen_unary(op, expr, &node.ty);
+                self.gen_unary(op, expr, &node.ty)?;
             }
             NodeKind::Assign { op, lhs, rhs } => {
-                self.gen_assign(op, lhs, rhs);
+                self.gen_assign(op, lhs, rhs)?;
             }
             NodeKind::LogicalAnd { lhs, rhs } => {
                 let seq = self.label_seq;
                 self.label_seq += 1;
-                self.gen_expr(lhs);
+                self.gen_expr(lhs)?;
                 self.test_zero();
                 self.builder.add_row(&format!("je .L.false.{}", seq), true);
-                self.gen_expr(rhs);
+                self.gen_expr(rhs)?;
                 self.test_zero();
                 self.builder.add_row(&format!("je .L.false.{}", seq), true);
                 self.builder.add_row("push 1", true); // true
@@ -660,10 +695,10 @@ impl Generator {
             NodeKind::LogicalOr { lhs, rhs } => {
                 let seq = self.label_seq;
                 self.label_seq += 1;
-                self.gen_expr(lhs);
+                self.gen_expr(lhs)?;
                 self.test_zero();
                 self.builder.add_row(&format!("jne .L.true.{}", seq), true);
-                self.gen_expr(rhs);
+                self.gen_expr(rhs)?;
                 self.test_zero();
                 self.builder.add_row(&format!("jne .L.true.{}", seq), true);
                 self.builder.add_row("push 0", true); // false
@@ -675,25 +710,25 @@ impl Generator {
             NodeKind::Ternary { cond, then, els } => {
                 let seq = self.label_seq;
                 self.label_seq += 1;
-                self.gen_expr(cond);
+                self.gen_expr(cond)?;
                 self.test_zero();
                 self.builder.add_row(&format!("je .L.else.{}", seq), true);
-                self.gen_expr(then);
+                self.gen_expr(then)?;
                 self.builder.add_row(&format!("jmp .L.end.{}", seq), true);
                 self.builder.add_row(&format!(".L.else.{}:", seq), false);
-                self.gen_expr(els);
+                self.gen_expr(els)?;
                 self.builder.add_row(&format!(".L.end.{}:", seq), false);
             }
             NodeKind::Call { name, args } => {
                 let arg_count = args.len();
 
                 if arg_count > 6 {
-                    panic!("6個を超える引数の関数呼び出しには対応していません");
+                    unimplemented!("6個を超える引数の関数呼び出しには対応していません");
                 }
 
                 // 引数をスタックに積む（逆順）
                 for arg in args.iter().rev() {
-                    self.gen_expr(arg);
+                    self.gen_expr(arg)?;
                 }
 
                 // 引数をレジスタに移動
@@ -708,84 +743,87 @@ impl Generator {
             }
             _ => unreachable!(),
         }
+        Ok(())
     }
 
-    fn gen_assign(&mut self, op: &BinaryOp, lhs: &Node, rhs: &Node) {
+    fn gen_assign(&mut self, op: &BinaryOp, lhs: &Node, rhs: &Node) -> Result<(), CompileError> {
         match op {
             BinaryOp::Assign => {
-                self.gen_addr(lhs);
-                self.gen_expr(rhs);
-                self.store(&lhs.ty);
+                self.gen_addr(lhs)?;
+                self.gen_expr(rhs)?;
+                self.store(&lhs.ty)?;
             }
             _ => {
-                self.gen_addr(lhs);
+                self.gen_addr(lhs)?;
                 self.builder.add_row("push [rsp]", true);
-                self.load(&lhs.ty);
-                self.gen_expr(rhs);
-                self.gen_binary(op);
-                self.store(&lhs.ty);
+                self.load(&lhs.ty)?;
+                self.gen_expr(rhs)?;
+                self.gen_binary(op)?;
+                self.store(&lhs.ty)?;
             }
         }
+        Ok(())
     }
 
-    fn gen_unary(&mut self, op: &UnaryOp, expr: &Node, ty: &Type) {
+    fn gen_unary(&mut self, op: &UnaryOp, expr: &Node, ty: &Type) -> Result<(), CompileError> {
         match op {
             UnaryOp::BitNot => {
-                self.gen_expr(expr);
+                self.gen_expr(expr)?;
                 self.builder.add_row("not QWORD PTR [rsp]", true);
             }
             UnaryOp::LogicalNot => {
-                self.gen_expr(expr);
+                self.gen_expr(expr)?;
                 self.test_zero();
                 self.builder.add_row("sete al", true);
                 self.builder.add_row("movzx rax, al", true);
                 self.builder.add_row("push rax", true);
             }
             UnaryOp::Addr => {
-                self.gen_addr(expr);
+                self.gen_addr(expr)?;
             }
             UnaryOp::Deref => {
-                self.gen_expr(expr);
+                self.gen_expr(expr)?;
                 // 型が配列でない場合にロード
                 // 配列型の場合、アドレスをスタックに積むだけ
                 if !ty.is_array() {
-                    self.load(ty);
+                    self.load(ty)?;
                 }
             }
             UnaryOp::PreInc => {
-                self.gen_addr(expr);
+                self.gen_addr(expr)?;
                 self.builder.add_row("push [rsp]", true);
-                self.load(&expr.ty);
+                self.load(&expr.ty)?;
                 self.inc();
-                self.store(&expr.ty);
+                self.store(&expr.ty)?;
             }
             UnaryOp::PreDec => {
-                self.gen_addr(expr);
+                self.gen_addr(expr)?;
                 self.builder.add_row("push [rsp]", true);
-                self.load(&expr.ty);
+                self.load(&expr.ty)?;
                 self.dec();
-                self.store(&expr.ty);
+                self.store(&expr.ty)?;
             }
             UnaryOp::PostInc => {
-                self.gen_addr(expr);
+                self.gen_addr(expr)?;
                 self.builder.add_row("push [rsp]", true);
-                self.load(&expr.ty);
+                self.load(&expr.ty)?;
                 self.inc();
-                self.store(&expr.ty);
+                self.store(&expr.ty)?;
                 self.dec();
             }
             UnaryOp::PostDec => {
-                self.gen_addr(expr);
+                self.gen_addr(expr)?;
                 self.builder.add_row("push [rsp]", true);
-                self.load(&expr.ty);
+                self.load(&expr.ty)?;
                 self.dec();
-                self.store(&expr.ty);
+                self.store(&expr.ty)?;
                 self.inc();
             }
         }
+        Ok(())
     }
 
-    fn gen_binary(&mut self, op: &BinaryOp) {
+    fn gen_binary(&mut self, op: &BinaryOp) -> Result<(), CompileError> {
         self.builder.add_row("pop rdi", true); // 右オペランド
         self.builder.add_row("pop rax", true); // 左オペランド
 
@@ -826,5 +864,6 @@ impl Generator {
             BinaryOp::Assign => unreachable!(),
         }
         self.builder.add_row("push rax", true); // 演算結果をスタックに積む
+        Ok(())
     }
 }
