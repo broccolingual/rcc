@@ -527,10 +527,40 @@ impl Node {
                     BinaryOp::Add => Ok(lval + rval),
                     BinaryOp::Sub => Ok(lval - rval),
                     BinaryOp::Mul => Ok(lval * rval),
-                    BinaryOp::Div => Ok(lval / rval),
-                    BinaryOp::Rem => Ok(lval % rval),
-                    BinaryOp::Shl => Ok(lval << rval),
-                    BinaryOp::Shr => Ok(lval >> rval),
+                    BinaryOp::Div => {
+                        if rval == 0 {
+                            return Err(CompileError::InvalidExpression {
+                                msg: "定数式の除算でゼロ除算が発生しました".to_string(),
+                            });
+                        }
+                        Ok(lval / rval)
+                    }
+                    BinaryOp::Rem => {
+                        if rval == 0 {
+                            return Err(CompileError::InvalidExpression {
+                                msg: "定数式の剰余演算でゼロ除算が発生しました".to_string(),
+                            });
+                        }
+                        Ok(lval % rval)
+                    }
+                    BinaryOp::Shl => {
+                        if rval < 0 || rval >= 64 {
+                            return Err(CompileError::InvalidExpression {
+                                msg: "定数式の左シフト演算で不正なシフト量が指定されました"
+                                    .to_string(),
+                            });
+                        }
+                        Ok(lval << rval)
+                    }
+                    BinaryOp::Shr => {
+                        if rval < 0 || rval >= 64 {
+                            return Err(CompileError::InvalidExpression {
+                                msg: "定数式の右シフト演算で不正なシフト量が指定されました"
+                                    .to_string(),
+                            });
+                        }
+                        Ok(lval >> rval)
+                    }
                     BinaryOp::BitAnd => Ok(lval & rval),
                     BinaryOp::BitOr => Ok(lval | rval),
                     BinaryOp::BitXor => Ok(lval ^ rval),
