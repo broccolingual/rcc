@@ -172,5 +172,12 @@ int main() {
     printf(h);
     return **f;
 }'
+assert 8 '
+int a[3] = {1, 2, 3};
+int b[] = {4, 5};
+int main() {
+    return a[2] + b[1];
+}
+'
 
 echo OK
