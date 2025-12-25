@@ -7,8 +7,13 @@ use crate::node::{BinaryOp, Node, NodeKind, UnaryOp};
 impl Ast {
     // const_expr ::= cond_expr
     #[allow(dead_code)]
-    pub(super) fn const_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
-        self.cond_expr()
+    pub(super) fn const_expr(&mut self) -> Result<i64, CompileError> {
+        let node = self
+            .cond_expr()?
+            .ok_or_else(|| CompileError::InvalidExpression {
+                msg: "定数式がありません".to_string(),
+            })?;
+        node.eval_const_expr() // 定数式を評価
     }
 
     // expr ::= assign_expr

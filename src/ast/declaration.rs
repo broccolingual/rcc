@@ -278,7 +278,12 @@ impl Ast {
             let array_size = if self.peek_punctuator("]") {
                 0
             } else {
-                self.expect_number()? as usize
+                let size_expr =
+                    self.assign_expr()?
+                        .ok_or_else(|| CompileError::InvalidDeclaration {
+                            msg: "配列のサイズが必要です".to_string(),
+                        })?;
+                size_expr.eval_const_expr()? as usize
             };
             self.expect_punctuator("]")?;
             let inner_ty = self.parse_postfix_declarators(base_ty)?;

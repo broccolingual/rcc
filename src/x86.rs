@@ -184,9 +184,6 @@ impl Generator {
             for i in 0..init_len {
                 let init = &gvar.init[i];
                 match &init.kind {
-                    NodeKind::Number { val } => {
-                        self.emit_data_value(val, base.size_of());
-                    }
                     NodeKind::UnaryOp {
                         op: UnaryOp::Addr,
                         expr,
@@ -212,7 +209,10 @@ impl Generator {
                         self.builder
                             .add_row(&format!(".quad .L.str.{}", index), true);
                     }
-                    _ => panic!("未対応のグローバル変数初期化式: {:?}", init.kind),
+                    _ => {
+                        let val = init.eval_const_expr().unwrap();
+                        self.emit_data_value(&val, base.size_of());
+                    }
                 }
             }
             if gvar.init.len() < size {
@@ -226,9 +226,6 @@ impl Generator {
         } else if gvar.init.len() == 1 {
             let init = &gvar.init[0];
             match &init.kind {
-                NodeKind::Number { val } => {
-                    self.emit_data_value(val, gvar.ty.size_of());
-                }
                 NodeKind::UnaryOp {
                     op: UnaryOp::Addr,
                     expr,
@@ -254,7 +251,10 @@ impl Generator {
                     self.builder
                         .add_row(&format!(".quad .L.str.{}", index), true);
                 }
-                _ => panic!("未対応のグローバル変数初期化式: {:?}", init.kind),
+                _ => {
+                    let val = init.eval_const_expr().unwrap();
+                    self.emit_data_value(&val, gvar.ty.size_of());
+                }
             }
         } else {
             panic!(

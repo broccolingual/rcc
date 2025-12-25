@@ -333,13 +333,7 @@ impl Ast {
                 msg: "関数定義の型指定子が無効です".to_string(),
             });
         };
-        let func_decl = if let Ok(var) = self.declarator(&base_kind) {
-            var
-        } else {
-            return Err(CompileError::InvalidDeclaration {
-                msg: "関数定義のパースに失敗しました".to_string(),
-            });
-        };
+        let func_decl = self.declarator(&base_kind)?;
         let mut func = Function::new(&func_decl.name);
         if let TypeKind::Func { params, return_ty } = func_decl.ty.kind {
             func.params_len = params.len();
