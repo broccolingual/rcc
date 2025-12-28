@@ -1,22 +1,22 @@
 use core::fmt;
 
-use crate::ast::Var;
+use crate::symbol::Declaration;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum DeclarationSpecifier {
+pub(crate) enum DeclarationSpecifier {
     StorageClassSpecifier(StorageClassKind),
     TypeSpecifierQualifier(TypeSpecifierQualifier),
     FunctionSpecifier(FunctionKind),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum TypeSpecifierQualifier {
+pub(crate) enum TypeSpecifierQualifier {
     TypeSpecifier(TypeKind),
     TypeQualifier(TypeQualifierKind),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum FunctionKind {
+pub(crate) enum FunctionKind {
     Inline,
 }
 
@@ -29,13 +29,13 @@ impl fmt::Display for FunctionKind {
 }
 
 impl FunctionKind {
-    pub fn all() -> Vec<FunctionKind> {
+    pub(crate) fn all() -> Vec<FunctionKind> {
         vec![FunctionKind::Inline]
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum StorageClassKind {
+pub(crate) enum StorageClassKind {
     Auto,
     Extern,
     Register,
@@ -56,7 +56,7 @@ impl fmt::Display for StorageClassKind {
 }
 
 impl StorageClassKind {
-    pub fn all() -> Vec<StorageClassKind> {
+    pub(crate) fn all() -> Vec<StorageClassKind> {
         vec![
             StorageClassKind::Auto,
             StorageClassKind::Extern,
@@ -68,7 +68,7 @@ impl StorageClassKind {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum TypeQualifierKind {
+pub(crate) enum TypeQualifierKind {
     Const,
     Volatile,
     Restrict,
@@ -85,7 +85,7 @@ impl fmt::Display for TypeQualifierKind {
 }
 
 impl TypeQualifierKind {
-    pub fn all() -> Vec<TypeQualifierKind> {
+    pub(crate) fn all() -> Vec<TypeQualifierKind> {
         vec![
             TypeQualifierKind::Const,
             TypeQualifierKind::Volatile,
@@ -95,7 +95,7 @@ impl TypeQualifierKind {
 }
 
 #[derive(Clone, PartialEq, Eq)]
-pub enum TypeKind {
+pub(crate) enum TypeKind {
     Void,
     Char,
     Short,
@@ -112,11 +112,11 @@ pub enum TypeKind {
     }, // base: 配列の要素型, size: 要素数
     Struct {
         name: String,
-        members: Vec<Var>,
+        members: Vec<Declaration>,
     }, // name: 構造体名, members: メンバーリスト
     Func {
         return_ty: Box<Type>,
-        params: Vec<Var>,
+        params: Vec<Declaration>,
     }, // return_ty: 戻り値の型, params: パラメータリスト
 }
 
@@ -171,7 +171,7 @@ impl fmt::Display for TypeKind {
 }
 
 impl TypeKind {
-    pub fn all() -> Vec<TypeKind> {
+    pub(crate) fn all() -> Vec<TypeKind> {
         vec![
             TypeKind::Void,
             TypeKind::Char,
@@ -184,7 +184,7 @@ impl TypeKind {
     }
 }
 
-pub trait AlignUp {
+pub(crate) trait AlignUp {
     fn align_up(&self, align: usize) -> usize;
 }
 
@@ -196,11 +196,11 @@ impl AlignUp for usize {
 }
 
 #[derive(Clone, PartialEq, Eq)]
-pub struct Type {
-    pub kind: TypeKind,
+pub(crate) struct Type {
+    pub(crate) kind: TypeKind,
     size: usize,
     align: usize,
-    pub is_const: bool,
+    pub(crate) is_const: bool,
 }
 
 impl fmt::Debug for Type {
@@ -220,7 +220,7 @@ impl Default for Type {
 }
 
 impl Type {
-    pub fn from(kind: &TypeKind, is_const: bool) -> Self {
+    pub(crate) fn from(kind: &TypeKind, is_const: bool) -> Self {
         match *kind {
             TypeKind::Void => Type {
                 kind: TypeKind::Void,
@@ -290,7 +290,7 @@ impl Type {
                     let a = member.ty.align_of();
                     offset = offset.align_up(a); // メンバーのアラインメントに合わせてオフセットを調整
                     offset += member.ty.size_of(); // メンバーのサイズ分オフセットを進める
-                    member.offset = offset; // メンバーのオフセットを設定
+                    // member.offset = offset; // TODO: メンバーのオフセットを設定
                     // 構造体全体のアラインメントを更新
                     if a > max_align {
                         max_align = a;
@@ -322,7 +322,7 @@ impl Type {
     }
 
     // TODO: constやvolatileの情報も扱う
-    pub fn from_ds(declaration_specifiers: &Vec<DeclarationSpecifier>) -> Option<Self> {
+    pub(crate) fn from_ds(declaration_specifiers: &Vec<DeclarationSpecifier>) -> Option<Self> {
         let mut ty = Type::default();
         let mut has_type_specifier = false;
         for specifier in declaration_specifiers {
@@ -345,7 +345,9 @@ impl Type {
         if has_type_specifier { Some(ty) } else { None }
     }
 
-    pub fn from_tsq(type_specifier_qualifiers: &Vec<TypeSpecifierQualifier>) -> Option<Self> {
+    pub(crate) fn from_tsq(
+        type_specifier_qualifiers: &Vec<TypeSpecifierQualifier>,
+    ) -> Option<Self> {
         let mut ty = Type::default();
         let mut has_type_specifier = false;
         for specifier in type_specifier_qualifiers {
@@ -365,7 +367,7 @@ impl Type {
     }
 
     // ポインタもしくは配列の指している型を取得
-    pub fn base_type(&self) -> &Type {
+    pub(crate) fn base_type(&self) -> &Type {
         match &self.kind {
             TypeKind::Ptr { to } => to,
             TypeKind::Array { base, .. } => base,
@@ -373,27 +375,18 @@ impl Type {
         }
     }
 
-    // ポインタもしくは配列の指している型を再帰的に取得
-    pub fn base_type_recursive(&self) -> &Type {
-        match &self.kind {
-            TypeKind::Ptr { to } => to.base_type_recursive(),
-            TypeKind::Array { base, .. } => base.base_type_recursive(),
-            _ => self,
-        }
-    }
-
     // 型が配列かどうか
-    pub fn is_array(&self) -> bool {
+    pub(crate) fn is_array(&self) -> bool {
         matches!(&self.kind, TypeKind::Array { .. })
     }
 
     // 型がポインタもしくは配列かどうか
-    pub fn is_ptr_or_array(&self) -> bool {
+    pub(crate) fn is_ptr_or_array(&self) -> bool {
         matches!(&self.kind, TypeKind::Ptr { .. } | TypeKind::Array { .. })
     }
 
     // 型が整数型かどうか
-    pub fn is_integer(&self) -> bool {
+    pub(crate) fn is_integer(&self) -> bool {
         matches!(
             &self.kind,
             TypeKind::Char | TypeKind::Short | TypeKind::Int | TypeKind::Long
@@ -401,22 +394,24 @@ impl Type {
     }
 
     // 型が浮動小数点型かどうか
-    pub fn is_floating_point(&self) -> bool {
+    pub(crate) fn is_floating_point(&self) -> bool {
         matches!(&self.kind, TypeKind::Float | TypeKind::Double)
     }
 
     // 型がスカラー型かどうか（整数型または浮動小数点型）
-    pub fn is_scalar(&self) -> bool {
+    pub(crate) fn is_scalar(&self) -> bool {
         self.is_integer() || self.is_floating_point()
     }
 
     // 型が構造体かどうか
-    pub fn is_struct(&self) -> bool {
+    #[allow(dead_code)]
+    pub(crate) fn is_struct(&self) -> bool {
         matches!(&self.kind, TypeKind::Struct { .. })
     }
 
     // 構造体メンバーの検索
-    pub fn find_struct_member(&self, name: &str) -> Option<&Var> {
+    #[allow(dead_code)]
+    pub(crate) fn find_struct_member(&self, name: &str) -> Option<&Declaration> {
         if let TypeKind::Struct { members, .. } = &self.kind {
             for member in members {
                 if member.name == name {
@@ -428,12 +423,12 @@ impl Type {
     }
 
     // 型の実際のサイズ
-    pub fn size_of(&self) -> usize {
+    pub(crate) fn size_of(&self) -> usize {
         self.size
     }
 
     // 型のアラインメント
-    pub fn align_of(&self) -> usize {
+    pub(crate) fn align_of(&self) -> usize {
         self.align
     }
 }

@@ -2,10 +2,9 @@ use core::error;
 use core::fmt;
 
 use crate::token::TokenKind;
-use crate::types::TypeKind;
 
 #[derive(Debug)]
-pub enum CompileError {
+pub(crate) enum CompileError {
     UnexpectedToken {
         expected: TokenKind,
         found: TokenKind,
@@ -30,18 +29,8 @@ pub enum CompileError {
     InvalidStatement {
         msg: String,
     },
-    InvalidTypeSpecifier {
-        msg: String,
-    },
     InvalidDeclaration {
         msg: String,
-    },
-    InvalidInitializer {
-        msg: String,
-    },
-    InvalidReturnType {
-        expected: TypeKind,
-        found: TypeKind,
     },
     UnexpectedEof,
     InternalError {
@@ -83,21 +72,8 @@ impl fmt::Display for CompileError {
             CompileError::InvalidStatement { msg } => {
                 write!(f, "invalid statement: {}", msg)
             }
-            CompileError::InvalidTypeSpecifier { msg } => {
-                write!(f, "invalid type specifier: {}", msg)
-            }
             CompileError::InvalidDeclaration { msg } => {
                 write!(f, "invalid declaration: {}", msg)
-            }
-            CompileError::InvalidInitializer { msg } => {
-                write!(f, "invalid initializer: {}", msg)
-            }
-            CompileError::InvalidReturnType { expected, found } => {
-                write!(
-                    f,
-                    "invalid return type: [expected] {:?}, [found] {:?}",
-                    expected, found
-                )
             }
             CompileError::UnexpectedEof => {
                 write!(f, "unexpected end of file")

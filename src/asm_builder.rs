@@ -5,7 +5,7 @@ struct Row {
 }
 
 #[derive(Debug)]
-pub struct AsmBuilder {
+pub(crate) struct AsmBuilder {
     rows: Vec<Row>,
 }
 
@@ -16,11 +16,11 @@ impl Default for AsmBuilder {
 }
 
 impl AsmBuilder {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         AsmBuilder { rows: Vec::new() }
     }
 
-    pub fn add_row(&mut self, row: &str, indent: bool) {
+    pub(crate) fn add_row(&mut self, row: &str, indent: bool) {
         let elements = row
             .split_whitespace()
             .map(String::from)
@@ -28,7 +28,7 @@ impl AsmBuilder {
         self.rows.push(Row { indent, elements });
     }
 
-    pub fn build(&self) -> String {
+    pub(crate) fn build(&self) -> String {
         let mut result = String::new();
         for row in &self.rows {
             if row.indent {
@@ -40,7 +40,7 @@ impl AsmBuilder {
         result
     }
 
-    pub fn optimize(&mut self) {
+    pub(crate) fn optimize(&mut self) {
         // 同じレジスタにpush/popが連続する場合は削除する最適化
         // self.rowsを直接操作するため、逆順で走査する
         let mut i = self.rows.len();

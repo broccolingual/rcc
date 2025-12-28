@@ -1,131 +1,39 @@
-use core::fmt;
-
 mod declaration;
 mod expression;
 mod statement;
 
 use crate::errors::CompileError;
+use crate::function::Function;
 use crate::node::{Node, NodeKind};
+use crate::symbol::{GlobalSymbolTable, Symbol, Variable};
 use crate::token::{Token, TokenKind};
-use crate::types::{AlignUp, Type, TypeKind};
+use crate::types::{Type, TypeKind};
 
-#[derive(Clone, PartialEq, Eq)]
-pub struct Var {
-    pub name: String,
-    pub offset: usize,
-    pub ty: Type,
-    pub init: Vec<Node>,
-}
-
-impl Var {
-    pub fn new(name: &str, ty: Type) -> Self {
-        Var {
-            name: name.to_string(),
-            offset: 0,
-            ty,
-            init: Vec::new(),
-        }
-    }
-}
-
-impl fmt::Debug for Var {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {:?} (offset: {})", self.name, self.ty, self.offset)?;
-        if !self.init.is_empty() {
-            if self.init.len() == 1 {
-                write!(f, " = ")?;
-            } else {
-                write!(f, " = {{ ")?;
-            }
-            for (i, init_node) in self.init.iter().enumerate() {
-                write!(f, "{:?}", init_node)?;
-                if i != self.init.len() - 1 {
-                    write!(f, ", ")?;
-                }
-            }
-            if self.init.len() > 1 {
-                write!(f, " }}")?;
-            }
-        }
-        Ok(())
-    }
-}
-
-pub struct Function {
-    pub name: String,
-    pub body: Vec<Box<Node>>,
-    pub locals: Vec<Var>,
-    pub params_len: usize,
-    pub return_ty: Type,
-}
-
-impl Function {
-    pub fn new(name: &str) -> Self {
-        Function {
-            name: name.to_string(),
-            body: Vec::new(),
-            locals: Vec::new(),
-            params_len: 0,
-            return_ty: Type::from(&TypeKind::Void, false),
-        }
-    }
-}
-
-impl Function {
-    fn gen_lvar(&mut self, mut var: Var) -> Result<(), CompileError> {
-        if self.find_lvar(&var.name).is_some() {
-            return Err(CompileError::Redeclaration {
-                name: var.name.clone(),
-            });
-        }
-        let last_offset = if let Some(last_var) = self.locals.last() {
-            last_var.offset
-        } else {
-            0
-        };
-        let offset = last_offset.align_up(var.ty.align_of()); // アラインメント調整
-        var.offset = offset + var.ty.size_of(); // サイズ分オフセットを進める
-        self.locals.push(var); // オフセット計算のために末尾に追加
-        Ok(())
-    }
-
-    fn find_lvar(&mut self, name: &str) -> Option<&mut Var> {
-        self.locals
-            .iter_mut()
-            .find(|var| var.name == name)
-            .map(|v| v as _)
-    }
-}
-
-impl fmt::Debug for Function {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "Function {{ name: '{}', locals: {:?} }}",
-            self.name, self.locals
-        )
-    }
-}
-
-pub struct Ast {
+pub(crate) struct Ast {
     tokens: Vec<Token>,
     token_pos: usize,
-    pub globals: Vec<Var>,
-    pub funcs: Vec<Function>,
+    pub(crate) globals: Vec<Variable>,
+    global_table: GlobalSymbolTable,
+    pub(crate) funcs: Vec<Function>,
     current_func: Option<Function>,
-    pub string_literals: Vec<String>,
+    pub(crate) string_literals: Vec<String>,
 }
 
 impl Ast {
-    pub fn new(tokens: &[Token]) -> Self {
+    pub(crate) fn new(tokens: &[Token]) -> Self {
         Ast {
             tokens: tokens.to_vec(),
             token_pos: 0,
+            global_table: GlobalSymbolTable::new(),
             globals: Vec::new(),
             funcs: Vec::new(),
             current_func: None,
             string_literals: Vec::new(),
         }
+    }
+
+    pub(crate) fn get_global_symbol_by_id(&self, symbol_id: usize) -> Option<&Symbol> {
+        self.global_table.symbols.get(symbol_id)
     }
 
     fn get_current_func(&mut self) -> Result<&mut Function, CompileError> {
@@ -136,21 +44,27 @@ impl Ast {
             })
     }
 
-    fn gen_gvar(&mut self, var: Var) -> Result<(), CompileError> {
-        if self.find_gvar(&var.name).is_some() {
-            return Err(CompileError::Redeclaration {
-                name: var.name.clone(),
-            });
+    fn register_gloval_var(
+        &mut self,
+        name: String,
+        ty: Type,
+        init: Vec<Node>,
+    ) -> Result<(), CompileError> {
+        if self.global_table.find(&name).is_some() {
+            return Err(CompileError::Redeclaration { name });
         }
-        self.globals.push(var);
+        let symbol = Symbol {
+            name: name.clone(),
+            ty,
+            offset: 0,
+        };
+        let symbol_id = self.global_table.insert(name.clone(), symbol);
+        self.globals.push(Variable { symbol_id, init });
         Ok(())
     }
 
-    fn find_gvar(&mut self, name: &str) -> Option<&mut Var> {
-        self.globals
-            .iter_mut()
-            .find(|var| var.name == name)
-            .map(|v| v as _)
+    fn find_global_var(&self, name: &str) -> Option<&Symbol> {
+        self.global_table.find(name)
     }
 
     // 現在のトークンを取得
@@ -287,14 +201,14 @@ impl Ast {
             || matches!(
                 self.get_token(),
                 Some(Token {
-                    kind: TokenKind::EOF,
+                    kind: TokenKind::Eof,
                     ..
                 })
             )
     }
 
     // translation_unit ::= external_declaration*
-    pub fn translation_unit(&mut self) -> Result<(), CompileError> {
+    pub(crate) fn translation_unit(&mut self) -> Result<(), CompileError> {
         while !self.at_eof() {
             self.external_declaration()?;
         }
@@ -312,9 +226,9 @@ impl Ast {
         }
         self.token_pos = token_pos; // 関数定義でなかった場合、トークン位置を元に戻す
         // グローバル変数宣言
-        if let Some(vars) = self.declaration()? {
-            for var in vars {
-                self.gen_gvar(var)?;
+        if let Some(declarations) = self.declaration()? {
+            for declaration in declarations {
+                self.register_gloval_var(declaration.name, declaration.ty, declaration.init)?;
             }
             return Ok(());
         }
@@ -336,9 +250,8 @@ impl Ast {
         let func_decl = self.declarator(&base_ty)?;
         let mut func = Function::new(&func_decl.name);
         if let TypeKind::Func { params, return_ty } = func_decl.ty.kind {
-            func.params_len = params.len();
             for param in params {
-                func.gen_lvar(param.clone())?;
+                func.register_param(param.name, param.ty)?;
             }
             func.return_ty = *return_ty;
         } else {

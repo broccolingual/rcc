@@ -1,9 +1,10 @@
 use core::panic;
 
 use crate::asm_builder::AsmBuilder;
-use crate::ast::{Ast, Var};
+use crate::ast::Ast;
 use crate::errors::CompileError;
 use crate::node::{BinaryOp, Node, NodeKind, UnaryOp};
+use crate::symbol::Symbol;
 use crate::types::{Type, TypeKind};
 
 const ARG_REGS: [Reg; 6] = [Reg::Rdi, Reg::Rsi, Reg::Rdx, Reg::Rcx, Reg::R8, Reg::R9];
@@ -90,12 +91,12 @@ impl Reg {
     }
 }
 
-pub struct Generator {
+pub(crate) struct Generator {
     label_seq: usize,
     break_seq: usize,
     continue_seq: usize,
     current_func_name: String,
-    pub builder: AsmBuilder,
+    pub(crate) builder: AsmBuilder,
 }
 
 impl Default for Generator {
@@ -105,7 +106,7 @@ impl Default for Generator {
 }
 
 impl Generator {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Generator {
             label_seq: 1,
             break_seq: 0,
@@ -165,31 +166,39 @@ impl Generator {
             return Ok(());
         }
         self.builder.add_row(".data", true);
-        for gvar in ast.globals.iter() {
-            self.builder.add_row(&format!(".globl {}", gvar.name), true);
+        for var in ast.globals.iter() {
+            let symbol = &ast.get_global_symbol_by_id(var.symbol_id).ok_or_else(|| {
+                CompileError::InternalError {
+                    msg: "グローバル変数のシンボルが見つかりません".to_string(),
+                }
+            })?;
             self.builder
-                .add_row(&format!(".align {}", gvar.ty.align_of()), true);
+                .add_row(&format!(".globl {}", symbol.name), true);
             self.builder
-                .add_row(&format!(".type {}, @object", gvar.name), true);
+                .add_row(&format!(".align {}", symbol.ty.align_of()), true);
             self.builder
-                .add_row(&format!(".size {}, {}", gvar.name, gvar.ty.size_of()), true);
-            self.builder.add_row(&format!("{}:", gvar.name), false);
-            if !gvar.init.is_empty() {
-                self.emit_global_init(gvar)?;
+                .add_row(&format!(".type {}, @object", symbol.name), true);
+            self.builder.add_row(
+                &format!(".size {}, {}", symbol.name, symbol.ty.size_of()),
+                true,
+            );
+            self.builder.add_row(&format!("{}:", symbol.name), false);
+            if !var.init.is_empty() {
+                self.emit_global_init(symbol, &var.init)?;
             } else {
                 self.builder
-                    .add_row(&format!(".zero {}", gvar.ty.size_of()), true);
+                    .add_row(&format!(".zero {}", symbol.ty.size_of()), true);
             }
         }
         Ok(())
     }
 
-    fn emit_global_init(&mut self, gvar: &Var) -> Result<(), CompileError> {
-        if let TypeKind::Array { ref base, size } = gvar.ty.kind {
+    fn emit_global_init(&mut self, symbol: &Symbol, init: &[Node]) -> Result<(), CompileError> {
+        if let TypeKind::Array { ref base, size } = symbol.ty.kind {
             // TODO: 多次元配列の初期化、文字列リテラルによる初期化
-            let init_len = gvar.init.len().min(size);
+            let init_len = init.len().min(size);
             for i in 0..init_len {
-                let init = &gvar.init[i];
+                let init = &init[i];
                 match &init.kind {
                     NodeKind::UnaryOp {
                         op: UnaryOp::Addr,
@@ -226,16 +235,16 @@ impl Generator {
                     }
                 }
             }
-            if gvar.init.len() < size {
-                let zero_fill_size = (size - gvar.init.len()) * base.size_of();
+            if init.len() < size {
+                let zero_fill_size = (size - init.len()) * base.size_of();
                 self.builder
                     .add_row(&format!(".zero {}", zero_fill_size), true);
             }
-        } else if let TypeKind::Struct { .. } = gvar.ty.kind {
+        } else if let TypeKind::Struct { .. } = symbol.ty.kind {
             // TODO: 構造体の初期化式
             unimplemented!("構造体のグローバル変数初期化には未対応です");
-        } else if gvar.init.len() == 1 {
-            let init = &gvar.init[0];
+        } else if init.len() == 1 {
+            let init = &init[0];
             match &init.kind {
                 NodeKind::UnaryOp {
                     op: UnaryOp::Addr,
@@ -267,13 +276,12 @@ impl Generator {
                         .add_row(&format!(".quad .L.str.{}", index), true);
                 }
                 _ => {
-                    let val = init.eval_const_expr()?;
-                    self.emit_data_value(&val, gvar.ty.size_of())?;
+                    self.emit_data_value(&init.eval_const_expr()?, symbol.ty.size_of())?;
                 }
             }
         } else {
             return Err(CompileError::InvalidExpression {
-                msg: format!("スカラー変数の初期化式が複数あります: {}", gvar.name),
+                msg: "スカラー変数の初期化式が複数あります".to_string(),
             });
         }
         Ok(())
@@ -285,7 +293,7 @@ impl Generator {
     }
 
     // ASTからアセンブリコードを生成
-    pub fn gen_asm(&mut self, ast: &Ast) -> Result<(), CompileError> {
+    pub(crate) fn gen_asm(&mut self, ast: &Ast) -> Result<(), CompileError> {
         self.emit_prologue();
         self.emit_rodata(ast); // 文字列リテラルの定義
         self.emit_data(ast)?; // グローバル変数の定義
@@ -309,15 +317,14 @@ impl Generator {
 
             // 関数のローカル変数に対応するスタック領域を確保
             // ローカル変数の最大オフセットに基づいてスタック領域を計算
-            let max_offset = func.locals.last().map_or(0, |arg| arg.offset);
-            let stack_size = max_offset.div_ceil(16) * 16; // 16バイトアラインメント
+            let stack_size = func.get_stack_size();
             if stack_size > 0 {
                 self.builder
                     .add_row(&format!("sub rsp, {}", stack_size), true);
             }
 
             // 引数をレジスタからスタックへ読み出し
-            for (i, param) in func.locals.iter().take(func.params_len).enumerate() {
+            for (i, param) in func.get_params_iter().enumerate() {
                 if i >= ARG_REGS.len() {
                     unimplemented!("6個を超える引数の関数には未対応です");
                 }
@@ -332,9 +339,14 @@ impl Generator {
             }
 
             // ローカル変数の初期化
-            for lvar in func.locals.iter().skip(func.params_len) {
-                if !lvar.init.is_empty() {
-                    self.gen_local_init(lvar)?;
+            for var in func.locals.iter() {
+                if !var.init.is_empty() {
+                    let symbol = &func.get_local_symbol_by_id(var.symbol_id).ok_or_else(|| {
+                        CompileError::InternalError {
+                            msg: "ローカル変数のシンボルが見つかりません".to_string(),
+                        }
+                    })?;
+                    self.gen_local_init(symbol, &var.init)?;
                 }
             }
 
@@ -358,22 +370,22 @@ impl Generator {
         Ok(())
     }
 
-    fn gen_local_init(&mut self, lvar: &Var) -> Result<(), CompileError> {
-        if let TypeKind::Array { ref base, size } = lvar.ty.kind {
+    fn gen_local_init(&mut self, symbol: &Symbol, init: &[Node]) -> Result<(), CompileError> {
+        if let TypeKind::Array { ref base, size } = symbol.ty.kind {
             // 配列の初期化式
             // TODO: 多次元配列の初期化、文字列リテラルによる初期化
-            let init_len = lvar.init.len().min(size);
-            for i in 0..init_len {
-                let elem_offset = lvar.offset - i * base.size_of();
+            let init_len = init.len().min(size);
+            for (i, init) in init.iter().enumerate().take(init_len) {
+                let elem_offset = symbol.offset - i * base.size_of();
                 self.builder
                     .add_row(&format!("lea rax, [rbp-{}]", elem_offset), true);
                 self.builder.add_row("push rax", true); // 配列要素のアドレスをスタックに積む
-                self.gen_expr(&lvar.init[i])?; // 初期化式のコードを生成し、スタックに値を積む
+                self.gen_expr(init)?; // 初期化式のコードを生成し、スタックに値を積む
                 self.store(base)?; // スタックトップの値を配列要素に格納
             }
             // 初期化式の数が配列サイズに満たない場合、残りを0で埋める
-            if lvar.init.len() < size {
-                let zero_fill_offset = lvar.offset - init_len * base.size_of();
+            if init.len() < size {
+                let zero_fill_offset = symbol.offset - init_len * base.size_of();
                 let zero_fill_size = (size - init_len) * base.size_of();
                 self.builder
                     .add_row(&format!("lea rdi, [rbp-{}]", zero_fill_offset), true); // 初期化開始アドレス
@@ -382,23 +394,23 @@ impl Generator {
                 self.builder.add_row("xor rax, rax", true); // raxを0クリア
                 self.builder.add_row("rep stosb", true); // 0で初期化
             }
-        } else if let TypeKind::Struct { .. } = lvar.ty.kind {
+        } else if let TypeKind::Struct { .. } = symbol.ty.kind {
             // TODO: 構造体の初期化式
             unimplemented!("構造体のローカル変数初期化には未対応です");
-        } else if lvar.init.len() == 1 {
+        } else if init.len() == 1 {
             self.gen_addr(&Box::new(Node {
                 kind: NodeKind::Var {
-                    name: lvar.name.clone(),
-                    offset: lvar.offset,
+                    name: symbol.name.to_string(),
+                    offset: symbol.offset,
                     is_local: true,
                 },
                 ..Default::default()
             }))?; // 変数のアドレスをスタックに積む
-            self.gen_expr(&lvar.init[0])?; // 初期化式のコードを生成し、スタックに値を積む
-            self.store(&lvar.ty)?; // スタックトップの値を変数に格納
+            self.gen_expr(&init[0])?; // 初期化式のコードを生成し、スタックに値を積む
+            self.store(&symbol.ty)?; // スタックトップの値を変数に格納
         } else {
             return Err(CompileError::InvalidExpression {
-                msg: format!("スカラー変数の初期化式が複数あります: {}", lvar.name),
+                msg: "スカラー変数の初期化式が複数あります".to_string(),
             });
         }
         Ok(())

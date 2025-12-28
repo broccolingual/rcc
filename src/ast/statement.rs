@@ -22,21 +22,27 @@ impl Ast {
     // compound_stmt ::= "{" declaration* stmt* "}"
     pub(super) fn compound_stmt(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         if self.consume_punctuator("{").is_some() {
+            self.get_current_func()?.enter_scope();
             let mut body = Vec::new();
             while self.consume_punctuator("}").is_none() {
-                if let Some(vars) = self.declaration()? {
-                    for var in vars {
-                        self.get_current_func()?.gen_lvar(var)?;
+                if let Some(declarations) = self.declaration()? {
+                    for declaration in declarations {
+                        self.get_current_func()?.register_local_var(
+                            declaration.name,
+                            declaration.ty,
+                            declaration.init,
+                        )?;
                     }
                     continue;
                 } else if let Some(stmt) = self.stmt()? {
-                    body.push(stmt);
+                    body.push(*stmt);
                 } else {
                     return Err(CompileError::InvalidStatement {
                         msg: "ブロック内で無効な文が見つかりました".to_string(),
                     });
                 }
             }
+            self.get_current_func()?.leave_scope();
             return Ok(Some(Box::new(Node::new(NodeKind::Block { body }))));
         }
         Ok(None)

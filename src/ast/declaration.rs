@@ -1,6 +1,7 @@
-use crate::ast::{Ast, Var};
+use crate::ast::Ast;
 use crate::errors::CompileError;
 use crate::node::Node;
+use crate::symbol::Declaration;
 use crate::types::{
     DeclarationSpecifier, FunctionKind, StorageClassKind, Type, TypeKind, TypeQualifierKind,
     TypeSpecifierQualifier,
@@ -8,7 +9,7 @@ use crate::types::{
 
 impl Ast {
     // declaration ::= declaration_specifiers init_declarator_list ";"
-    pub(super) fn declaration(&mut self) -> Result<Option<Vec<Var>>, CompileError> {
+    pub(super) fn declaration(&mut self) -> Result<Option<Vec<Declaration>>, CompileError> {
         let specifiers = self.declaration_specifiers()?;
         if specifiers.is_empty() {
             return Ok(None);
@@ -59,41 +60,41 @@ impl Ast {
     }
 
     // init_declarator_list ::= init_declarator ("," init_declarator)*
-    fn init_declarator_list(&mut self, base_ty: &Type) -> Result<Vec<Var>, CompileError> {
-        let mut vars = Vec::new();
-        if let Some(var) = self.init_declarator(base_ty)? {
-            vars.push(var);
+    fn init_declarator_list(&mut self, base_ty: &Type) -> Result<Vec<Declaration>, CompileError> {
+        let mut declarations = Vec::new();
+        if let Some(declaration) = self.init_declarator(base_ty)? {
+            declarations.push(declaration);
         }
         while self.consume_punctuator(",").is_some() {
-            if let Some(var) = self.init_declarator(base_ty)? {
-                vars.push(var);
+            if let Some(declaration) = self.init_declarator(base_ty)? {
+                declarations.push(declaration);
             }
         }
-        Ok(vars)
+        Ok(declarations)
     }
 
     // init_declarator ::= declarator
     //                     | declarator "=" initializer
-    fn init_declarator(&mut self, base_ty: &Type) -> Result<Option<Var>, CompileError> {
-        if let Ok(mut var) = self.declarator(base_ty) {
+    fn init_declarator(&mut self, base_ty: &Type) -> Result<Option<Declaration>, CompileError> {
+        if let Ok(mut declaration) = self.declarator(base_ty) {
             if self.consume_punctuator("=").is_some() {
                 // TODO: 代入時の型チェック
-                var.init = self.initializer()?; // initializerを設定
-                match var.ty.kind {
+                declaration.init = self.initializer()?; // initializerを設定
+                match declaration.ty.kind {
                     // サイズ不明な配列型の場合、初期化子の要素数でサイズを決定
                     TypeKind::Array { ref base, ref size } if *size == 0 => {
-                        var.ty = Type::from(
+                        declaration.ty = Type::from(
                             &TypeKind::Array {
                                 base: base.clone(),
-                                size: var.init.len(),
+                                size: declaration.init.len(),
                             },
-                            var.ty.is_const,
+                            declaration.ty.is_const,
                         );
                     }
                     _ => {}
                 }
             }
-            return Ok(Some(var));
+            return Ok(Some(declaration));
         }
         Ok(None)
     }
@@ -135,8 +136,8 @@ impl Ast {
     }
 
     // struct_declaration_list ::= struct_declaration+
-    fn struct_declaration_list(&mut self) -> Result<Vec<Var>, CompileError> {
-        let mut members: Vec<Var> = Vec::new();
+    fn struct_declaration_list(&mut self) -> Result<Vec<Declaration>, CompileError> {
+        let mut members: Vec<Declaration> = Vec::new();
         while let Some(member_list) = self.struct_declaration()? {
             members.extend(member_list);
         }
@@ -144,7 +145,7 @@ impl Ast {
     }
 
     // struct_declaration ::= specifier_qualifier_list struct_declarator_list? ";"
-    fn struct_declaration(&mut self) -> Result<Option<Vec<Var>>, CompileError> {
+    fn struct_declaration(&mut self) -> Result<Option<Vec<Declaration>>, CompileError> {
         let specifiers = self.specifier_qualifier_list()?;
         if specifiers.is_empty() {
             return Ok(None);
@@ -162,7 +163,7 @@ impl Ast {
     }
 
     // struct_declarator_list ::= struct_declarator ("," struct_declarator)*
-    fn struct_declarator_list(&mut self, base_ty: &Type) -> Result<Vec<Var>, CompileError> {
+    fn struct_declarator_list(&mut self, base_ty: &Type) -> Result<Vec<Declaration>, CompileError> {
         let mut members = Vec::new();
         if let Some(member) = self.struct_declarator(base_ty)? {
             members.push(member);
@@ -176,9 +177,9 @@ impl Ast {
     }
 
     // struct_declarator ::= declarator
-    fn struct_declarator(&mut self, base_ty: &Type) -> Result<Option<Var>, CompileError> {
-        if let Ok(var) = self.declarator(base_ty) {
-            return Ok(Some(var));
+    fn struct_declarator(&mut self, base_ty: &Type) -> Result<Option<Declaration>, CompileError> {
+        if let Ok(declaration) = self.declarator(base_ty) {
+            return Ok(Some(declaration));
         }
         Ok(None)
     }
@@ -243,7 +244,7 @@ impl Ast {
     }
 
     // declarator ::= pointer? direct_declarator
-    pub(super) fn declarator(&mut self, base_ty: &Type) -> Result<Var, CompileError> {
+    pub(super) fn declarator(&mut self, base_ty: &Type) -> Result<Declaration, CompileError> {
         let ty = self.pointer(base_ty);
         self.direct_declarator(&ty)
     }
@@ -252,7 +253,7 @@ impl Ast {
     //                       | identifier
     //                       | direct_declarator "[" type_qualifier_list? assignment_expression? "]"
     //                       | direct_declarator "(" parameter_type_list ")"
-    fn direct_declarator(&mut self, base_ty: &Type) -> Result<Var, CompileError> {
+    fn direct_declarator(&mut self, base_ty: &Type) -> Result<Declaration, CompileError> {
         let name = if self.consume_punctuator("(").is_some() {
             let inner_var = self.declarator(base_ty)?;
             self.expect_punctuator(")")?;
@@ -266,7 +267,11 @@ impl Ast {
         };
 
         let final_ty = self.parse_postfix_declarators(base_ty)?;
-        Ok(Var::new(&name, final_ty))
+        Ok(Declaration {
+            name,
+            ty: final_ty,
+            init: Vec::new(),
+        })
     }
 
     // 右結合で解析
@@ -320,12 +325,12 @@ impl Ast {
     }
 
     // parameter_type_list ::= parameter_list
-    fn parameter_type_list(&mut self) -> Result<Vec<Var>, CompileError> {
+    fn parameter_type_list(&mut self) -> Result<Vec<Declaration>, CompileError> {
         self.parameter_list()
     }
 
     // parameter_list ::= parameter_declaration ("," parameter_declaration)*
-    fn parameter_list(&mut self) -> Result<Vec<Var>, CompileError> {
+    fn parameter_list(&mut self) -> Result<Vec<Declaration>, CompileError> {
         let mut params = Vec::new();
         let param = self.parameter_declaration()?;
         params.push(param);
@@ -337,15 +342,15 @@ impl Ast {
     }
 
     // parameter_declaration ::= declaration_specifiers declarator
-    fn parameter_declaration(&mut self) -> Result<Var, CompileError> {
+    fn parameter_declaration(&mut self) -> Result<Declaration, CompileError> {
         let specifiers = self.declaration_specifiers()?;
         if !specifiers.is_empty() {
             let base_kind =
                 Type::from_ds(&specifiers).ok_or_else(|| CompileError::InvalidDeclaration {
                     msg: "無効な型指定子です".to_string(),
                 })?;
-            if let Ok(var) = self.declarator(&base_kind) {
-                return Ok(var);
+            if let Ok(declaration) = self.declarator(&base_kind) {
+                return Ok(declaration);
             }
         }
         Err(CompileError::InvalidDeclaration {

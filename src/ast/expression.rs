@@ -517,15 +517,20 @@ impl Ast {
             && let NodeKind::Identifier { name } = &n.kind
         {
             // 変数参照
-            if let Ok(current_func) = self.get_current_func()
-                && let Some(lvar) = current_func.find_lvar(name)
-            {
-                // ローカル変数ノードを作成
-                let node = Node::new_var(&lvar.name, lvar.offset, &lvar.ty, true);
-                return Ok(Some(Box::new(node)));
-            } else if let Some(gvar) = self.find_gvar(name) {
+            if let Ok(current_func) = self.get_current_func() {
+                if let Some(symbol) = current_func.find_local_var(name) {
+                    // ローカル変数ノードを作成
+                    let node = Node::new_var(name, symbol.offset, &symbol.ty, true);
+                    return Ok(Some(Box::new(node)));
+                } else if let Some(symbol) = current_func.find_param(name) {
+                    // 引数変数ノードを作成
+                    let node = Node::new_var(name, symbol.offset, &symbol.ty, true);
+                    return Ok(Some(Box::new(node)));
+                }
+            }
+            if let Some(symbol) = self.find_global_var(name) {
                 // グローバル変数ノードを作成
-                let node = Node::new_var(&gvar.name, 0, &gvar.ty, false);
+                let node = Node::new_var(name, 0, &symbol.ty, false);
                 return Ok(Some(Box::new(node)));
             }
             Err(CompileError::UndefinedIdentifier { name: name.clone() })?;
@@ -628,17 +633,17 @@ impl Ast {
 
     // argument_expr_list ::= assign_expr ("," assign_expr)*
     #[allow(clippy::vec_box)]
-    fn argument_expr_list(&mut self) -> Result<Vec<Box<Node>>, CompileError> {
+    fn argument_expr_list(&mut self) -> Result<Vec<Node>, CompileError> {
         let mut args = Vec::new();
         if let Some(arg) = self.assign_expr()? {
-            args.push(arg);
+            args.push(*arg);
         } else {
             return Ok(args);
         }
 
         while self.consume_punctuator(",").is_some() {
             if let Some(arg) = self.assign_expr()? {
-                args.push(arg);
+                args.push(*arg);
             } else {
                 return Err(CompileError::InternalError {
                     msg: "関数呼び出しの引数リストのパースに失敗しました".to_string(),
