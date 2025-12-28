@@ -1,14 +1,16 @@
 use clap::Parser;
 use clap_derive::Parser;
 
-pub mod asm_builder;
-pub mod ast;
-pub mod errors;
-pub mod lexer;
-pub mod node;
-pub mod token;
-pub mod types;
-pub mod x86;
+mod asm_builder;
+mod ast;
+mod errors;
+mod function;
+mod lexer;
+mod node;
+mod symbol;
+mod token;
+mod types;
+mod x86;
 
 use crate::ast::Ast;
 use crate::lexer::Lexer;

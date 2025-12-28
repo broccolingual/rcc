@@ -2,7 +2,7 @@ use crate::errors::CompileError;
 use crate::token::{KEYWORDS, PUNCTUATORS};
 use crate::token::{Token, TokenKind};
 
-pub struct Lexer {}
+pub(crate) struct Lexer {}
 
 impl Default for Lexer {
     fn default() -> Self {
@@ -11,11 +11,11 @@ impl Default for Lexer {
 }
 
 impl Lexer {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Lexer {}
     }
 
-    pub fn tokenize(&self, input: &str) -> Result<Vec<Token>, CompileError> {
+    pub(crate) fn tokenize(&self, input: &str) -> Result<Vec<Token>, CompileError> {
         // 演算子トークンを長い順にソート
         let mut sorted_punctuators = PUNCTUATORS.to_vec();
         sorted_punctuators.sort_by_key(|a| std::cmp::Reverse(a.len()));
@@ -207,7 +207,7 @@ impl Lexer {
                 span: (pos, pos + 1),
             });
         }
-        tokens.push(Token::new(TokenKind::EOF, (pos, pos)));
+        tokens.push(Token::new(TokenKind::Eof, (pos, pos)));
         Ok(tokens)
     }
 }

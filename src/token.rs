@@ -1,13 +1,13 @@
 use core::fmt;
 
-pub const PUNCTUATORS: [&str; 54] = [
+pub(crate) const PUNCTUATORS: [&str; 54] = [
     "[", "]", "(", ")", "{", "}", ".", "->", "++", "--", "&", "*", "+", "-", "~", "!", "/", "%",
     "<<", ">>", "<", "<=", ">", ">=", "==", "!=", "^", "|", "&&", "||", "?", ":", ";", "...", "=",
     "*=", "/=", "%=", "+=", "-=", "&=", "^=", "|=", "<<=", ">>=", ",", "#", "##", "<:", ":>", "<%",
     "%>", "%:", "%:%:",
 ];
 
-pub const KEYWORDS: [&str; 34] = [
+pub(crate) const KEYWORDS: [&str; 34] = [
     "auto", "break", "case", "char", "const", "continue", "default", "do", "double", "else",
     "enum", "extern", "float", "for", "goto", "if", "inline", "int", "long", "register",
     "restrict", "return", "short", "signed", "sizeof", "static", "struct", "switch", "typedef",
@@ -15,19 +15,19 @@ pub const KEYWORDS: [&str; 34] = [
 ];
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub enum TokenKind {
+pub(crate) enum TokenKind {
     Punctuator(String), // 記号トークン
     Keyword(String),    // キーワード
     Identifier(String), // 識別子
     Number(i64),        // 整数トークン
     String(String),     // 文字列リテラルトークン
-    EOF,                // 入力の終わりを表すトークン
+    Eof,                // 入力の終わりを表すトークン
 }
 
 #[derive(Clone, PartialEq, Eq)]
-pub struct Token {
-    pub kind: TokenKind,
-    pub span: (usize, usize), // トークンの開始位置と終了位置
+pub(crate) struct Token {
+    pub(crate) kind: TokenKind,
+    pub(crate) span: (usize, usize), // トークンの開始位置と終了位置
 }
 
 impl fmt::Debug for Token {
@@ -38,13 +38,13 @@ impl fmt::Debug for Token {
             TokenKind::Identifier(s) => write!(f, "Identifier('{}') {:?}", s, self.span),
             TokenKind::Number(n) => write!(f, "Num({}) {:?}", n, self.span),
             TokenKind::String(s) => write!(f, "StringLiteral(\"{}\") {:?}", s, self.span),
-            TokenKind::EOF => write!(f, "EOF {:?}", self.span),
+            TokenKind::Eof => write!(f, "EOF {:?}", self.span),
         }
     }
 }
 
 impl Token {
-    pub fn new(kind: TokenKind, span: (usize, usize)) -> Self {
+    pub(crate) fn new(kind: TokenKind, span: (usize, usize)) -> Self {
         Token { kind, span }
     }
 }

@@ -4,7 +4,7 @@ use crate::errors::CompileError;
 use crate::types::{Type, TypeKind};
 
 #[derive(PartialEq, Eq, Clone, Debug)]
-pub enum BinaryOp {
+pub(crate) enum BinaryOp {
     Assign, // =
     Add,    // +
     Sub,    // -
@@ -44,7 +44,7 @@ impl str::FromStr for BinaryOp {
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
-pub enum UnaryOp {
+pub(crate) enum UnaryOp {
     BitNot,     // ~
     LogicalNot, // !
     Addr,       // &
@@ -56,7 +56,7 @@ pub enum UnaryOp {
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
-pub enum NodeKind {
+pub(crate) enum NodeKind {
     BinaryOp {
         op: BinaryOp,
         lhs: Box<Node>,
@@ -104,11 +104,11 @@ pub enum NodeKind {
         then: Box<Node>,
     }, // do
     Block {
-        body: Vec<Box<Node>>,
+        body: Vec<Node>,
     }, // {}
     Call {
         name: String,
-        args: Vec<Box<Node>>,
+        args: Vec<Node>,
     }, // 関数呼び出し
     Label {
         name: String,
@@ -141,9 +141,9 @@ pub enum NodeKind {
 }
 
 #[derive(Clone, PartialEq, Eq)]
-pub struct Node {
-    pub kind: NodeKind,
-    pub ty: Type,
+pub(crate) struct Node {
+    pub(crate) kind: NodeKind,
+    pub(crate) ty: Type,
 }
 
 impl fmt::Debug for Node {
@@ -206,14 +206,18 @@ impl Default for Node {
 }
 
 impl Node {
-    pub fn new(kind: NodeKind) -> Self {
+    pub(crate) fn new(kind: NodeKind) -> Self {
         Node {
             kind,
             ty: Type::default(),
         }
     }
 
-    pub fn new_binary(op: BinaryOp, lhs: Box<Node>, rhs: Box<Node>) -> Result<Self, CompileError> {
+    pub(crate) fn new_binary(
+        op: BinaryOp,
+        lhs: Box<Node>,
+        rhs: Box<Node>,
+    ) -> Result<Self, CompileError> {
         let ty = match op {
             BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => {
                 let lhs_ty = &lhs.ty;
@@ -324,7 +328,7 @@ impl Node {
         })
     }
 
-    pub fn new_unary(op: UnaryOp, expr: Box<Node>) -> Result<Self, CompileError> {
+    pub(crate) fn new_unary(op: UnaryOp, expr: Box<Node>) -> Result<Self, CompileError> {
         let ty = match op {
             UnaryOp::BitNot => {
                 let expr_ty = &expr.ty;
@@ -390,7 +394,7 @@ impl Node {
         })
     }
 
-    pub fn new_assign(op: BinaryOp, lhs: Box<Node>, rhs: Box<Node>) -> Self {
+    pub(crate) fn new_assign(op: BinaryOp, lhs: Box<Node>, rhs: Box<Node>) -> Self {
         let ty = lhs.ty.clone(); // 代入演算子の型は左辺の型とする
 
         Node {
@@ -399,7 +403,7 @@ impl Node {
         }
     }
 
-    pub fn new_logical_and(lhs: Box<Node>, rhs: Box<Node>) -> Result<Self, CompileError> {
+    pub(crate) fn new_logical_and(lhs: Box<Node>, rhs: Box<Node>) -> Result<Self, CompileError> {
         let lhs_ty = &lhs.ty;
         let rhs_ty = &rhs.ty;
 
@@ -423,7 +427,7 @@ impl Node {
         })
     }
 
-    pub fn new_logical_or(lhs: Box<Node>, rhs: Box<Node>) -> Result<Self, CompileError> {
+    pub(crate) fn new_logical_or(lhs: Box<Node>, rhs: Box<Node>) -> Result<Self, CompileError> {
         let lhs_ty = &lhs.ty;
         let rhs_ty = &rhs.ty;
 
@@ -447,7 +451,7 @@ impl Node {
         })
     }
 
-    pub fn new_ternary(
+    pub(crate) fn new_ternary(
         cond: Box<Node>,
         then: Box<Node>,
         els: Box<Node>,
@@ -490,13 +494,13 @@ impl Node {
         })
     }
 
-    pub fn new_num(val: i64) -> Self {
+    pub(crate) fn new_num(val: i64) -> Self {
         let mut node = Node::new(NodeKind::Number { val });
         node.ty = Type::from(&TypeKind::Int, false);
         node
     }
 
-    pub fn new_var(name: &str, offset: usize, ty: &Type, is_local: bool) -> Self {
+    pub(crate) fn new_var(name: &str, offset: usize, ty: &Type, is_local: bool) -> Self {
         let mut node = Node::new(NodeKind::Var {
             name: name.to_string(),
             offset,
@@ -507,7 +511,7 @@ impl Node {
     }
 
     // 定数式を評価して、その値を返す
-    pub fn eval_const_expr(&self) -> Result<i64, CompileError> {
+    pub(crate) fn eval_const_expr(&self) -> Result<i64, CompileError> {
         match &self.kind {
             NodeKind::Number { val } => Ok(*val),
             NodeKind::UnaryOp { op, expr } => {
@@ -615,7 +619,7 @@ impl Node {
         }
     }
 
-    pub fn is_expr(&self) -> bool {
+    pub(crate) fn is_expr(&self) -> bool {
         match self.kind {
             // 値を返さない文
             NodeKind::If { .. }
@@ -633,7 +637,7 @@ impl Node {
         }
     }
 
-    pub fn scaled_add(
+    pub(crate) fn scaled_add(
         &mut self,
         rhs: Option<Box<Node>>,
     ) -> Result<Option<Box<Node>>, CompileError> {
@@ -658,7 +662,7 @@ impl Node {
         )?)))
     }
 
-    pub fn scaled_sub(
+    pub(crate) fn scaled_sub(
         &mut self,
         rhs: Option<Box<Node>>,
     ) -> Result<Option<Box<Node>>, CompileError> {
