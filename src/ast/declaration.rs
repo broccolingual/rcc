@@ -1,10 +1,9 @@
 use crate::ast::Ast;
 use crate::errors::CompileError;
 use crate::node::Node;
-use crate::symbol::Declaration;
 use crate::types::{
-    DeclarationSpecifier, FunctionKind, StorageClassKind, Type, TypeKind, TypeQualifierKind,
-    TypeSpecifierQualifier,
+    Declaration, DeclarationSpecifier, FunctionKind, StorageClassKind, Type, TypeKind,
+    TypeQualifierKind, TypeSpecifierQualifier,
 };
 
 impl Ast {

@@ -44,6 +44,12 @@ impl Ast {
             })
     }
 
+    fn register_string_literal(&mut self, s: &str) -> usize {
+        let index = self.string_literals.len();
+        self.string_literals.push(s.to_string());
+        index
+    }
+
     fn register_gloval_var(
         &mut self,
         name: String,
@@ -65,6 +71,16 @@ impl Ast {
 
     fn find_global_var(&self, name: &str) -> Option<&Symbol> {
         self.global_table.find(name)
+    }
+
+    // 関数名から関数を検索し、戻り値の型を取得
+    fn get_function_return_type(&self, name: &str) -> Option<&Type> {
+        for func in &self.funcs {
+            if func.name == name {
+                return Some(&func.return_ty);
+            }
+        }
+        None
     }
 
     // 現在のトークンを取得

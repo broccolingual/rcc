@@ -179,5 +179,16 @@ int main() {
     return a[2] + b[1];
 }
 '
+assert 5 '
+int main() {
+    int a;
+    int b = 3;
+    {
+        int b = 5;
+        a = b;
+    }
+    return a;
+}
+'
 
 echo OK

@@ -19,6 +19,7 @@ impl StackFrame {
         Self { next_offset: 0 }
     }
 
+    // 型に合わせてスタック上に領域を確保し、そのオフセットを返す
     fn alloc(&mut self, ty: &Type) -> usize {
         self.next_offset = self.next_offset.align_up(ty.align_of());
         self.next_offset += ty.size_of();
@@ -52,6 +53,7 @@ impl Function {
 }
 
 impl Function {
+    // スタックフレームのサイズを取得
     pub(crate) fn get_stack_size(&self) -> usize {
         self.stack_frame.next_offset.align_up(16) // 16バイトアラインメント
     }

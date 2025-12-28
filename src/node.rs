@@ -1,144 +1,12 @@
-use core::{fmt, str};
+mod kind;
+mod operator;
+
+pub(crate) use kind::*;
+pub(crate) use operator::*;
 
 use crate::errors::CompileError;
 use crate::types::{Type, TypeKind};
-
-#[derive(PartialEq, Eq, Clone, Debug)]
-pub(crate) enum BinaryOp {
-    Assign, // =
-    Add,    // +
-    Sub,    // -
-    Mul,    // *
-    Div,    // /
-    Rem,    // %
-    Shl,    // <<
-    Shr,    // >>
-    BitAnd, // &
-    BitXor, // ^
-    BitOr,  // |
-    Eq,     // ==
-    Ne,     // !=
-    Lt,     // <
-    Le,     // <=
-}
-
-impl str::FromStr for BinaryOp {
-    type Err = ();
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            // assignment operators
-            "=" => Ok(BinaryOp::Assign),
-            "*=" => Ok(BinaryOp::Mul),
-            "/=" => Ok(BinaryOp::Div),
-            "%=" => Ok(BinaryOp::Rem),
-            "+=" => Ok(BinaryOp::Add),
-            "-=" => Ok(BinaryOp::Sub),
-            "<<=" => Ok(BinaryOp::Shl),
-            ">>=" => Ok(BinaryOp::Shr),
-            "&=" => Ok(BinaryOp::BitAnd),
-            "^=" => Ok(BinaryOp::BitXor),
-            "|=" => Ok(BinaryOp::BitOr),
-            _ => Err(()),
-        }
-    }
-}
-
-#[derive(PartialEq, Eq, Clone, Debug)]
-pub(crate) enum UnaryOp {
-    BitNot,     // ~
-    LogicalNot, // !
-    Addr,       // &
-    Deref,      // *
-    PreInc,     // ++pre
-    PreDec,     // --pre
-    PostInc,    // post++
-    PostDec,    // post--
-}
-
-#[derive(PartialEq, Eq, Clone, Debug)]
-pub(crate) enum NodeKind {
-    BinaryOp {
-        op: BinaryOp,
-        lhs: Box<Node>,
-        rhs: Box<Node>,
-    },
-    UnaryOp {
-        op: UnaryOp,
-        expr: Box<Node>,
-    },
-    Assign {
-        op: BinaryOp,
-        lhs: Box<Node>,
-        rhs: Box<Node>,
-    },
-    LogicalAnd {
-        lhs: Box<Node>,
-        rhs: Box<Node>,
-    }, // &&
-    LogicalOr {
-        lhs: Box<Node>,
-        rhs: Box<Node>,
-    }, // ||
-    If {
-        cond: Box<Node>,
-        then: Box<Node>,
-        els: Option<Box<Node>>,
-    }, // if
-    Ternary {
-        cond: Box<Node>,
-        then: Box<Node>,
-        els: Box<Node>,
-    }, // cond ? then : else
-    While {
-        cond: Box<Node>,
-        then: Box<Node>,
-    }, // while
-    For {
-        init: Option<Box<Node>>,
-        cond: Option<Box<Node>>,
-        inc: Option<Box<Node>>,
-        then: Box<Node>,
-    }, // for
-    Do {
-        cond: Box<Node>,
-        then: Box<Node>,
-    }, // do
-    Block {
-        body: Vec<Node>,
-    }, // {}
-    Call {
-        name: String,
-        args: Vec<Node>,
-    }, // 関数呼び出し
-    Label {
-        name: String,
-        expr: Box<Node>,
-    }, // ラベル
-    Goto {
-        name: String,
-    }, // goto
-    Break,    // break
-    Continue, // continue
-    Var {
-        name: String,
-        offset: usize,
-        is_local: bool,
-    }, // 変数
-    Identifier {
-        name: String,
-    }, // 識別子（変数名など）
-    Return {
-        expr: Option<Box<Node>>,
-    }, // return
-    Number {
-        val: i64,
-    }, // 整数
-    String {
-        val: String,
-        index: i64,
-    }, // 文字列リテラル
-    Nop,      // 空命令
-}
+use core::fmt;
 
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct Node {
@@ -210,6 +78,16 @@ impl Node {
         Node {
             kind,
             ty: Type::default(),
+        }
+    }
+
+    pub(crate) fn new_call(name: &str, args: Vec<Node>, return_ty: Type) -> Self {
+        Node {
+            kind: NodeKind::Call {
+                name: name.to_string(),
+                args,
+            },
+            ty: return_ty,
         }
     }
 

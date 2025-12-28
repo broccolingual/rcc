@@ -1,199 +1,11 @@
+mod kind;
+mod specifier;
+
+pub(crate) use kind::*;
+pub(crate) use specifier::*;
+
+use crate::node::Node;
 use core::fmt;
-
-use crate::symbol::Declaration;
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum DeclarationSpecifier {
-    StorageClassSpecifier(StorageClassKind),
-    TypeSpecifierQualifier(TypeSpecifierQualifier),
-    FunctionSpecifier(FunctionKind),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum TypeSpecifierQualifier {
-    TypeSpecifier(TypeKind),
-    TypeQualifier(TypeQualifierKind),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum FunctionKind {
-    Inline,
-}
-
-impl fmt::Display for FunctionKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            FunctionKind::Inline => write!(f, "inline"),
-        }
-    }
-}
-
-impl FunctionKind {
-    pub(crate) fn all() -> Vec<FunctionKind> {
-        vec![FunctionKind::Inline]
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum StorageClassKind {
-    Auto,
-    Extern,
-    Register,
-    Static,
-    Typedef,
-}
-
-impl fmt::Display for StorageClassKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            StorageClassKind::Auto => write!(f, "auto"),
-            StorageClassKind::Extern => write!(f, "extern"),
-            StorageClassKind::Register => write!(f, "register"),
-            StorageClassKind::Static => write!(f, "static"),
-            StorageClassKind::Typedef => write!(f, "typedef"),
-        }
-    }
-}
-
-impl StorageClassKind {
-    pub(crate) fn all() -> Vec<StorageClassKind> {
-        vec![
-            StorageClassKind::Auto,
-            StorageClassKind::Extern,
-            StorageClassKind::Register,
-            StorageClassKind::Static,
-            StorageClassKind::Typedef,
-        ]
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum TypeQualifierKind {
-    Const,
-    Volatile,
-    Restrict,
-}
-
-impl fmt::Display for TypeQualifierKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            TypeQualifierKind::Const => write!(f, "const"),
-            TypeQualifierKind::Volatile => write!(f, "volatile"),
-            TypeQualifierKind::Restrict => write!(f, "restrict"),
-        }
-    }
-}
-
-impl TypeQualifierKind {
-    pub(crate) fn all() -> Vec<TypeQualifierKind> {
-        vec![
-            TypeQualifierKind::Const,
-            TypeQualifierKind::Volatile,
-            TypeQualifierKind::Restrict,
-        ]
-    }
-}
-
-#[derive(Clone, PartialEq, Eq)]
-pub(crate) enum TypeKind {
-    Void,
-    Char,
-    Short,
-    Int,
-    Long,
-    Float,
-    Double,
-    Ptr {
-        to: Box<Type>,
-    }, // to: ポインタの指す型
-    Array {
-        base: Box<Type>,
-        size: usize,
-    }, // base: 配列の要素型, size: 要素数
-    Struct {
-        name: String,
-        members: Vec<Declaration>,
-    }, // name: 構造体名, members: メンバーリスト
-    Func {
-        return_ty: Box<Type>,
-        params: Vec<Declaration>,
-    }, // return_ty: 戻り値の型, params: パラメータリスト
-}
-
-impl fmt::Debug for TypeKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            TypeKind::Void => write!(f, "void"),
-            TypeKind::Char => write!(f, "char"),
-            TypeKind::Short => write!(f, "short"),
-            TypeKind::Int => write!(f, "int"),
-            TypeKind::Long => write!(f, "long"),
-            TypeKind::Float => write!(f, "float"),
-            TypeKind::Double => write!(f, "double"),
-            // ポインタや配列は再帰的に*をつけて表示
-            TypeKind::Ptr { to } => write!(f, "{:?}*", to),
-            TypeKind::Array { base, size } => write!(f, "[{:?}; {}]", base, size),
-            TypeKind::Struct { name, members } => write!(f, "struct {} {{ {:?} }}", name, members),
-            TypeKind::Func { return_ty, params } => {
-                write!(f, "func(")?;
-                for (i, param) in params.iter().enumerate() {
-                    if i > 0 {
-                        write!(f, ", ")?;
-                    }
-                    write!(f, "{:?}", param)?;
-                }
-                write!(f, ") -> {:?}", return_ty)
-            }
-        }
-    }
-}
-
-impl fmt::Display for TypeKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            TypeKind::Void => write!(f, "void"),
-            TypeKind::Char => write!(f, "char"),
-            TypeKind::Short => write!(f, "short"),
-            TypeKind::Int => write!(f, "int"),
-            TypeKind::Long => write!(f, "long"),
-            TypeKind::Float => write!(f, "float"),
-            TypeKind::Double => write!(f, "double"),
-            TypeKind::Ptr { to } => write!(f, "ptr to {:?}", to),
-            TypeKind::Array { base, size } => write!(f, "array[{}] of {:?}", size, base),
-            TypeKind::Struct { name, members } => {
-                write!(f, "struct {} {{ {:?} }}", name, members)
-            }
-            TypeKind::Func { return_ty, params } => {
-                write!(f, "func({:?}) -> {:?}", params, return_ty)
-            }
-        }
-    }
-}
-
-impl TypeKind {
-    pub(crate) fn all() -> Vec<TypeKind> {
-        vec![
-            TypeKind::Void,
-            TypeKind::Char,
-            TypeKind::Short,
-            TypeKind::Int,
-            TypeKind::Long,
-            TypeKind::Float,
-            TypeKind::Double,
-        ]
-    }
-}
-
-pub(crate) trait AlignUp {
-    fn align_up(&self, align: usize) -> usize;
-}
-
-impl AlignUp for usize {
-    // alignの倍数に切り上げる
-    fn align_up(&self, align: usize) -> usize {
-        (*self + align - 1) & !(align - 1)
-    }
-}
 
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct Type {
@@ -382,20 +194,30 @@ impl Type {
 
     // 型がポインタもしくは配列かどうか
     pub(crate) fn is_ptr_or_array(&self) -> bool {
-        matches!(&self.kind, TypeKind::Ptr { .. } | TypeKind::Array { .. })
+        match &self.kind {
+            TypeKind::Ptr { .. } => true,
+            TypeKind::Array { .. } => true,
+            TypeKind::Func { return_ty, .. } => return_ty.is_ptr_or_array(),
+            _ => false,
+        }
     }
 
     // 型が整数型かどうか
     pub(crate) fn is_integer(&self) -> bool {
-        matches!(
-            &self.kind,
-            TypeKind::Char | TypeKind::Short | TypeKind::Int | TypeKind::Long
-        )
+        match &self.kind {
+            TypeKind::Char | TypeKind::Short | TypeKind::Int | TypeKind::Long => true,
+            TypeKind::Func { return_ty, .. } => return_ty.is_integer(),
+            _ => false,
+        }
     }
 
     // 型が浮動小数点型かどうか
     pub(crate) fn is_floating_point(&self) -> bool {
-        matches!(&self.kind, TypeKind::Float | TypeKind::Double)
+        match &self.kind {
+            TypeKind::Float | TypeKind::Double => true,
+            TypeKind::Func { return_ty, .. } => return_ty.is_floating_point(),
+            _ => false,
+        }
     }
 
     // 型がスカラー型かどうか（整数型または浮動小数点型）
@@ -430,5 +252,23 @@ impl Type {
     // 型のアラインメント
     pub(crate) fn align_of(&self) -> usize {
         self.align
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub(crate) struct Declaration {
+    pub(crate) name: String,
+    pub(crate) ty: Type,
+    pub(crate) init: Vec<Node>,
+}
+
+pub(crate) trait AlignUp {
+    fn align_up(&self, align: usize) -> usize;
+}
+
+impl AlignUp for usize {
+    // alignの倍数に切り上げる
+    fn align_up(&self, align: usize) -> usize {
+        (*self + align - 1) & !(align - 1)
     }
 }

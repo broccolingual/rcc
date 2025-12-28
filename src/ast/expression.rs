@@ -1,8 +1,8 @@
-use core::str::FromStr;
-
 use crate::ast::Ast;
 use crate::errors::CompileError;
 use crate::node::{BinaryOp, Node, NodeKind, UnaryOp};
+use crate::types::Type;
+use core::str::FromStr;
 
 impl Ast {
     // const_expr ::= cond_expr
@@ -566,18 +566,21 @@ impl Ast {
             } else if self.consume_punctuator("(").is_some() {
                 let args = self.argument_expr_list()?;
                 self.expect_punctuator(")")?;
-                node = Some(Box::new(Node::new(NodeKind::Call {
-                    name: if let Some(n) = &node
-                        && let NodeKind::Identifier { name } = &n.kind
-                    {
-                        name.clone()
-                    } else {
-                        return Err(CompileError::InternalError {
-                            msg: "関数呼び出しの関数名のパースに失敗しました".to_string(),
-                        });
-                    },
-                    args,
-                })));
+                let func_name = if let Some(n) = &node
+                    && let NodeKind::Identifier { name } = &n.kind
+                {
+                    name.clone()
+                } else {
+                    return Err(CompileError::InternalError {
+                        msg: "関数呼び出しの関数名のパースに失敗しました".to_string(),
+                    });
+                };
+                let return_ty = if let Some(return_ty) = self.get_function_return_type(&func_name) {
+                    return_ty.clone()
+                } else {
+                    Type::default()
+                };
+                node = Some(Box::new(Node::new_call(&func_name, args, return_ty)));
             } else if self.consume_punctuator(".").is_some() {
                 unimplemented!("構造体メンバアクセスは未実装です");
             } else if self.consume_punctuator("->").is_some() {
@@ -672,11 +675,8 @@ impl Ast {
         }
 
         if let Some(string) = self.consume_string() {
-            let node = Node::new(NodeKind::String {
-                val: string.clone(),
-                index: self.string_literals.len() as i64,
-            });
-            self.string_literals.push(string);
+            let index = self.register_string_literal(&string);
+            let node = Node::new(NodeKind::String { val: string, index });
             return Ok(Some(Box::new(node)));
         }
 
