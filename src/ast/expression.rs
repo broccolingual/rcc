@@ -604,7 +604,15 @@ impl Ast {
                         msg: format!("構造体に指定されたメンバ {:?} が存在しません", member_name),
                     }
                 })?;
-                let member_offset = member_decl.offset;
+                let member_offset =
+                    member_decl
+                        .offset
+                        .ok_or_else(|| CompileError::InternalError {
+                            msg: format!(
+                                "構造体メンバ {:?} のオフセットが設定されていません",
+                                member_name
+                            ),
+                        })?;
                 let member_ty = member_decl.ty.clone();
                 node = Some(Box::new(Node::new_member(
                     obj,
