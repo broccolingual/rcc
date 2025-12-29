@@ -49,7 +49,7 @@ impl Function {
             param_symbol_table: FlatTable::<Symbol>::new(),
             local_tag_table: ScopedTable::<Type>::new(),
             stack_frame: StackFrame::new(),
-            return_ty: Type::from(&TypeKind::Void, false),
+            return_ty: Type::from(TypeKind::Void, false),
         }
     }
 }

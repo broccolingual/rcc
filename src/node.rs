@@ -169,7 +169,7 @@ impl Node {
 
                 if lhs_ty.is_integer() && rhs_ty.is_integer() {
                     // 両方とも整数型の場合、昇格後の型を結果型とする
-                    Type::from(&TypeKind::Int, false)
+                    Type::from(TypeKind::Int, false)
                 } else {
                     return Err(CompileError::InvalidExpression {
                         msg: format!(
@@ -187,7 +187,7 @@ impl Node {
                     || lhs_ty.is_ptr_or_array() && rhs_ty.is_ptr_or_array()
                 {
                     // 両方ともスカラー型の場合、結果型はint型とする
-                    Type::from(&TypeKind::Int, false)
+                    Type::from(TypeKind::Int, false)
                 } else {
                     return Err(CompileError::InvalidExpression {
                         msg: format!(
@@ -212,7 +212,7 @@ impl Node {
                 let expr_ty = &expr.ty;
 
                 if expr_ty.is_integer() {
-                    Type::from(&TypeKind::Int, false) // 整数拡張
+                    Type::from(TypeKind::Int, false) // 整数拡張
                 } else {
                     return Err(CompileError::InvalidExpression {
                         msg: format!("ビット否定演算子は整数型にのみ適用可能です: {:?}", expr_ty),
@@ -223,7 +223,7 @@ impl Node {
                 let expr_ty = &expr.ty;
 
                 if expr_ty.is_scalar() || expr_ty.is_ptr_or_array() {
-                    Type::from(&TypeKind::Int, false) // 結果型はint型
+                    Type::from(TypeKind::Int, false) // 結果型はint型
                 } else {
                     return Err(CompileError::InvalidExpression {
                         msg: format!(
@@ -238,7 +238,7 @@ impl Node {
 
                 // アドレス演算子の型はポインタ型にする
                 Type::from(
-                    &TypeKind::Ptr {
+                    TypeKind::Ptr {
                         to: Box::new(expr_ty.clone()),
                     },
                     false,
@@ -289,7 +289,7 @@ impl Node {
             || lhs_ty.is_ptr_or_array() && rhs_ty.is_ptr_or_array()
         {
             // 両方ともスカラー型の場合、結果型はint型とする
-            Type::from(&TypeKind::Int, false)
+            Type::from(TypeKind::Int, false)
         } else {
             return Err(CompileError::InvalidExpression {
                 msg: format!(
@@ -313,7 +313,7 @@ impl Node {
             || lhs_ty.is_ptr_or_array() && rhs_ty.is_ptr_or_array()
         {
             // 両方ともスカラー型の場合、結果型はint型とする
-            Type::from(&TypeKind::Int, false)
+            Type::from(TypeKind::Int, false)
         } else {
             return Err(CompileError::InvalidExpression {
                 msg: format!(
@@ -374,7 +374,7 @@ impl Node {
 
     pub(crate) fn new_num(val: i64) -> Self {
         let mut node = Node::new(NodeKind::Number { val });
-        node.ty = Type::from(&TypeKind::Int, false);
+        node.ty = Type::from(TypeKind::Int, false);
         node
     }
 

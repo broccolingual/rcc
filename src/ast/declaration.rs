@@ -14,7 +14,7 @@ impl Ast {
             return Ok(None);
         }
         let base_ty =
-            Type::from_ds(&specifiers).ok_or_else(|| CompileError::InvalidDeclaration {
+            Type::from_ds(specifiers).ok_or_else(|| CompileError::InvalidDeclaration {
                 msg: "無効な型指定子です".to_string(),
             })?;
         let vars = self.init_declarator_list(&base_ty)?;
@@ -83,7 +83,7 @@ impl Ast {
                     // サイズ不明な配列型の場合、初期化子の要素数でサイズを決定
                     TypeKind::Array { ref base, ref size } if *size == 0 => {
                         declaration.ty = Type::from(
-                            &TypeKind::Array {
+                            TypeKind::Array {
                                 base: base.clone(),
                                 size: declaration.init.len(),
                             },
@@ -128,9 +128,9 @@ impl Ast {
                 let members = self.struct_declaration_list()?;
                 self.expect_punctuator("}")?;
                 let struct_ty = Type::from(
-                    &TypeKind::Struct {
+                    TypeKind::Struct {
                         name: struct_name.clone(),
-                        members: members.clone(),
+                        members,
                     },
                     false,
                 );
@@ -185,7 +185,7 @@ impl Ast {
             return Ok(None);
         }
         let base_ty =
-            Type::from_tsq(&specifiers).ok_or_else(|| CompileError::InvalidDeclaration {
+            Type::from_tsq(specifiers).ok_or_else(|| CompileError::InvalidDeclaration {
                 msg: "無効な型指定子です".to_string(),
             })?;
         let members = self.struct_declarator_list(&base_ty)?;
@@ -272,7 +272,7 @@ impl Ast {
     fn pointer(&mut self, base_ty: &Type) -> Type {
         while self.consume_punctuator("*").is_some() {
             let ptr_type = Type::from(
-                &TypeKind::Ptr {
+                TypeKind::Ptr {
                     to: Box::new(base_ty.clone()),
                 },
                 false,
@@ -333,7 +333,7 @@ impl Ast {
             self.expect_punctuator("]")?;
             let inner_ty = self.parse_postfix_declarators(base_ty)?;
             Ok(Type::from(
-                &TypeKind::Array {
+                TypeKind::Array {
                     base: Box::new(inner_ty),
                     size: array_size,
                 },
@@ -353,7 +353,7 @@ impl Ast {
             };
             let inner_ty = self.parse_postfix_declarators(base_ty)?;
             Ok(Type::from(
-                &TypeKind::Func {
+                TypeKind::Func {
                     return_ty: Box::new(inner_ty),
                     params,
                 },
@@ -386,7 +386,7 @@ impl Ast {
         let specifiers = self.declaration_specifiers()?;
         if !specifiers.is_empty() {
             let base_kind =
-                Type::from_ds(&specifiers).ok_or_else(|| CompileError::InvalidDeclaration {
+                Type::from_ds(specifiers).ok_or_else(|| CompileError::InvalidDeclaration {
                     msg: "無効な型指定子です".to_string(),
                 })?;
             if let Ok(declaration) = self.declarator(&base_kind) {
@@ -407,7 +407,7 @@ impl Ast {
             });
         }
         let base_ty =
-            Type::from_tsq(&specifiers).ok_or_else(|| CompileError::InvalidDeclaration {
+            Type::from_tsq(specifiers).ok_or_else(|| CompileError::InvalidDeclaration {
                 msg: "無効な型指定子です".to_string(),
             })?;
         if let Ok(abstract_ty) = self.abstract_declarator(&base_ty) {
@@ -447,7 +447,7 @@ impl Ast {
             self.expect_punctuator("]")?;
             let inner_ty = self.parse_abstract_postfix_declarators(base_ty)?;
             Ok(Type::from(
-                &TypeKind::Array {
+                TypeKind::Array {
                     base: Box::new(inner_ty),
                     size: array_size,
                 },
@@ -467,7 +467,7 @@ impl Ast {
             };
             let inner_ty = self.parse_abstract_postfix_declarators(base_ty)?;
             Ok(Type::from(
-                &TypeKind::Func {
+                TypeKind::Func {
                     return_ty: Box::new(inner_ty),
                     params,
                 },

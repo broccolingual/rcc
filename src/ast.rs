@@ -274,7 +274,7 @@ impl Ast {
             return Ok(None);
         }
         let base_ty =
-            Type::from_ds(&specifiers).ok_or_else(|| CompileError::InvalidDeclaration {
+            Type::from_ds(specifiers).ok_or_else(|| CompileError::InvalidDeclaration {
                 msg: "関数の基本型の解決に失敗しました".to_string(),
             })?;
         let func_decl = self.declarator(&base_ty)?;

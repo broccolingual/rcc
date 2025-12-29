@@ -27,13 +27,13 @@ impl fmt::Debug for Type {
 
 impl Default for Type {
     fn default() -> Self {
-        Type::from(&TypeKind::Void, false)
+        Type::from(TypeKind::Void, false)
     }
 }
 
 impl Type {
-    pub(crate) fn from(kind: &TypeKind, is_const: bool) -> Self {
-        match *kind {
+    pub(crate) fn from(kind: TypeKind, is_const: bool) -> Self {
+        match kind {
             TypeKind::Void => Type {
                 kind: TypeKind::Void,
                 size: 0,
@@ -134,14 +134,14 @@ impl Type {
     }
 
     // TODO: constやvolatileの情報も扱う
-    pub(crate) fn from_ds(declaration_specifiers: &Vec<DeclarationSpecifier>) -> Option<Self> {
+    pub(crate) fn from_ds(declaration_specifiers: Vec<DeclarationSpecifier>) -> Option<Self> {
         let mut ty = Type::default();
         let mut has_type_specifier = false;
         for specifier in declaration_specifiers {
             match specifier {
                 DeclarationSpecifier::TypeSpecifierQualifier(tsq) => match tsq {
                     TypeSpecifierQualifier::TypeQualifier(tq) => {
-                        if *tq == TypeQualifierKind::Const {
+                        if tq == TypeQualifierKind::Const {
                             ty.is_const = true;
                         }
                     }
@@ -157,15 +157,13 @@ impl Type {
         if has_type_specifier { Some(ty) } else { None }
     }
 
-    pub(crate) fn from_tsq(
-        type_specifier_qualifiers: &Vec<TypeSpecifierQualifier>,
-    ) -> Option<Self> {
+    pub(crate) fn from_tsq(type_specifier_qualifiers: Vec<TypeSpecifierQualifier>) -> Option<Self> {
         let mut ty = Type::default();
         let mut has_type_specifier = false;
         for specifier in type_specifier_qualifiers {
             match specifier {
                 TypeSpecifierQualifier::TypeQualifier(tq) => {
-                    if *tq == TypeQualifierKind::Const {
+                    if tq == TypeQualifierKind::Const {
                         ty.is_const = true;
                     }
                 }
