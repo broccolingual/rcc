@@ -601,9 +601,7 @@ impl Ast {
                 }
                 let member_decl = obj.ty.find_struct_member(&member_name).ok_or_else(|| {
                     CompileError::InvalidExpression {
-                        msg: {
-                            format!("構造体に指定されたメンバ {:?} が存在しません", member_name)
-                        },
+                        msg: format!("構造体に指定されたメンバ {:?} が存在しません", member_name),
                     }
                 })?;
                 let member_offset = member_decl.offset;

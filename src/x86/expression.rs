@@ -16,17 +16,8 @@ impl Generator {
                     .add_row(&format!("lea rax, .L.str.{}[rip]", index), true); // RIP相対アドレッシング
                 self.builder.add_row("push rax", true); // 文字列リテラルのアドレスをスタックに積む
             }
-            NodeKind::Var { .. } => {
+            NodeKind::Var { .. } | NodeKind::Member { .. } => {
                 self.gen_addr(node)?;
-                if !node.ty.is_array() {
-                    self.load(&node.ty)?;
-                }
-            }
-            NodeKind::Member { obj, offset, .. } => {
-                self.gen_addr(obj)?;
-                self.builder.add_row("pop rax", true); // オブジェクトのアドレス
-                self.builder.add_row(&format!("add rax, {}", offset), true);
-                self.builder.add_row("push rax", true); // メンバのアドレスをスタックに積む
                 if !node.ty.is_array() {
                     self.load(&node.ty)?;
                 }

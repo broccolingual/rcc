@@ -231,5 +231,6 @@ assert 15 'int a[] = {1, 2, 3, 4, 5}; return a[0] + a[1] + a[2] + a[3] + a[4];'
 
 echo + structs
 assert 8 'struct {int a; short b; int c;} s; s.a = 3; s.c = 5; return s.a + s.c;'
+assert 3 'struct {struct {int a; int b;} inner; int x;} outer; outer.inner.b = 3; return outer.inner.b;'
 
 echo OK
