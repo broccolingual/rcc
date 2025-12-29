@@ -101,8 +101,8 @@ impl Type {
                 for member in members.iter_mut() {
                     let a = member.ty.align_of();
                     offset = offset.align_up(a); // メンバーのアラインメントに合わせてオフセットを調整
+                    member.offset = offset; // メンバーの相対オフセットを設定
                     offset += member.ty.size_of(); // メンバーのサイズ分オフセットを進める
-                    // member.offset = offset; // TODO: メンバーのオフセットを設定
                     // 構造体全体のアラインメントを更新
                     if a > max_align {
                         max_align = a;
@@ -226,14 +226,12 @@ impl Type {
     }
 
     // 型が構造体かどうか
-    #[allow(dead_code)]
     pub(crate) fn is_struct(&self) -> bool {
         matches!(&self.kind, TypeKind::Struct { .. })
     }
 
     // 構造体メンバーの検索
-    #[allow(dead_code)]
-    pub(crate) fn find_struct_member(&self, name: &str) -> Option<&Declaration> {
+    pub(crate) fn find_struct_member(&self, name: &str) -> Option<&MemberDeclaration> {
         if let TypeKind::Struct { members, .. } = &self.kind {
             for member in members {
                 if member.name == name {
@@ -260,6 +258,23 @@ pub(crate) struct Declaration {
     pub(crate) name: String,
     pub(crate) ty: Type,
     pub(crate) init: Vec<Node>,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub(crate) struct MemberDeclaration {
+    pub(crate) name: String,
+    pub(crate) ty: Type,
+    pub(crate) offset: usize,
+}
+
+impl From<Declaration> for MemberDeclaration {
+    fn from(decl: Declaration) -> Self {
+        MemberDeclaration {
+            name: decl.name,
+            ty: decl.ty,
+            offset: 0,
+        }
+    }
 }
 
 pub(crate) trait AlignUp {

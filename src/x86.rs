@@ -201,7 +201,7 @@ impl Generator {
             }
         } else {
             return Err(CompileError::InvalidExpression {
-                msg: "スカラー変数の初期化式が複数あります".to_string(),
+                msg: format!("スカラー変数の初期化式が複数あります: {}", symbol.name),
             });
         }
         Ok(())
@@ -330,7 +330,7 @@ impl Generator {
             self.store(&symbol.ty)?; // スタックトップの値を変数に格納
         } else {
             return Err(CompileError::InvalidExpression {
-                msg: "スカラー変数の初期化式が複数あります".to_string(),
+                msg: format!("スカラー変数の初期化式が複数あります: {}", symbol.name),
             });
         }
         Ok(())
@@ -359,6 +359,13 @@ impl Generator {
                         .add_row(&format!("lea rax, {}[rip]", name), true); // グローバル変数のアドレスを計算して取得
                 }
                 self.builder.add_row("push rax", true); // 変数のアドレスをスタックに積む
+            }
+            NodeKind::Member { obj, offset, .. } => {
+                // TODO: グローバル変数として定義された構造体のメンバアクセスに対応
+                self.gen_addr(obj)?; // オブジェクトのアドレスを取得
+                self.builder.add_row(&format!("pop rax",), true); // オブジェクトのアドレス
+                self.builder.add_row(&format!("add rax, {}", offset), true); // メンバのオフセットを加算
+                self.builder.add_row("push rax", true); // メンバのアドレスをスタックに積む
             }
             _ => {
                 return Err(CompileError::InvalidExpression {

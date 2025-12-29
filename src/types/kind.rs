@@ -1,4 +1,4 @@
-use crate::types::{Declaration, Type};
+use crate::types::{Declaration, MemberDeclaration, Type};
 use core::fmt;
 
 #[derive(Clone, PartialEq, Eq)]
@@ -19,7 +19,7 @@ pub(crate) enum TypeKind {
     }, // base: 配列の要素型, size: 要素数
     Struct {
         name: String,
-        members: Vec<Declaration>,
+        members: Vec<MemberDeclaration>,
     }, // name: 構造体名, members: メンバーリスト
     Func {
         return_ty: Box<Type>,

@@ -50,7 +50,7 @@ impl Ast {
         index
     }
 
-    fn register_gloval_var(
+    fn register_global_var(
         &mut self,
         name: String,
         ty: Type,
@@ -244,7 +244,7 @@ impl Ast {
         // グローバル変数宣言
         if let Some(declarations) = self.declaration()? {
             for declaration in declarations {
-                self.register_gloval_var(declaration.name, declaration.ty, declaration.init)?;
+                self.register_global_var(declaration.name, declaration.ty, declaration.init)?;
             }
             return Ok(());
         }

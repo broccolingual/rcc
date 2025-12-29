@@ -187,7 +187,7 @@ assert 5 'int a; int b; a = 3; b = 5; return a > b ? a : b;'
 echo + block statements
 assert 8 '{ int a; int b; a = 3; b = 5; return a + b; }'
 assert 3 '{ { { return 3; } } }'
-# assert 5 '{ int a; a = 2; { int a; a = 3; a = a + 2; } return a; }' # TODO: 変数のスコープ
+assert 2 '{ int a; a = 2; { int a; a = 3; a = a + 2; } return a; }'
 
 echo + sizeof operator
 assert 4 'return sizeof(int);'
@@ -228,5 +228,8 @@ assert 3 'int a[3] = {0, 1, 2, 3}; return a[0] + a[1] + a[2];'
 assert 6 'int x = 1; int y = 2; int z = 3; int *a[3] = {&x, &y, &z}; return *a[0] + *a[1] + *a[2];'
 assert 15 'int a[] = {1, 2, 3, 4, 5}; return a[0] + a[1] + a[2] + a[3] + a[4];'
 # assert 21 'int a[2][3] = {{1,2,3}, {4,5,6}}; return a[0][0] + a[0][1] + a[0][2] + a[1][0] + a[1][1] + a[1][2];'
+
+echo + structs
+assert 8 'struct {int a; short b; int c;} s; s.a = 3; s.c = 5; return s.a + s.c;'
 
 echo OK

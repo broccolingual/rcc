@@ -582,7 +582,38 @@ impl Ast {
                 };
                 node = Some(Box::new(Node::new_call(&func_name, args, return_ty)));
             } else if self.consume_punctuator(".").is_some() {
-                unimplemented!("構造体メンバアクセスは未実装です");
+                node = self.assign_identifier(node)?; // 識別子を変数に割り当て
+                let member_name =
+                    self.consume_ident()
+                        .ok_or_else(|| CompileError::InvalidExpression {
+                            msg: "構造体メンバアクセスのメンバ名がありません".to_string(),
+                        })?;
+                let obj = node.ok_or_else(|| CompileError::InvalidExpression {
+                    msg: "構造体オブジェクトがありません".to_string(),
+                })?;
+                if !obj.ty.is_struct() {
+                    return Err(CompileError::InvalidExpression {
+                        msg: format!(
+                            "型 '{:?}' は構造体ではないため、メンバアクセスできません",
+                            obj.ty
+                        ),
+                    });
+                }
+                let member_decl = obj.ty.find_struct_member(&member_name).ok_or_else(|| {
+                    CompileError::InvalidExpression {
+                        msg: {
+                            format!("構造体に指定されたメンバ {:?} が存在しません", member_name)
+                        },
+                    }
+                })?;
+                let member_offset = member_decl.offset;
+                let member_ty = member_decl.ty.clone();
+                node = Some(Box::new(Node::new_member(
+                    obj,
+                    &member_name,
+                    member_offset,
+                    &member_ty,
+                )));
             } else if self.consume_punctuator("->").is_some() {
                 unimplemented!("構造体ポインタメンバアクセスは未実装です");
             } else if self.consume_punctuator("++").is_some() {

@@ -379,13 +379,25 @@ impl Node {
     }
 
     pub(crate) fn new_var(name: &str, offset: usize, ty: &Type, is_local: bool) -> Self {
-        let mut node = Node::new(NodeKind::Var {
-            name: name.to_string(),
-            offset,
-            is_local,
-        });
-        node.ty = ty.clone();
-        node
+        Node {
+            kind: NodeKind::Var {
+                name: name.to_string(),
+                offset,
+                is_local,
+            },
+            ty: ty.clone(),
+        }
+    }
+
+    pub(crate) fn new_member(obj: Box<Node>, name: &str, offset: usize, ty: &Type) -> Self {
+        Node {
+            kind: NodeKind::Member {
+                obj,
+                name: name.to_string(),
+                offset,
+            },
+            ty: ty.clone(),
+        }
     }
 
     // 定数式を評価して、その値を返す

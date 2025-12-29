@@ -22,6 +22,15 @@ impl Generator {
                     self.load(&node.ty)?;
                 }
             }
+            NodeKind::Member { obj, offset, .. } => {
+                self.gen_addr(obj)?;
+                self.builder.add_row("pop rax", true); // オブジェクトのアドレス
+                self.builder.add_row(&format!("add rax, {}", offset), true);
+                self.builder.add_row("push rax", true); // メンバのアドレスをスタックに積む
+                if !node.ty.is_array() {
+                    self.load(&node.ty)?;
+                }
+            }
             NodeKind::BinaryOp { op, lhs, rhs } => {
                 // 二項演算子
                 self.gen_expr(lhs)?;

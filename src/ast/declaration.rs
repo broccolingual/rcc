@@ -2,8 +2,8 @@ use crate::ast::Ast;
 use crate::errors::CompileError;
 use crate::node::Node;
 use crate::types::{
-    Declaration, DeclarationSpecifier, FunctionKind, StorageClassKind, Type, TypeKind,
-    TypeQualifierKind, TypeSpecifierQualifier,
+    Declaration, DeclarationSpecifier, FunctionKind, MemberDeclaration, StorageClassKind, Type,
+    TypeKind, TypeQualifierKind, TypeSpecifierQualifier,
 };
 
 impl Ast {
@@ -135,8 +135,8 @@ impl Ast {
     }
 
     // struct_declaration_list ::= struct_declaration+
-    fn struct_declaration_list(&mut self) -> Result<Vec<Declaration>, CompileError> {
-        let mut members: Vec<Declaration> = Vec::new();
+    fn struct_declaration_list(&mut self) -> Result<Vec<MemberDeclaration>, CompileError> {
+        let mut members: Vec<MemberDeclaration> = Vec::new();
         while let Some(member_list) = self.struct_declaration()? {
             members.extend(member_list);
         }
@@ -144,7 +144,7 @@ impl Ast {
     }
 
     // struct_declaration ::= specifier_qualifier_list struct_declarator_list? ";"
-    fn struct_declaration(&mut self) -> Result<Option<Vec<Declaration>>, CompileError> {
+    fn struct_declaration(&mut self) -> Result<Option<Vec<MemberDeclaration>>, CompileError> {
         let specifiers = self.specifier_qualifier_list()?;
         if specifiers.is_empty() {
             return Ok(None);
@@ -162,7 +162,10 @@ impl Ast {
     }
 
     // struct_declarator_list ::= struct_declarator ("," struct_declarator)*
-    fn struct_declarator_list(&mut self, base_ty: &Type) -> Result<Vec<Declaration>, CompileError> {
+    fn struct_declarator_list(
+        &mut self,
+        base_ty: &Type,
+    ) -> Result<Vec<MemberDeclaration>, CompileError> {
         let mut members = Vec::new();
         if let Some(member) = self.struct_declarator(base_ty)? {
             members.push(member);
@@ -176,9 +179,12 @@ impl Ast {
     }
 
     // struct_declarator ::= declarator
-    fn struct_declarator(&mut self, base_ty: &Type) -> Result<Option<Declaration>, CompileError> {
+    fn struct_declarator(
+        &mut self,
+        base_ty: &Type,
+    ) -> Result<Option<MemberDeclaration>, CompileError> {
         if let Ok(declaration) = self.declarator(base_ty) {
-            return Ok(Some(declaration));
+            return Ok(Some(declaration.into()));
         }
         Ok(None)
     }
