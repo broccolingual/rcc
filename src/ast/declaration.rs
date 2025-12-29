@@ -116,6 +116,7 @@ impl Ast {
     }
 
     // struct_or_union_specifier ::= "struct" ident? "{" struct_declaration_list "}"
+    //                               | "struct" ident
     fn struct_or_union_specifier(&mut self) -> Result<Option<TypeKind>, CompileError> {
         if self.consume_keyword("struct").is_some() {
             let struct_name = if let Some(name) = self.consume_ident() {
@@ -123,13 +124,47 @@ impl Ast {
             } else {
                 "".to_string()
             };
-            self.expect_punctuator("{")?;
-            let members = self.struct_declaration_list()?;
-            self.expect_punctuator("}")?;
-            return Ok(Some(TypeKind::Struct {
-                name: struct_name,
-                members,
-            }));
+            if self.consume_punctuator("{").is_some() {
+                let members = self.struct_declaration_list()?;
+                self.expect_punctuator("}")?;
+                let struct_ty = Type::from(
+                    &TypeKind::Struct {
+                        name: struct_name.clone(),
+                        members: members.clone(),
+                    },
+                    false,
+                );
+                // 構造体タグを登録
+                if !struct_name.is_empty() {
+                    if let Some(func) = self.current_func.as_mut() {
+                        func.register_struct_tag(struct_name, struct_ty.clone())?;
+                    } else {
+                        self.register_struct_tag(struct_name, struct_ty.clone())?;
+                    }
+                }
+                return Ok(Some(struct_ty.kind));
+            } else if !struct_name.is_empty() {
+                // 既存の構造体タグを検索
+                let struct_ty = if let Some(func) = &self.current_func {
+                    // 関数内ならローカル→グローバルの順で検索
+                    func.find_struct_tag(&struct_name)
+                        .or_else(|| self.find_struct_tag(&struct_name))
+                } else {
+                    // グローバル検索のみ
+                    self.find_struct_tag(&struct_name)
+                };
+                if let Some(ty) = struct_ty {
+                    return Ok(Some(ty.kind.clone()));
+                } else {
+                    return Err(CompileError::InvalidDeclaration {
+                        msg: format!("未宣言の構造体タグ: {}", struct_name),
+                    });
+                }
+            } else {
+                return Err(CompileError::InvalidDeclaration {
+                    msg: "無名構造体には定義が必要です".to_string(),
+                });
+            }
         }
         Ok(None)
     }

@@ -5,7 +5,7 @@ mod statement;
 use crate::errors::CompileError;
 use crate::function::Function;
 use crate::node::{Node, NodeKind};
-use crate::symbol::{GlobalSymbolTable, Symbol, Variable};
+use crate::symbol::{FlatTable, Symbol, Variable};
 use crate::token::{Token, TokenKind};
 use crate::types::{Type, TypeKind};
 
@@ -13,7 +13,8 @@ pub(crate) struct Ast {
     tokens: Vec<Token>,
     token_pos: usize,
     pub(crate) globals: Vec<Variable>,
-    global_table: GlobalSymbolTable,
+    global_symbol_table: FlatTable<Symbol>,
+    global_tag_table: FlatTable<Type>,
     pub(crate) funcs: Vec<Function>,
     current_func: Option<Function>,
     pub(crate) string_literals: Vec<String>,
@@ -24,7 +25,8 @@ impl Ast {
         Ast {
             tokens: tokens.to_vec(),
             token_pos: 0,
-            global_table: GlobalSymbolTable::new(),
+            global_symbol_table: FlatTable::<Symbol>::new(),
+            global_tag_table: FlatTable::<Type>::new(),
             globals: Vec::new(),
             funcs: Vec::new(),
             current_func: None,
@@ -33,7 +35,7 @@ impl Ast {
     }
 
     pub(crate) fn get_global_symbol_by_id(&self, symbol_id: usize) -> Option<&Symbol> {
-        self.global_table.symbols.get(symbol_id)
+        self.global_symbol_table.items.get(symbol_id)
     }
 
     fn get_current_func(&mut self) -> Result<&mut Function, CompileError> {
@@ -56,7 +58,7 @@ impl Ast {
         ty: Type,
         init: Vec<Node>,
     ) -> Result<(), CompileError> {
-        if self.global_table.find(&name).is_some() {
+        if self.global_symbol_table.find(&name).is_some() {
             return Err(CompileError::Redeclaration { name });
         }
         let symbol = Symbol {
@@ -64,13 +66,25 @@ impl Ast {
             ty,
             offset: 0,
         };
-        let symbol_id = self.global_table.insert(name.clone(), symbol);
+        let symbol_id = self.global_symbol_table.insert(name.clone(), symbol);
         self.globals.push(Variable { symbol_id, init });
         Ok(())
     }
 
     fn find_global_var(&self, name: &str) -> Option<&Symbol> {
-        self.global_table.find(name)
+        self.global_symbol_table.find(name)
+    }
+
+    fn register_struct_tag(&mut self, name: String, ty: Type) -> Result<(), CompileError> {
+        if self.global_tag_table.find(&name).is_some() {
+            return Err(CompileError::Redeclaration { name });
+        }
+        self.global_tag_table.insert(name, ty);
+        Ok(())
+    }
+
+    fn find_struct_tag(&self, name: &str) -> Option<&Type> {
+        self.global_tag_table.find(name)
     }
 
     // 関数名から関数を検索し、戻り値の型を取得
@@ -292,6 +306,7 @@ impl Ast {
                 msg: "関数本体がブロックではありません".to_string(),
             });
         }
+        self.current_func = None; // 関数の登録が終わったら現在の関数をクリア
         Ok(Some(func))
     }
 }
