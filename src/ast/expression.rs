@@ -9,7 +9,7 @@ impl<'a> Ast<'a> {
     pub(super) fn const_expr(&mut self) -> Result<i64, CompileError> {
         let node = self
             .cond_expr()?
-            .ok_or_else(|| CompileError::InvalidExpression {
+            .ok_or_else(|| CompileError::InternalError {
                 msg: "定数式がありません".to_string(),
             })?;
         node.eval_const_expr() // 定数式を評価
@@ -34,16 +34,21 @@ impl<'a> Ast<'a> {
                 let span = token.span;
                 let lhs = node.ok_or_else(|| CompileError::InvalidExpression {
                     msg: "代入式の左辺値がありません".to_string(),
+                    span,
                 })?;
                 if let NodeKind::Var { name, .. } = &lhs.kind
                     && lhs.ty.is_const
                 {
-                    return Err(CompileError::ReadOnlyLvalue { name: name.clone() });
+                    return Err(CompileError::ReadOnlyLvalue {
+                        name: name.clone(),
+                        span: lhs.span,
+                    });
                 }
                 let rhs = self
                     .assign_expr()?
                     .ok_or_else(|| CompileError::InvalidExpression {
                         msg: "代入式の右辺値がありません".to_string(),
+                        span,
                     })?;
                 node = Some(Box::new(Node::new_assign(kind, lhs, rhs, span)));
                 break;
@@ -60,17 +65,20 @@ impl<'a> Ast<'a> {
             let span = token.span;
             let cond = node.ok_or_else(|| CompileError::InvalidExpression {
                 msg: "三項演算子の条件式がありません".to_string(),
+                span,
             })?;
             let then = self
                 .expr()?
                 .ok_or_else(|| CompileError::InvalidExpression {
                     msg: "三項演算子のthenの場合の式がありません".to_string(),
+                    span,
                 })?;
             self.expect_punctuator(":")?;
             let els = self
                 .cond_expr()?
                 .ok_or_else(|| CompileError::InvalidExpression {
                     msg: "三項演算子のelseの場合の式がありません".to_string(),
+                    span,
                 })?;
             return Ok(Some(Box::new(Node::new_ternary(cond, then, els, span)?)));
         }
@@ -88,11 +96,13 @@ impl<'a> Ast<'a> {
                 // logical or
                 let lhs = node.ok_or_else(|| CompileError::InvalidExpression {
                     msg: "'||'演算子の左辺値がありません".to_string(),
+                    span,
                 })?;
                 let rhs =
                     self.logical_and_expr()?
                         .ok_or_else(|| CompileError::InvalidExpression {
                             msg: "'||'演算子の右辺値がありません".to_string(),
+                            span,
                         })?;
                 node = Some(Box::new(Node::new_logical_or(lhs, rhs, span)?));
             } else {
@@ -112,11 +122,13 @@ impl<'a> Ast<'a> {
                 // logical and
                 let lhs = node.ok_or_else(|| CompileError::InvalidExpression {
                     msg: "'&&'演算子の左辺値がありません".to_string(),
+                    span,
                 })?;
                 let rhs =
                     self.inclusive_or_expr()?
                         .ok_or_else(|| CompileError::InvalidExpression {
                             msg: "'&&'演算子の右辺値がありません".to_string(),
+                            span,
                         })?;
                 node = Some(Box::new(Node::new_logical_and(lhs, rhs, span)?));
             } else {
@@ -136,11 +148,13 @@ impl<'a> Ast<'a> {
                 // bitwise or
                 let lhs = node.ok_or_else(|| CompileError::InvalidExpression {
                     msg: "'|'演算子の左辺値がありません".to_string(),
+                    span,
                 })?;
                 let rhs =
                     self.exclusive_or_expr()?
                         .ok_or_else(|| CompileError::InvalidExpression {
                             msg: "'|'演算子の右辺値がありません".to_string(),
+                            span,
                         })?;
                 node = Some(Box::new(Node::new_binary(BinaryOp::BitOr, lhs, rhs, span)?));
             } else {
@@ -160,11 +174,13 @@ impl<'a> Ast<'a> {
                 // bitwise xor
                 let lhs = node.ok_or_else(|| CompileError::InvalidExpression {
                     msg: "'^'演算子の左辺値がありません".to_string(),
+                    span,
                 })?;
                 let rhs = self
                     .and_expr()?
                     .ok_or_else(|| CompileError::InvalidExpression {
                         msg: "'^'演算子の右辺値がありません".to_string(),
+                        span,
                     })?;
                 node = Some(Box::new(Node::new_binary(
                     BinaryOp::BitXor,
@@ -189,11 +205,13 @@ impl<'a> Ast<'a> {
                 //bitwise and
                 let lhs = node.ok_or_else(|| CompileError::InvalidExpression {
                     msg: "'&'演算子の左辺値がありません".to_string(),
+                    span,
                 })?;
                 let rhs = self
                     .equality_expr()?
                     .ok_or_else(|| CompileError::InvalidExpression {
                         msg: "'&'演算子の右辺値がありません".to_string(),
+                        span,
                     })?;
                 node = Some(Box::new(Node::new_binary(
                     BinaryOp::BitAnd,
@@ -218,11 +236,13 @@ impl<'a> Ast<'a> {
                 // equal
                 let lhs = node.ok_or_else(|| CompileError::InvalidExpression {
                     msg: "'=='演算子の左辺値がありません".to_string(),
+                    span,
                 })?;
                 let rhs =
                     self.relational_expr()?
                         .ok_or_else(|| CompileError::InvalidExpression {
                             msg: "'=='演算子の右辺値がありません".to_string(),
+                            span,
                         })?;
                 node = Some(Box::new(Node::new_binary(BinaryOp::Eq, lhs, rhs, span)?));
             } else if let Some(token) = self.consume_punctuator("!=") {
@@ -230,11 +250,13 @@ impl<'a> Ast<'a> {
                 // not equal
                 let lhs = node.ok_or_else(|| CompileError::InvalidExpression {
                     msg: "'!='演算子の左辺値がありません".to_string(),
+                    span,
                 })?;
                 let rhs =
                     self.relational_expr()?
                         .ok_or_else(|| CompileError::InvalidExpression {
                             msg: "'!='演算子の右辺値がありません".to_string(),
+                            span,
                         })?;
                 node = Some(Box::new(Node::new_binary(BinaryOp::Ne, lhs, rhs, span)?));
             } else {
@@ -254,11 +276,13 @@ impl<'a> Ast<'a> {
                 // less than
                 let lhs = node.ok_or_else(|| CompileError::InvalidExpression {
                     msg: "'<'演算子の左辺値がありません".to_string(),
+                    span,
                 })?;
                 let rhs = self
                     .shift_expr()?
                     .ok_or_else(|| CompileError::InvalidExpression {
                         msg: "'<'演算子の右辺値がありません".to_string(),
+                        span,
                     })?;
                 node = Some(Box::new(Node::new_binary(BinaryOp::Lt, lhs, rhs, span)?));
             } else if let Some(token) = self.consume_punctuator("<=") {
@@ -266,11 +290,13 @@ impl<'a> Ast<'a> {
                 // less than or equal
                 let lhs = node.ok_or_else(|| CompileError::InvalidExpression {
                     msg: "'<='演算子の左辺値がありません".to_string(),
+                    span,
                 })?;
                 let rhs = self
                     .shift_expr()?
                     .ok_or_else(|| CompileError::InvalidExpression {
                         msg: "'<='演算子の右辺値がありません".to_string(),
+                        span,
                     })?;
                 node = Some(Box::new(Node::new_binary(BinaryOp::Le, lhs, rhs, span)?));
             } else if let Some(token) = self.consume_punctuator(">") {
@@ -280,9 +306,11 @@ impl<'a> Ast<'a> {
                     .shift_expr()?
                     .ok_or_else(|| CompileError::InvalidExpression {
                         msg: "'>'演算子の左辺値がありません".to_string(),
+                        span,
                     })?;
                 let rhs = node.ok_or_else(|| CompileError::InvalidExpression {
                     msg: "'>'演算子の右辺値がありません".to_string(),
+                    span,
                 })?;
                 node = Some(Box::new(Node::new_binary(BinaryOp::Lt, lhs, rhs, span)?));
             } else if let Some(token) = self.consume_punctuator(">=") {
@@ -292,9 +320,11 @@ impl<'a> Ast<'a> {
                     .shift_expr()?
                     .ok_or_else(|| CompileError::InvalidExpression {
                         msg: "'>='演算子の左辺値がありません".to_string(),
+                        span,
                     })?;
                 let rhs = node.ok_or_else(|| CompileError::InvalidExpression {
                     msg: "'>='演算子の右辺値がありません".to_string(),
+                    span,
                 })?;
                 node = Some(Box::new(Node::new_binary(BinaryOp::Le, lhs, rhs, span)?));
             } else {
@@ -314,11 +344,13 @@ impl<'a> Ast<'a> {
                 // left shift
                 let lhs = node.ok_or_else(|| CompileError::InvalidExpression {
                     msg: "'<<'演算子の左辺値がありません".to_string(),
+                    span,
                 })?;
                 let rhs = self
                     .add_expr()?
                     .ok_or_else(|| CompileError::InvalidExpression {
                         msg: "'<<'演算子の右辺値がありません".to_string(),
+                        span,
                     })?;
                 node = Some(Box::new(Node::new_binary(BinaryOp::Shl, lhs, rhs, span)?));
             } else if let Some(token) = self.consume_punctuator(">>") {
@@ -326,11 +358,13 @@ impl<'a> Ast<'a> {
                 // right shift
                 let lhs = node.ok_or_else(|| CompileError::InvalidExpression {
                     msg: "'>>'演算子の左辺値がありません".to_string(),
+                    span,
                 })?;
                 let rhs = self
                     .add_expr()?
                     .ok_or_else(|| CompileError::InvalidExpression {
                         msg: "'>>'演算子の右辺値がありません".to_string(),
+                        span,
                     })?;
                 node = Some(Box::new(Node::new_binary(BinaryOp::Shr, lhs, rhs, span)?));
             } else {
@@ -353,6 +387,7 @@ impl<'a> Ast<'a> {
                         .mul_expr()?
                         .ok_or_else(|| CompileError::InvalidExpression {
                             msg: "'+'演算子の右辺値がありません".to_string(),
+                            span,
                         })?;
                     node = Some(Box::new(Node::new_scaled_add(n, rhs, span)?));
                 }
@@ -364,6 +399,7 @@ impl<'a> Ast<'a> {
                         .mul_expr()?
                         .ok_or_else(|| CompileError::InvalidExpression {
                             msg: "'-'演算子の右辺値がありません".to_string(),
+                            span,
                         })?;
                     node = Some(Box::new(Node::new_scaled_sub(n, rhs, span)?));
                 }
@@ -384,11 +420,13 @@ impl<'a> Ast<'a> {
                 // multiplication
                 let lhs = node.ok_or_else(|| CompileError::InvalidExpression {
                     msg: "'*'演算子の左辺値がありません".to_string(),
+                    span,
                 })?;
                 let rhs = self
                     .cast_expr()?
                     .ok_or_else(|| CompileError::InvalidExpression {
                         msg: "'*'演算子の右辺値がありません".to_string(),
+                        span,
                     })?;
                 node = Some(Box::new(Node::new_binary(BinaryOp::Mul, lhs, rhs, span)?));
             } else if let Some(token) = self.consume_punctuator("/") {
@@ -396,11 +434,13 @@ impl<'a> Ast<'a> {
                 // division
                 let lhs = node.ok_or_else(|| CompileError::InvalidExpression {
                     msg: "'/'演算子の左辺値がありません".to_string(),
+                    span,
                 })?;
                 let rhs = self
                     .cast_expr()?
                     .ok_or_else(|| CompileError::InvalidExpression {
                         msg: "'/'演算子の右辺値がありません".to_string(),
+                        span,
                     })?;
                 node = Some(Box::new(Node::new_binary(BinaryOp::Div, lhs, rhs, span)?));
             } else if let Some(token) = self.consume_punctuator("%") {
@@ -408,11 +448,13 @@ impl<'a> Ast<'a> {
                 // remainder
                 let lhs = node.ok_or_else(|| CompileError::InvalidExpression {
                     msg: "'%'演算子の左辺値がありません".to_string(),
+                    span,
                 })?;
                 let rhs = self
                     .cast_expr()?
                     .ok_or_else(|| CompileError::InvalidExpression {
                         msg: "'%'演算子の右辺値がありません".to_string(),
+                        span,
                     })?;
                 node = Some(Box::new(Node::new_binary(BinaryOp::Rem, lhs, rhs, span)?));
             } else {
@@ -440,6 +482,7 @@ impl<'a> Ast<'a> {
                 .unary_expr()?
                 .ok_or_else(|| CompileError::InvalidExpression {
                     msg: "単項'++'の後に式がありません".to_string(),
+                    span,
                 })?;
             return Ok(Some(Box::new(Node::new_scaled_increment(
                 node, true, span,
@@ -452,6 +495,7 @@ impl<'a> Ast<'a> {
                 .unary_expr()?
                 .ok_or_else(|| CompileError::InvalidExpression {
                     msg: "単項'--'の後に式がありません".to_string(),
+                    span,
                 })?;
             return Ok(Some(Box::new(Node::new_scaled_decrement(
                 node, true, span,
@@ -469,6 +513,7 @@ impl<'a> Ast<'a> {
                 .cast_expr()?
                 .ok_or_else(|| CompileError::InvalidExpression {
                     msg: "単項'-'の後に式がありません".to_string(),
+                    span,
                 })?;
             return Ok(Some(Box::new(Node::new_binary(
                 BinaryOp::Sub,
@@ -484,6 +529,7 @@ impl<'a> Ast<'a> {
                 .cast_expr()?
                 .ok_or_else(|| CompileError::InvalidExpression {
                     msg: "単項'&'の後に式がありません".to_string(),
+                    span,
                 })?;
             return Ok(Some(Box::new(Node::new_unary(UnaryOp::Addr, expr, span)?)));
         }
@@ -494,6 +540,7 @@ impl<'a> Ast<'a> {
                 .cast_expr()?
                 .ok_or_else(|| CompileError::InvalidExpression {
                     msg: "単項'*'の後に式がありません".to_string(),
+                    span,
                 })?;
             return Ok(Some(Box::new(Node::new_unary(UnaryOp::Deref, expr, span)?)));
         }
@@ -504,6 +551,7 @@ impl<'a> Ast<'a> {
                 .cast_expr()?
                 .ok_or_else(|| CompileError::InvalidExpression {
                     msg: "単項'~'の後に式がありません".to_string(),
+                    span,
                 })?;
             return Ok(Some(Box::new(Node::new_unary(
                 UnaryOp::BitNot,
@@ -518,6 +566,7 @@ impl<'a> Ast<'a> {
                 .cast_expr()?
                 .ok_or_else(|| CompileError::InvalidExpression {
                     msg: "単項'!'の後に式がありません".to_string(),
+                    span,
                 })?;
             return Ok(Some(Box::new(Node::new_unary(
                 UnaryOp::LogicalNot,
@@ -577,7 +626,10 @@ impl<'a> Ast<'a> {
                 let node = Node::new_var(name, 0, &symbol.ty, false, n.span);
                 return Ok(Some(Box::new(node)));
             }
-            Err(CompileError::UndefinedIdentifier { name: name.clone() })?;
+            Err(CompileError::UndefinedIdentifier {
+                name: name.clone(),
+                span: n.span,
+            })?;
         }
         Ok(node)
     }
@@ -595,12 +647,14 @@ impl<'a> Ast<'a> {
                     "型 '{:?}' は構造体ではないため、メンバアクセスできません",
                     obj.ty
                 ),
+                span,
             });
         }
 
         let member_decl = obj.ty.find_struct_member(member_name).ok_or_else(|| {
             CompileError::InvalidExpression {
                 msg: format!("構造体に指定されたメンバ {} が存在しません", member_name),
+                span,
             }
         })?;
         let member_offset = member_decl
@@ -674,9 +728,11 @@ impl<'a> Ast<'a> {
                     self.consume_ident()
                         .ok_or_else(|| CompileError::InvalidExpression {
                             msg: "構造体メンバアクセスのメンバ名がありません".to_string(),
+                            span,
                         })?;
                 let obj = node.ok_or_else(|| CompileError::InvalidExpression {
                     msg: "構造体オブジェクトがありません".to_string(),
+                    span,
                 })?;
                 node = Some(self.create_member_access_node(obj, &member_name, span)?);
             } else if let Some(token) = self.consume_punctuator("->") {
@@ -688,9 +744,11 @@ impl<'a> Ast<'a> {
                     self.consume_ident()
                         .ok_or_else(|| CompileError::InvalidExpression {
                             msg: "構造体ポインタメンバアクセスのメンバ名がありません".to_string(),
+                            span,
                         })?;
                 let ptr = node.ok_or_else(|| CompileError::InvalidExpression {
                     msg: "構造体ポインタがありません".to_string(),
+                    span,
                 })?;
                 // ポインタであることを確認
                 if !(ptr.ty.is_ptr() || ptr.ty.is_array()) {
@@ -699,6 +757,7 @@ impl<'a> Ast<'a> {
                             "型 '{:?}' はポインタではないため、'->'演算子を使用できません",
                             ptr.ty
                         ),
+                        span: ptr.span,
                     });
                 }
                 // デリファレンスして構造体を取得
@@ -710,6 +769,7 @@ impl<'a> Ast<'a> {
                 node = self.resolve_ident_to_var(node)?; // 識別子を変数に割り当て
                 let expr = node.ok_or_else(|| CompileError::InvalidExpression {
                     msg: "単項'++'の前に式がありません".to_string(),
+                    span,
                 })?;
                 node = Some(Box::new(Node::new_scaled_increment(expr, false, span)?));
             } else if let Some(token) = self.consume_punctuator("--") {
@@ -718,6 +778,7 @@ impl<'a> Ast<'a> {
                 node = self.resolve_ident_to_var(node)?; // 識別子を変数に割り当て
                 let expr = node.ok_or_else(|| CompileError::InvalidExpression {
                     msg: "単項'--'の前に式がありません".to_string(),
+                    span,
                 })?;
                 node = Some(Box::new(Node::new_scaled_decrement(expr, false, span)?));
             } else {

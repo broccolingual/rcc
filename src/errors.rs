@@ -16,18 +16,23 @@ pub(crate) enum CompileError {
     },
     UndefinedIdentifier {
         name: String,
+        span: (usize, usize),
     },
     ReadOnlyLvalue {
         name: String,
+        span: (usize, usize),
     },
     Redeclaration {
         name: String,
+        span: (usize, usize),
     },
     InvalidExpression {
         msg: String,
+        span: (usize, usize),
     },
     InvalidStatement {
         msg: String,
+        span: (usize, usize),
     },
     InvalidDeclaration {
         msg: String,
@@ -57,20 +62,24 @@ impl fmt::Display for CompileError {
             CompileError::MissingToken { found, span } => {
                 write!(f, "missing token: {} at {:?}", found, span)
             }
-            CompileError::UndefinedIdentifier { name } => {
-                write!(f, "undefined identifier: '{}'", name)
+            CompileError::UndefinedIdentifier { name, span } => {
+                write!(f, "undefined identifier: '{}' at {:?}", name, span)
             }
-            CompileError::ReadOnlyLvalue { name } => {
-                write!(f, "attempt to assign to read-only variable: '{}'", name)
+            CompileError::ReadOnlyLvalue { name, span } => {
+                write!(
+                    f,
+                    "attempt to assign to read-only variable: '{}' at {:?}",
+                    name, span
+                )
             }
-            CompileError::Redeclaration { name } => {
-                write!(f, "redeclaration of variable: '{}'", name)
+            CompileError::Redeclaration { name, span } => {
+                write!(f, "redeclaration of variable: '{}' at {:?}", name, span)
             }
-            CompileError::InvalidExpression { msg } => {
-                write!(f, "invalid expression: {}", msg)
+            CompileError::InvalidExpression { msg, span } => {
+                write!(f, "invalid expression: {} at {:?}", msg, span)
             }
-            CompileError::InvalidStatement { msg } => {
-                write!(f, "invalid statement: {}", msg)
+            CompileError::InvalidStatement { msg, span } => {
+                write!(f, "invalid statement: {} at {:?}", msg, span)
             }
             CompileError::InvalidDeclaration { msg } => {
                 write!(f, "invalid declaration: {}", msg)

@@ -10,6 +10,7 @@ impl<'a> Ast<'a> {
             if self.consume_punctuator(":").is_some() {
                 let expr = self.stmt()?.ok_or_else(|| CompileError::InvalidStatement {
                     msg: "ラベルの後に文がありません".to_string(),
+                    span,
                 })?;
                 return Ok(Some(Box::new(Node::new(
                     NodeKind::Label { name, expr },
@@ -32,11 +33,7 @@ impl<'a> Ast<'a> {
             while self.consume_punctuator("}").is_none() {
                 if let Some(declarations) = self.declaration()? {
                     for declaration in declarations {
-                        self.get_current_func()?.register_local_var(
-                            declaration.name,
-                            declaration.ty,
-                            declaration.init,
-                        )?;
+                        self.get_current_func()?.register_local_var(declaration)?;
                     }
                     continue;
                 } else if let Some(stmt) = self.stmt()? {
@@ -44,6 +41,7 @@ impl<'a> Ast<'a> {
                 } else {
                     return Err(CompileError::InvalidStatement {
                         msg: "ブロック内で無効な文が見つかりました".to_string(),
+                        span,
                     });
                 }
             }
@@ -61,10 +59,12 @@ impl<'a> Ast<'a> {
             self.expect_punctuator("(")?;
             let cond = self.expr()?.ok_or_else(|| CompileError::InvalidStatement {
                 msg: "if文の条件式がありません".to_string(),
+                span,
             })?;
             self.expect_punctuator(")")?;
             let then = self.stmt()?.ok_or_else(|| CompileError::InvalidStatement {
                 msg: "if文のthen文がありません".to_string(),
+                span,
             })?;
             let els = if self.consume_keyword("else").is_some() {
                 self.stmt()?
@@ -88,10 +88,12 @@ impl<'a> Ast<'a> {
             self.expect_punctuator("(")?;
             let cond = self.expr()?.ok_or_else(|| CompileError::InvalidStatement {
                 msg: "while文の条件式がありません".to_string(),
+                span,
             })?;
             self.expect_punctuator(")")?;
             let then = self.stmt()?.ok_or_else(|| CompileError::InvalidStatement {
                 msg: "while文のthen文がありません".to_string(),
+                span,
             })?;
             return Ok(Some(Box::new(Node::new(
                 NodeKind::While { cond, then },
@@ -103,11 +105,13 @@ impl<'a> Ast<'a> {
             let span = token.span;
             let then = self.stmt()?.ok_or_else(|| CompileError::InvalidStatement {
                 msg: "do-while文のthen文がありません".to_string(),
+                span,
             })?;
             self.expect_keyword("while")?;
             self.expect_punctuator("(")?;
             let cond = self.expr()?.ok_or_else(|| CompileError::InvalidStatement {
                 msg: "do-while文の条件式がありません".to_string(),
+                span,
             })?;
             self.expect_punctuator(")")?;
             self.expect_punctuator(";")?;
@@ -143,6 +147,7 @@ impl<'a> Ast<'a> {
             };
             let then = self.stmt()?.ok_or_else(|| CompileError::InvalidStatement {
                 msg: "for文のthen文がありません".to_string(),
+                span,
             })?;
             return Ok(Some(Box::new(Node::new(
                 NodeKind::For {
@@ -166,6 +171,7 @@ impl<'a> Ast<'a> {
             let span = token.span;
             let (name, _) = self.consume_ident().ok_or(CompileError::InvalidStatement {
                 msg: "goto文の後にラベル名が必要です".to_string(),
+                span,
             })?;
             self.expect_punctuator(";")?;
             return Ok(Some(Box::new(Node::new(NodeKind::Goto { name }, span))));

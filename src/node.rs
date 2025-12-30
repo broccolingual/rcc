@@ -130,6 +130,7 @@ impl Node {
                             "算術演算子はスカラー型またはポインタ/配列型にのみ適用可能です: {:?} と {:?}",
                             lhs_ty, rhs_ty
                         ),
+                        span,
                     });
                 }
             }
@@ -150,6 +151,7 @@ impl Node {
                             "剰余演算子は整数型にのみ適用可能です: {:?} と {:?}",
                             lhs_ty, rhs_ty
                         ),
+                        span,
                     });
                 }
             }
@@ -170,6 +172,7 @@ impl Node {
                             "ビット演算子は整数型にのみ適用可能です: {:?} と {:?}",
                             lhs_ty, rhs_ty
                         ),
+                        span,
                     });
                 }
             }
@@ -186,6 +189,7 @@ impl Node {
                             "シフト演算子は整数型にのみ適用可能です: {:?} と {:?}",
                             lhs_ty, rhs_ty
                         ),
+                        span,
                     });
                 }
             }
@@ -205,6 +209,7 @@ impl Node {
                             "比較演算子はスカラー型またはポインタ/配列型にのみ適用可能です: {:?} と {:?}",
                             lhs_ty, rhs_ty
                         ),
+                        span,
                     });
                 }
             }
@@ -232,6 +237,7 @@ impl Node {
                 } else {
                     return Err(CompileError::InvalidExpression {
                         msg: format!("ビット否定演算子は整数型にのみ適用可能です: {:?}", expr_ty),
+                        span,
                     });
                 }
             }
@@ -246,6 +252,7 @@ impl Node {
                             "論理否定演算子はスカラー型またはポインタ/配列型にのみ適用可能です: {:?}",
                             expr_ty
                         ),
+                        span,
                     });
                 }
             }
@@ -270,6 +277,7 @@ impl Node {
                             "デリファレンス演算子はポインタ/配列型にのみ適用可能です: {:?}",
                             expr_ty
                         ),
+                        span,
                     });
                 }
                 expr_ty.base_type().clone()
@@ -323,6 +331,7 @@ impl Node {
                     "論理演算子はスカラー型またはポインタ/配列型にのみ適用可能です: {:?} と {:?}",
                     lhs_ty, rhs_ty
                 ),
+                span,
             });
         };
 
@@ -352,6 +361,7 @@ impl Node {
                     "論理演算子はスカラー型またはポインタ/配列型にのみ適用可能です: {:?} と {:?}",
                     lhs_ty, rhs_ty
                 ),
+                span,
             });
         };
 
@@ -389,6 +399,7 @@ impl Node {
                         "条件演算子のthen節とelse節は同じ型か、両方ともスカラー型である必要があります: {:?} と {:?}",
                         then_ty, els_ty
                     ),
+                    span,
                 });
             }
         } else {
@@ -397,6 +408,7 @@ impl Node {
                     "条件演算子の条件式はスカラー型にのみ適用可能です: {:?}",
                     cond_ty
                 ),
+                span,
             });
         };
 
@@ -462,6 +474,7 @@ impl Node {
                     UnaryOp::LogicalNot => Ok(if val == 0 { 1 } else { 0 }),
                     _ => Err(CompileError::InvalidExpression {
                         msg: format!("定数式に不正な単項演算子が含まれています: {:?}", op),
+                        span: expr.span,
                     }),
                 }
             }
@@ -476,6 +489,7 @@ impl Node {
                         if rval == 0 {
                             return Err(CompileError::InvalidExpression {
                                 msg: "定数式の除算でゼロ除算が発生しました".to_string(),
+                                span: rhs.span,
                             });
                         }
                         Ok(lval / rval)
@@ -484,6 +498,7 @@ impl Node {
                         if rval == 0 {
                             return Err(CompileError::InvalidExpression {
                                 msg: "定数式の剰余演算でゼロ除算が発生しました".to_string(),
+                                span: rhs.span,
                             });
                         }
                         Ok(lval % rval)
@@ -493,6 +508,7 @@ impl Node {
                             return Err(CompileError::InvalidExpression {
                                 msg: "定数式の左シフト演算で不正なシフト量が指定されました"
                                     .to_string(),
+                                span: rhs.span,
                             });
                         }
                         Ok(lval << rval)
@@ -502,6 +518,7 @@ impl Node {
                             return Err(CompileError::InvalidExpression {
                                 msg: "定数式の右シフト演算で不正なシフト量が指定されました"
                                     .to_string(),
+                                span: rhs.span,
                             });
                         }
                         Ok(lval >> rval)
@@ -515,6 +532,7 @@ impl Node {
                     BinaryOp::Le => Ok(if lval <= rval { 1 } else { 0 }),
                     _ => Err(CompileError::InvalidExpression {
                         msg: format!("定数式に不正な二項演算子が含まれています: {:?}", op),
+                        span: self.span,
                     }),
                 }
             }
@@ -548,6 +566,7 @@ impl Node {
                 if *is_local {
                     Err(CompileError::InvalidExpression {
                         msg: format!("定数式にローカル変数 '{}' が含まれています", name),
+                        span: self.span,
                     })
                 } else {
                     // TODO: グローバル変数の定数式評価
@@ -556,6 +575,7 @@ impl Node {
             }
             _ => Err(CompileError::InvalidExpression {
                 msg: "定数式に不正なノードが含まれています".to_string(),
+                span: self.span,
             }),
         }
     }

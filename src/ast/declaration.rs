@@ -119,10 +119,14 @@ impl<'a> Ast<'a> {
     //                               | "struct" ident
     fn struct_or_union_specifier(&mut self) -> Result<Option<TypeKind>, CompileError> {
         if self.consume_keyword("struct").is_some() {
-            let struct_name = self
-                .consume_ident()
-                .map(|(name, _)| name)
-                .unwrap_or_default();
+            let span;
+            let struct_name = if let Some((name, token_ident)) = self.consume_ident() {
+                span = token_ident.span;
+                name
+            } else {
+                span = (0, 0);
+                String::new()
+            };
             if self.consume_punctuator("{").is_some() {
                 let members = self.struct_declaration_list()?;
                 self.expect_punctuator("}")?;
@@ -136,9 +140,9 @@ impl<'a> Ast<'a> {
                 // 構造体タグを登録
                 if !struct_name.is_empty() {
                     if let Some(func) = self.current_func.as_mut() {
-                        func.register_struct_tag(struct_name, struct_ty.clone())?;
+                        func.register_struct_tag(struct_name, struct_ty.clone(), span)?;
                     } else {
-                        self.register_struct_tag(struct_name, struct_ty.clone())?;
+                        self.register_struct_tag(struct_name, struct_ty.clone(), span)?;
                     }
                 }
                 return Ok(Some(struct_ty.kind));
@@ -291,11 +295,14 @@ impl<'a> Ast<'a> {
     //                       | direct_declarator "[" type_qualifier_list? assignment_expression? "]"
     //                       | direct_declarator "(" parameter_type_list ")"
     fn direct_declarator(&mut self, base_ty: &Type) -> Result<Declaration, CompileError> {
-        let name = if self.consume_punctuator("(").is_some() {
+        let span;
+        let name = if let Some(token) = self.consume_punctuator("(") {
+            span = token.span;
             let inner_var = self.declarator(base_ty)?;
             self.expect_punctuator(")")?;
             inner_var.name
-        } else if let Some((name, _)) = self.consume_ident() {
+        } else if let Some((name, token)) = self.consume_ident() {
+            span = token.span;
             name
         } else {
             return Err(CompileError::InvalidDeclaration {
@@ -308,6 +315,7 @@ impl<'a> Ast<'a> {
             name,
             ty: final_ty,
             init: Vec::new(),
+            span,
         })
     }
 

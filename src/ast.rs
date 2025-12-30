@@ -4,10 +4,10 @@ mod statement;
 
 use crate::errors::CompileError;
 use crate::function::Function;
-use crate::node::{Node, NodeKind};
+use crate::node::NodeKind;
 use crate::symbol::{FlatTable, Symbol, Variable};
 use crate::token::{Token, TokenKind};
-use crate::types::{Type, TypeKind};
+use crate::types::{Declaration, Type, TypeKind};
 
 pub(crate) struct Ast<'a> {
     tokens: &'a [Token],
@@ -52,22 +52,23 @@ impl<'a> Ast<'a> {
         index
     }
 
-    fn register_global_var(
-        &mut self,
-        name: String,
-        ty: Type,
-        init: Vec<Node>,
-    ) -> Result<(), CompileError> {
-        if self.global_symbol_table.find(&name).is_some() {
-            return Err(CompileError::Redeclaration { name });
+    fn register_global_var(&mut self, decl: Declaration) -> Result<(), CompileError> {
+        if self.global_symbol_table.find(&decl.name).is_some() {
+            return Err(CompileError::Redeclaration {
+                name: decl.name,
+                span: decl.span,
+            });
         }
         let symbol = Symbol {
-            name: name.clone(),
-            ty,
+            name: decl.name.clone(),
+            ty: decl.ty,
             offset: 0,
         };
-        let symbol_id = self.global_symbol_table.insert(name.clone(), symbol);
-        self.globals.push(Variable { symbol_id, init });
+        let symbol_id = self.global_symbol_table.insert(decl.name.clone(), symbol);
+        self.globals.push(Variable {
+            symbol_id,
+            init: decl.init,
+        });
         Ok(())
     }
 
@@ -75,9 +76,14 @@ impl<'a> Ast<'a> {
         self.global_symbol_table.find(name)
     }
 
-    fn register_struct_tag(&mut self, name: String, ty: Type) -> Result<(), CompileError> {
+    fn register_struct_tag(
+        &mut self,
+        name: String,
+        ty: Type,
+        span: (usize, usize),
+    ) -> Result<(), CompileError> {
         if self.global_tag_table.find(&name).is_some() {
-            return Err(CompileError::Redeclaration { name });
+            return Err(CompileError::Redeclaration { name, span });
         }
         self.global_tag_table.insert(name, ty);
         Ok(())
@@ -267,7 +273,7 @@ impl<'a> Ast<'a> {
         // グローバル変数宣言
         if let Some(declarations) = self.declaration()? {
             for declaration in declarations {
-                self.register_global_var(declaration.name, declaration.ty, declaration.init)?;
+                self.register_global_var(declaration)?;
             }
             return Ok(());
         }
@@ -289,8 +295,8 @@ impl<'a> Ast<'a> {
         let func_decl = self.declarator(&base_ty)?;
         let mut func = Function::new(&func_decl.name);
         if let TypeKind::Func { params, return_ty } = func_decl.ty.kind {
-            for param in params {
-                func.register_param(param.name, param.ty)?;
+            for param_decl in params {
+                func.register_param(param_decl)?;
             }
             func.return_ty = *return_ty;
         } else {
