@@ -625,7 +625,7 @@ impl Node {
             let size = expr.ty.base_type().size_of();
             let assign_node = Box::new(Node::new_assign(
                 BinaryOp::Sub,
-                expr.clone(),
+                expr,
                 Box::new(Node::new_num(size as i64)),
             ));
 
