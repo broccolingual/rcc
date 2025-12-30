@@ -70,6 +70,11 @@ pub(crate) enum NodeKind {
         offset: usize,
         is_local: bool,
     }, // 変数
+    Member {
+        obj: Box<Node>,
+        name: String,
+        offset: usize,
+    }, // 構造体メンバーアクセス
     Identifier {
         name: String,
     }, // 識別子（変数名など）

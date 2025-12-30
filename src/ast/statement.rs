@@ -201,27 +201,22 @@ impl Ast {
         if let Some(node) = self.labeled_stmt()? {
             return Ok(Some(node));
         }
-
         // selection statement
         if let Some(node) = self.selection_stmt()? {
             return Ok(Some(node));
         }
-
         // iteration statement
         if let Some(node) = self.iteration_stmt()? {
             return Ok(Some(node));
         }
-
         // compound statement
         if let Some(node) = self.compound_stmt()? {
             return Ok(Some(node));
         }
-
         // jump statement
         if let Some(node) = self.jump_stmt()? {
             return Ok(Some(node));
         }
-
         self.expr_stmt()
     }
 

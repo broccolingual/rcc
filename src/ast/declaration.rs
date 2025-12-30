@@ -2,8 +2,8 @@ use crate::ast::Ast;
 use crate::errors::CompileError;
 use crate::node::Node;
 use crate::types::{
-    Declaration, DeclarationSpecifier, FunctionKind, StorageClassKind, Type, TypeKind,
-    TypeQualifierKind, TypeSpecifierQualifier,
+    Declaration, DeclarationSpecifier, FunctionKind, MemberDeclaration, StorageClassKind, Type,
+    TypeKind, TypeQualifierKind, TypeSpecifierQualifier,
 };
 
 impl Ast {
@@ -14,7 +14,7 @@ impl Ast {
             return Ok(None);
         }
         let base_ty =
-            Type::from_ds(&specifiers).ok_or_else(|| CompileError::InvalidDeclaration {
+            Type::from_ds(specifiers).ok_or_else(|| CompileError::InvalidDeclaration {
                 msg: "無効な型指定子です".to_string(),
             })?;
         let vars = self.init_declarator_list(&base_ty)?;
@@ -83,7 +83,7 @@ impl Ast {
                     // サイズ不明な配列型の場合、初期化子の要素数でサイズを決定
                     TypeKind::Array { ref base, ref size } if *size == 0 => {
                         declaration.ty = Type::from(
-                            &TypeKind::Array {
+                            TypeKind::Array {
                                 base: base.clone(),
                                 size: declaration.init.len(),
                             },
@@ -116,27 +116,56 @@ impl Ast {
     }
 
     // struct_or_union_specifier ::= "struct" ident? "{" struct_declaration_list "}"
+    //                               | "struct" ident
     fn struct_or_union_specifier(&mut self) -> Result<Option<TypeKind>, CompileError> {
         if self.consume_keyword("struct").is_some() {
-            let struct_name = if let Some(name) = self.consume_ident() {
-                name
+            let struct_name = self.consume_ident().unwrap_or_default();
+            if self.consume_punctuator("{").is_some() {
+                let members = self.struct_declaration_list()?;
+                self.expect_punctuator("}")?;
+                let struct_ty = Type::from(
+                    TypeKind::Struct {
+                        name: struct_name.clone(),
+                        members,
+                    },
+                    false,
+                );
+                // 構造体タグを登録
+                if !struct_name.is_empty() {
+                    if let Some(func) = self.current_func.as_mut() {
+                        func.register_struct_tag(struct_name, struct_ty.clone())?;
+                    } else {
+                        self.register_struct_tag(struct_name, struct_ty.clone())?;
+                    }
+                }
+                return Ok(Some(struct_ty.kind));
+            } else if !struct_name.is_empty() {
+                // 既存の構造体タグを検索
+                // 現在の関数のスコープ内を優先して検索（無い場合はグローバルスコープを検索）
+                let struct_ty = self
+                    .current_func
+                    .as_ref()
+                    .and_then(|f| f.find_struct_tag(&struct_name))
+                    .or_else(|| self.find_struct_tag(&struct_name));
+                if let Some(ty) = struct_ty {
+                    return Ok(Some(ty.kind.clone()));
+                } else {
+                    return Err(CompileError::InvalidDeclaration {
+                        msg: format!("未宣言の構造体タグ: {}", struct_name),
+                    });
+                }
             } else {
-                "".to_string()
-            };
-            self.expect_punctuator("{")?;
-            let members = self.struct_declaration_list()?;
-            self.expect_punctuator("}")?;
-            return Ok(Some(TypeKind::Struct {
-                name: struct_name,
-                members,
-            }));
+                return Err(CompileError::InvalidDeclaration {
+                    msg: "無名構造体には定義が必要です".to_string(),
+                });
+            }
         }
         Ok(None)
     }
 
     // struct_declaration_list ::= struct_declaration+
-    fn struct_declaration_list(&mut self) -> Result<Vec<Declaration>, CompileError> {
-        let mut members: Vec<Declaration> = Vec::new();
+    fn struct_declaration_list(&mut self) -> Result<Vec<MemberDeclaration>, CompileError> {
+        let mut members: Vec<MemberDeclaration> = Vec::new();
         while let Some(member_list) = self.struct_declaration()? {
             members.extend(member_list);
         }
@@ -144,13 +173,13 @@ impl Ast {
     }
 
     // struct_declaration ::= specifier_qualifier_list struct_declarator_list? ";"
-    fn struct_declaration(&mut self) -> Result<Option<Vec<Declaration>>, CompileError> {
+    fn struct_declaration(&mut self) -> Result<Option<Vec<MemberDeclaration>>, CompileError> {
         let specifiers = self.specifier_qualifier_list()?;
         if specifiers.is_empty() {
             return Ok(None);
         }
         let base_ty =
-            Type::from_tsq(&specifiers).ok_or_else(|| CompileError::InvalidDeclaration {
+            Type::from_tsq(specifiers).ok_or_else(|| CompileError::InvalidDeclaration {
                 msg: "無効な型指定子です".to_string(),
             })?;
         let members = self.struct_declarator_list(&base_ty)?;
@@ -162,7 +191,10 @@ impl Ast {
     }
 
     // struct_declarator_list ::= struct_declarator ("," struct_declarator)*
-    fn struct_declarator_list(&mut self, base_ty: &Type) -> Result<Vec<Declaration>, CompileError> {
+    fn struct_declarator_list(
+        &mut self,
+        base_ty: &Type,
+    ) -> Result<Vec<MemberDeclaration>, CompileError> {
         let mut members = Vec::new();
         if let Some(member) = self.struct_declarator(base_ty)? {
             members.push(member);
@@ -176,9 +208,12 @@ impl Ast {
     }
 
     // struct_declarator ::= declarator
-    fn struct_declarator(&mut self, base_ty: &Type) -> Result<Option<Declaration>, CompileError> {
+    fn struct_declarator(
+        &mut self,
+        base_ty: &Type,
+    ) -> Result<Option<MemberDeclaration>, CompileError> {
         if let Ok(declaration) = self.declarator(base_ty) {
-            return Ok(Some(declaration));
+            return Ok(Some(declaration.into()));
         }
         Ok(None)
     }
@@ -231,7 +266,7 @@ impl Ast {
     fn pointer(&mut self, base_ty: &Type) -> Type {
         while self.consume_punctuator("*").is_some() {
             let ptr_type = Type::from(
-                &TypeKind::Ptr {
+                TypeKind::Ptr {
                     to: Box::new(base_ty.clone()),
                 },
                 false,
@@ -282,17 +317,16 @@ impl Ast {
             let array_size = if self.peek_punctuator("]") {
                 0
             } else {
-                let size_expr =
-                    self.assign_expr()?
-                        .ok_or_else(|| CompileError::InvalidDeclaration {
-                            msg: "配列のサイズが必要です".to_string(),
-                        })?;
-                size_expr.eval_const_expr()? as usize
+                self.assign_expr()?
+                    .ok_or_else(|| CompileError::InvalidDeclaration {
+                        msg: "配列のサイズが必要です".to_string(),
+                    })?
+                    .eval_const_expr()? as usize
             };
             self.expect_punctuator("]")?;
             let inner_ty = self.parse_postfix_declarators(base_ty)?;
             Ok(Type::from(
-                &TypeKind::Array {
+                TypeKind::Array {
                     base: Box::new(inner_ty),
                     size: array_size,
                 },
@@ -301,8 +335,9 @@ impl Ast {
         }
         // "(" parameter_type_list ")"
         else if self.consume_punctuator("(").is_some() {
-            let params = if self.consume_punctuator(")").is_some() {
+            let params = if self.peek_punctuator(")") {
                 // パラメータが0個の場合
+                self.expect_punctuator(")")?;
                 Vec::new()
             } else {
                 // パラメータが1個以上の場合
@@ -312,7 +347,7 @@ impl Ast {
             };
             let inner_ty = self.parse_postfix_declarators(base_ty)?;
             Ok(Type::from(
-                &TypeKind::Func {
+                TypeKind::Func {
                     return_ty: Box::new(inner_ty),
                     params,
                 },
@@ -345,7 +380,7 @@ impl Ast {
         let specifiers = self.declaration_specifiers()?;
         if !specifiers.is_empty() {
             let base_kind =
-                Type::from_ds(&specifiers).ok_or_else(|| CompileError::InvalidDeclaration {
+                Type::from_ds(specifiers).ok_or_else(|| CompileError::InvalidDeclaration {
                     msg: "無効な型指定子です".to_string(),
                 })?;
             if let Ok(declaration) = self.declarator(&base_kind) {
@@ -366,7 +401,7 @@ impl Ast {
             });
         }
         let base_ty =
-            Type::from_tsq(&specifiers).ok_or_else(|| CompileError::InvalidDeclaration {
+            Type::from_tsq(specifiers).ok_or_else(|| CompileError::InvalidDeclaration {
                 msg: "無効な型指定子です".to_string(),
             })?;
         if let Ok(abstract_ty) = self.abstract_declarator(&base_ty) {
@@ -406,7 +441,7 @@ impl Ast {
             self.expect_punctuator("]")?;
             let inner_ty = self.parse_abstract_postfix_declarators(base_ty)?;
             Ok(Type::from(
-                &TypeKind::Array {
+                TypeKind::Array {
                     base: Box::new(inner_ty),
                     size: array_size,
                 },
@@ -415,8 +450,9 @@ impl Ast {
         }
         // "(" parameter_type_list ")"
         else if self.consume_punctuator("(").is_some() {
-            let params = if self.consume_punctuator(")").is_some() {
+            let params = if self.peek_punctuator(")") {
                 // パラメータが0個の場合
+                self.expect_punctuator(")")?;
                 Vec::new()
             } else {
                 // パラメータが1個以上の場合
@@ -426,7 +462,7 @@ impl Ast {
             };
             let inner_ty = self.parse_abstract_postfix_declarators(base_ty)?;
             Ok(Type::from(
-                &TypeKind::Func {
+                TypeKind::Func {
                     return_ty: Box::new(inner_ty),
                     params,
                 },

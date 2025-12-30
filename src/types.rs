@@ -27,13 +27,13 @@ impl fmt::Debug for Type {
 
 impl Default for Type {
     fn default() -> Self {
-        Type::from(&TypeKind::Void, false)
+        Type::from(TypeKind::Void, false)
     }
 }
 
 impl Type {
-    pub(crate) fn from(kind: &TypeKind, is_const: bool) -> Self {
-        match *kind {
+    pub(crate) fn from(kind: TypeKind, is_const: bool) -> Self {
+        match kind {
             TypeKind::Void => Type {
                 kind: TypeKind::Void,
                 size: 0,
@@ -101,8 +101,8 @@ impl Type {
                 for member in members.iter_mut() {
                     let a = member.ty.align_of();
                     offset = offset.align_up(a); // メンバーのアラインメントに合わせてオフセットを調整
+                    member.offset = Some(offset); // メンバーの相対オフセットを設定
                     offset += member.ty.size_of(); // メンバーのサイズ分オフセットを進める
-                    // member.offset = offset; // TODO: メンバーのオフセットを設定
                     // 構造体全体のアラインメントを更新
                     if a > max_align {
                         max_align = a;
@@ -134,14 +134,14 @@ impl Type {
     }
 
     // TODO: constやvolatileの情報も扱う
-    pub(crate) fn from_ds(declaration_specifiers: &Vec<DeclarationSpecifier>) -> Option<Self> {
+    pub(crate) fn from_ds(declaration_specifiers: Vec<DeclarationSpecifier>) -> Option<Self> {
         let mut ty = Type::default();
         let mut has_type_specifier = false;
         for specifier in declaration_specifiers {
             match specifier {
                 DeclarationSpecifier::TypeSpecifierQualifier(tsq) => match tsq {
                     TypeSpecifierQualifier::TypeQualifier(tq) => {
-                        if *tq == TypeQualifierKind::Const {
+                        if tq == TypeQualifierKind::Const {
                             ty.is_const = true;
                         }
                     }
@@ -157,15 +157,13 @@ impl Type {
         if has_type_specifier { Some(ty) } else { None }
     }
 
-    pub(crate) fn from_tsq(
-        type_specifier_qualifiers: &Vec<TypeSpecifierQualifier>,
-    ) -> Option<Self> {
+    pub(crate) fn from_tsq(type_specifier_qualifiers: Vec<TypeSpecifierQualifier>) -> Option<Self> {
         let mut ty = Type::default();
         let mut has_type_specifier = false;
         for specifier in type_specifier_qualifiers {
             match specifier {
                 TypeSpecifierQualifier::TypeQualifier(tq) => {
-                    if *tq == TypeQualifierKind::Const {
+                    if tq == TypeQualifierKind::Const {
                         ty.is_const = true;
                     }
                 }
@@ -187,37 +185,27 @@ impl Type {
         }
     }
 
+    // 型がポインタかどうか
+    pub(crate) fn is_ptr(&self) -> bool {
+        matches!(&self.kind, TypeKind::Ptr { .. })
+    }
+
     // 型が配列かどうか
     pub(crate) fn is_array(&self) -> bool {
         matches!(&self.kind, TypeKind::Array { .. })
     }
 
-    // 型がポインタもしくは配列かどうか
-    pub(crate) fn is_ptr_or_array(&self) -> bool {
-        match &self.kind {
-            TypeKind::Ptr { .. } => true,
-            TypeKind::Array { .. } => true,
-            TypeKind::Func { return_ty, .. } => return_ty.is_ptr_or_array(),
-            _ => false,
-        }
-    }
-
     // 型が整数型かどうか
     pub(crate) fn is_integer(&self) -> bool {
-        match &self.kind {
-            TypeKind::Char | TypeKind::Short | TypeKind::Int | TypeKind::Long => true,
-            TypeKind::Func { return_ty, .. } => return_ty.is_integer(),
-            _ => false,
-        }
+        matches!(
+            &self.kind,
+            TypeKind::Char | TypeKind::Short | TypeKind::Int | TypeKind::Long
+        )
     }
 
     // 型が浮動小数点型かどうか
     pub(crate) fn is_floating_point(&self) -> bool {
-        match &self.kind {
-            TypeKind::Float | TypeKind::Double => true,
-            TypeKind::Func { return_ty, .. } => return_ty.is_floating_point(),
-            _ => false,
-        }
+        matches!(&self.kind, TypeKind::Float | TypeKind::Double)
     }
 
     // 型がスカラー型かどうか（整数型または浮動小数点型）
@@ -226,14 +214,12 @@ impl Type {
     }
 
     // 型が構造体かどうか
-    #[allow(dead_code)]
     pub(crate) fn is_struct(&self) -> bool {
         matches!(&self.kind, TypeKind::Struct { .. })
     }
 
     // 構造体メンバーの検索
-    #[allow(dead_code)]
-    pub(crate) fn find_struct_member(&self, name: &str) -> Option<&Declaration> {
+    pub(crate) fn find_struct_member(&self, name: &str) -> Option<&MemberDeclaration> {
         if let TypeKind::Struct { members, .. } = &self.kind {
             for member in members {
                 if member.name == name {
@@ -255,11 +241,40 @@ impl Type {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq)]
 pub(crate) struct Declaration {
     pub(crate) name: String,
     pub(crate) ty: Type,
     pub(crate) init: Vec<Node>,
+}
+
+impl fmt::Debug for Declaration {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?} {}", self.ty, self.name)
+    }
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub(crate) struct MemberDeclaration {
+    pub(crate) name: String,
+    pub(crate) ty: Type,
+    pub(crate) offset: Option<usize>,
+}
+
+impl From<Declaration> for MemberDeclaration {
+    fn from(decl: Declaration) -> Self {
+        MemberDeclaration {
+            name: decl.name,
+            ty: decl.ty,
+            offset: None,
+        }
+    }
+}
+
+impl fmt::Debug for MemberDeclaration {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?} {}", self.ty, self.name)
+    }
 }
 
 pub(crate) trait AlignUp {

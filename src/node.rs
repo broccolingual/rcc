@@ -108,10 +108,10 @@ impl Node {
                     } else {
                         rhs_ty.clone()
                     }
-                } else if lhs_ty.is_ptr_or_array() && rhs_ty.is_scalar() {
+                } else if (lhs_ty.is_ptr() || lhs_ty.is_array()) && rhs_ty.is_scalar() {
                     // 左辺がポインタ/配列型、右辺がスカラー型の場合、左辺の型を結果型とする
                     lhs_ty.clone()
-                } else if lhs_ty.is_scalar() && rhs_ty.is_ptr_or_array() {
+                } else if lhs_ty.is_scalar() && (rhs_ty.is_ptr() || rhs_ty.is_array()) {
                     // 右辺がポインタ/配列型、左辺がスカラー型の場合、右辺の型を結果型とする
                     rhs_ty.clone()
                 } else {
@@ -169,7 +169,7 @@ impl Node {
 
                 if lhs_ty.is_integer() && rhs_ty.is_integer() {
                     // 両方とも整数型の場合、昇格後の型を結果型とする
-                    Type::from(&TypeKind::Int, false)
+                    Type::from(TypeKind::Int, false)
                 } else {
                     return Err(CompileError::InvalidExpression {
                         msg: format!(
@@ -184,10 +184,11 @@ impl Node {
                 let rhs_ty = &rhs.ty;
 
                 if lhs_ty.is_scalar() && rhs_ty.is_scalar()
-                    || lhs_ty.is_ptr_or_array() && rhs_ty.is_ptr_or_array()
+                    || (lhs_ty.is_ptr() || lhs_ty.is_array())
+                        && (rhs_ty.is_ptr() || rhs_ty.is_array())
                 {
                     // 両方ともスカラー型の場合、結果型はint型とする
-                    Type::from(&TypeKind::Int, false)
+                    Type::from(TypeKind::Int, false)
                 } else {
                     return Err(CompileError::InvalidExpression {
                         msg: format!(
@@ -212,7 +213,7 @@ impl Node {
                 let expr_ty = &expr.ty;
 
                 if expr_ty.is_integer() {
-                    Type::from(&TypeKind::Int, false) // 整数拡張
+                    Type::from(TypeKind::Int, false) // 整数拡張
                 } else {
                     return Err(CompileError::InvalidExpression {
                         msg: format!("ビット否定演算子は整数型にのみ適用可能です: {:?}", expr_ty),
@@ -222,8 +223,8 @@ impl Node {
             UnaryOp::LogicalNot => {
                 let expr_ty = &expr.ty;
 
-                if expr_ty.is_scalar() || expr_ty.is_ptr_or_array() {
-                    Type::from(&TypeKind::Int, false) // 結果型はint型
+                if expr_ty.is_scalar() || expr_ty.is_ptr() || expr_ty.is_array() {
+                    Type::from(TypeKind::Int, false) // 結果型はint型
                 } else {
                     return Err(CompileError::InvalidExpression {
                         msg: format!(
@@ -238,7 +239,7 @@ impl Node {
 
                 // アドレス演算子の型はポインタ型にする
                 Type::from(
-                    &TypeKind::Ptr {
+                    TypeKind::Ptr {
                         to: Box::new(expr_ty.clone()),
                     },
                     false,
@@ -248,7 +249,7 @@ impl Node {
                 let expr_ty = &expr.ty;
 
                 // デリファレンス演算子の型はポインタの指す型にする
-                if !expr_ty.is_ptr_or_array() {
+                if !(expr_ty.is_ptr() || expr_ty.is_array()) {
                     return Err(CompileError::InvalidExpression {
                         msg: format!(
                             "デリファレンス演算子はポインタ/配列型にのみ適用可能です: {:?}",
@@ -286,10 +287,10 @@ impl Node {
         let rhs_ty = &rhs.ty;
 
         let ty = if lhs_ty.is_scalar() && rhs_ty.is_scalar()
-            || lhs_ty.is_ptr_or_array() && rhs_ty.is_ptr_or_array()
+            || (lhs_ty.is_ptr() || lhs_ty.is_array()) && (rhs_ty.is_ptr() || rhs_ty.is_array())
         {
             // 両方ともスカラー型の場合、結果型はint型とする
-            Type::from(&TypeKind::Int, false)
+            Type::from(TypeKind::Int, false)
         } else {
             return Err(CompileError::InvalidExpression {
                 msg: format!(
@@ -310,10 +311,10 @@ impl Node {
         let rhs_ty = &rhs.ty;
 
         let ty = if lhs_ty.is_scalar() && rhs_ty.is_scalar()
-            || lhs_ty.is_ptr_or_array() && rhs_ty.is_ptr_or_array()
+            || (lhs_ty.is_ptr() || lhs_ty.is_array()) && (rhs_ty.is_ptr() || rhs_ty.is_array())
         {
             // 両方ともスカラー型の場合、結果型はint型とする
-            Type::from(&TypeKind::Int, false)
+            Type::from(TypeKind::Int, false)
         } else {
             return Err(CompileError::InvalidExpression {
                 msg: format!(
@@ -338,7 +339,7 @@ impl Node {
         let then_ty = &then.ty;
         let els_ty = &els.ty;
 
-        let ty = if cond_ty.is_scalar() || cond_ty.is_ptr_or_array() {
+        let ty = if cond_ty.is_scalar() || cond_ty.is_ptr() || cond_ty.is_array() {
             if then_ty == els_ty {
                 // then節とelse節の型が同じ場合、その型を結果型とする
                 then_ty.clone()
@@ -374,18 +375,30 @@ impl Node {
 
     pub(crate) fn new_num(val: i64) -> Self {
         let mut node = Node::new(NodeKind::Number { val });
-        node.ty = Type::from(&TypeKind::Int, false);
+        node.ty = Type::from(TypeKind::Int, false);
         node
     }
 
     pub(crate) fn new_var(name: &str, offset: usize, ty: &Type, is_local: bool) -> Self {
-        let mut node = Node::new(NodeKind::Var {
-            name: name.to_string(),
-            offset,
-            is_local,
-        });
-        node.ty = ty.clone();
-        node
+        Node {
+            kind: NodeKind::Var {
+                name: name.to_string(),
+                offset,
+                is_local,
+            },
+            ty: ty.clone(),
+        }
+    }
+
+    pub(crate) fn new_member(obj: Box<Node>, name: &str, offset: usize, ty: &Type) -> Self {
+        Node {
+            kind: NodeKind::Member {
+                obj,
+                name: name.to_string(),
+                offset,
+            },
+            ty: ty.clone(),
+        }
     }
 
     // 定数式を評価して、その値を返す
@@ -515,53 +528,127 @@ impl Node {
         }
     }
 
-    pub(crate) fn scaled_add(
-        &mut self,
-        rhs: Option<Box<Node>>,
-    ) -> Result<Option<Box<Node>>, CompileError> {
-        let rhs = rhs.ok_or_else(|| CompileError::InvalidExpression {
-            msg: "expression required after '+' operator".to_string(),
-        })?;
-        let rhs = if self.ty.is_ptr_or_array() {
-            let base_size = self.ty.base_type().size_of();
-            // ポインタ加算の場合、右辺をスケーリングする
-            Box::new(Node::new_binary(
+    pub(crate) fn new_scaled_add(lhs: Box<Node>, rhs: Box<Node>) -> Result<Self, CompileError> {
+        // 左辺がポインタ/配列、右辺がスカラーの場合: ptr + n -> ptr + (n * sizeof(*ptr))
+        if (lhs.ty.is_ptr() || lhs.ty.is_array()) && rhs.ty.is_scalar() {
+            let base_size = lhs.ty.base_type().size_of();
+            let scaled_rhs = Box::new(Node::new_binary(
                 BinaryOp::Mul,
                 rhs,
                 Box::new(Node::new_num(base_size as i64)),
-            )?)
-        } else {
-            rhs
-        };
-        Ok(Some(Box::new(Node::new_binary(
-            BinaryOp::Add,
-            Box::new(self.clone()),
-            rhs,
-        )?)))
+            )?);
+            Node::new_binary(BinaryOp::Add, lhs, scaled_rhs)
+        }
+        // 右辺がポインタ/配列、左辺がスカラーの場合: n + ptr -> (n * sizeof(*ptr)) + ptr
+        else if lhs.ty.is_scalar() && (rhs.ty.is_ptr() || rhs.ty.is_array()) {
+            let base_size = rhs.ty.base_type().size_of();
+            let scaled_lhs = Box::new(Node::new_binary(
+                BinaryOp::Mul,
+                lhs,
+                Box::new(Node::new_num(base_size as i64)),
+            )?);
+            Node::new_binary(BinaryOp::Add, scaled_lhs, rhs)
+        }
+        // 両方ともスカラーの場合: 通常の加算
+        else {
+            Node::new_binary(BinaryOp::Add, lhs, rhs)
+        }
     }
 
-    pub(crate) fn scaled_sub(
-        &mut self,
-        rhs: Option<Box<Node>>,
-    ) -> Result<Option<Box<Node>>, CompileError> {
-        let rhs = rhs.ok_or_else(|| CompileError::InvalidExpression {
-            msg: "expression required after '-' operator".to_string(),
-        })?;
-        let rhs = if self.ty.is_ptr_or_array() {
-            let base_size = self.ty.base_type().size_of();
-            // ポインタ減算の場合、右辺をスケーリングする
-            Box::new(Node::new_binary(
+    pub(crate) fn new_scaled_sub(lhs: Box<Node>, rhs: Box<Node>) -> Result<Self, CompileError> {
+        // ポインタ同士の減算: ptr1 - ptr2 -> (ptr1 - ptr2) / sizeof(*ptr)
+        if (lhs.ty.is_ptr() || lhs.ty.is_array()) && (rhs.ty.is_ptr() || rhs.ty.is_array()) {
+            let base_size = lhs.ty.base_type().size_of();
+            let sub_result = Box::new(Node::new_binary(BinaryOp::Sub, lhs, rhs)?);
+            // 結果をsizeofで割って要素数の差にする
+            Node::new_binary(
+                BinaryOp::Div,
+                sub_result,
+                Box::new(Node::new_num(base_size as i64)),
+            )
+        }
+        // 左辺がポインタ/配列、右辺がスカラーの場合: ptr - n -> ptr - (n * sizeof(*ptr))
+        else if (lhs.ty.is_ptr() || lhs.ty.is_array()) && rhs.ty.is_scalar() {
+            let base_size = lhs.ty.base_type().size_of();
+            let scaled_rhs = Box::new(Node::new_binary(
                 BinaryOp::Mul,
                 rhs,
                 Box::new(Node::new_num(base_size as i64)),
-            )?)
+            )?);
+            Node::new_binary(BinaryOp::Sub, lhs, scaled_rhs)
+        }
+        // 両方ともスカラーの場合: 通常の減算
+        else {
+            Node::new_binary(BinaryOp::Sub, lhs, rhs)
+        }
+    }
+
+    pub(crate) fn new_scaled_increment(
+        expr: Box<Node>,
+        is_pre: bool,
+    ) -> Result<Self, CompileError> {
+        if expr.ty.is_ptr() || expr.ty.is_array() {
+            let base_size = expr.ty.base_type().size_of();
+            let assign_node = Box::new(Node::new_assign(
+                BinaryOp::Add,
+                expr,
+                Box::new(Node::new_num(base_size as i64)),
+            ));
+            if is_pre {
+                // 前置インクリメント: ++expr
+                Ok(*assign_node)
+            } else {
+                // 後置インクリメント: expr++
+                // 元の値を返すため、代入後にサイズ分減算
+                Node::new_binary(
+                    BinaryOp::Sub,
+                    assign_node,
+                    Box::new(Node::new_num(base_size as i64)),
+                )
+            }
         } else {
-            rhs
-        };
-        Ok(Some(Box::new(Node::new_binary(
-            BinaryOp::Sub,
-            Box::new(self.clone()),
-            rhs,
-        )?)))
+            // スカラー型の通常のインクリメント
+            let op = if is_pre {
+                UnaryOp::PreInc
+            } else {
+                UnaryOp::PostInc
+            };
+            Node::new_unary(op, expr)
+        }
+    }
+
+    pub(crate) fn new_scaled_decrement(
+        expr: Box<Node>,
+        is_pre: bool,
+    ) -> Result<Self, CompileError> {
+        if expr.ty.is_ptr() || expr.ty.is_array() {
+            let size = expr.ty.base_type().size_of();
+            let assign_node = Box::new(Node::new_assign(
+                BinaryOp::Sub,
+                expr,
+                Box::new(Node::new_num(size as i64)),
+            ));
+
+            if is_pre {
+                // 前置デクリメント: --expr
+                Ok(*assign_node)
+            } else {
+                // 後置デクリメント: expr--
+                // 元の値を返すため、代入後にサイズ分加算
+                Node::new_binary(
+                    BinaryOp::Add,
+                    assign_node,
+                    Box::new(Node::new_num(size as i64)),
+                )
+            }
+        } else {
+            // スカラー型の通常のデクリメント
+            let op = if is_pre {
+                UnaryOp::PreDec
+            } else {
+                UnaryOp::PostDec
+            };
+            Node::new_unary(op, expr)
+        }
     }
 }
