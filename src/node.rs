@@ -582,4 +582,73 @@ impl Node {
             Node::new_binary(BinaryOp::Sub, lhs, rhs)
         }
     }
+
+    pub(crate) fn new_scaled_increment(
+        expr: Box<Node>,
+        is_pre: bool,
+    ) -> Result<Self, CompileError> {
+        if expr.ty.is_ptr() || expr.ty.is_array() {
+            let base_size = expr.ty.base_type().size_of();
+            let assign_node = Box::new(Node::new_assign(
+                BinaryOp::Add,
+                expr,
+                Box::new(Node::new_num(base_size as i64)),
+            ));
+            if is_pre {
+                // 前置インクリメント: ++expr
+                Ok(*assign_node)
+            } else {
+                // 後置インクリメント: expr++
+                // 元の値を返すため、代入後にサイズ分減算
+                Node::new_binary(
+                    BinaryOp::Sub,
+                    assign_node,
+                    Box::new(Node::new_num(base_size as i64)),
+                )
+            }
+        } else {
+            // スカラー型の通常のインクリメント
+            let op = if is_pre {
+                UnaryOp::PreInc
+            } else {
+                UnaryOp::PostInc
+            };
+            Node::new_unary(op, expr)
+        }
+    }
+
+    pub(crate) fn new_scaled_decrement(
+        expr: Box<Node>,
+        is_pre: bool,
+    ) -> Result<Self, CompileError> {
+        if expr.ty.is_ptr() || expr.ty.is_array() {
+            let size = expr.ty.base_type().size_of();
+            let assign_node = Box::new(Node::new_assign(
+                BinaryOp::Sub,
+                expr.clone(),
+                Box::new(Node::new_num(size as i64)),
+            ));
+
+            if is_pre {
+                // 前置デクリメント: --expr
+                Ok(*assign_node)
+            } else {
+                // 後置デクリメント: expr--
+                // 元の値を返すため、代入後にサイズ分加算
+                Node::new_binary(
+                    BinaryOp::Add,
+                    assign_node,
+                    Box::new(Node::new_num(size as i64)),
+                )
+            }
+        } else {
+            // スカラー型の通常のデクリメント
+            let op = if is_pre {
+                UnaryOp::PreDec
+            } else {
+                UnaryOp::PostDec
+            };
+            Node::new_unary(op, expr)
+        }
+    }
 }

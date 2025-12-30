@@ -411,15 +411,7 @@ impl Ast {
                 .ok_or_else(|| CompileError::InvalidExpression {
                     msg: "単項'++'の後に式がありません".to_string(),
                 })?;
-            if node.ty.is_ptr() || node.ty.is_array() {
-                let size = node.ty.base_type().size_of();
-                return Ok(Some(Box::new(Node::new_assign(
-                    BinaryOp::Add,
-                    node,
-                    Box::new(Node::new_num(size as i64)),
-                ))));
-            }
-            return Ok(Some(Box::new(Node::new_unary(UnaryOp::PreInc, node)?)));
+            return Ok(Some(Box::new(Node::new_scaled_increment(node, true)?)));
         }
         if self.consume_punctuator("--").is_some() {
             // pre-decrement
@@ -428,15 +420,7 @@ impl Ast {
                 .ok_or_else(|| CompileError::InvalidExpression {
                     msg: "単項'--'の後に式がありません".to_string(),
                 })?;
-            if node.ty.is_ptr() || node.ty.is_array() {
-                let size = node.ty.base_type().size_of();
-                return Ok(Some(Box::new(Node::new_assign(
-                    BinaryOp::Sub,
-                    node,
-                    Box::new(Node::new_num(size as i64)),
-                ))));
-            }
-            return Ok(Some(Box::new(Node::new_unary(UnaryOp::PreDec, node)?)));
+            return Ok(Some(Box::new(Node::new_scaled_decrement(node, true)?)));
         }
 
         if self.consume_punctuator("+").is_some() {
@@ -672,42 +656,14 @@ impl Ast {
                 let expr = node.ok_or_else(|| CompileError::InvalidExpression {
                     msg: "単項'++'の前に式がありません".to_string(),
                 })?;
-                if expr.ty.is_ptr() || expr.ty.is_array() {
-                    let size = expr.ty.base_type().size_of();
-                    let assign_node = Box::new(Node::new_assign(
-                        BinaryOp::Add,
-                        expr,
-                        Box::new(Node::new_num(size as i64)),
-                    ));
-                    node = Some(Box::new(Node::new_binary(
-                        BinaryOp::Sub,
-                        assign_node,
-                        Box::new(Node::new_num(size as i64)),
-                    )?))
-                } else {
-                    node = Some(Box::new(Node::new_unary(UnaryOp::PostInc, expr)?));
-                }
+                node = Some(Box::new(Node::new_scaled_increment(expr, false)?));
             } else if self.consume_punctuator("--").is_some() {
                 // post-decrement
                 node = self.resolve_ident_to_var(node)?; // 識別子を変数に割り当て
                 let expr = node.ok_or_else(|| CompileError::InvalidExpression {
                     msg: "単項'--'の前に式がありません".to_string(),
                 })?;
-                if expr.ty.is_ptr() || expr.ty.is_array() {
-                    let size = expr.ty.base_type().size_of();
-                    let assign_node = Box::new(Node::new_assign(
-                        BinaryOp::Sub,
-                        expr,
-                        Box::new(Node::new_num(size as i64)),
-                    ));
-                    node = Some(Box::new(Node::new_binary(
-                        BinaryOp::Add,
-                        assign_node,
-                        Box::new(Node::new_num(size as i64)),
-                    )?))
-                } else {
-                    node = Some(Box::new(Node::new_unary(UnaryOp::PostDec, expr)?));
-                }
+                node = Some(Box::new(Node::new_scaled_decrement(expr, false)?));
             } else {
                 node = self.resolve_ident_to_var(node)?; // 識別子を変数に割り当て
                 return Ok(node);
