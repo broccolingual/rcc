@@ -16,12 +16,12 @@ pub(crate) const KEYWORDS: [&str; 34] = [
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub(crate) enum TokenKind {
-    Punctuator(String), // 記号トークン
-    Keyword(String),    // キーワード
-    Identifier(String), // 識別子
-    Number(i64),        // 整数トークン
-    String(String),     // 文字列リテラルトークン
-    Eof,                // 入力の終わりを表すトークン
+    Punct(String),   // 記号トークン
+    Keyword(String), // キーワード
+    Ident(String),   // 識別子
+    Number(i64),     // 整数トークン
+    String(String),  // 文字列リテラルトークン
+    Eof,             // 入力の終わりを表すトークン
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -33,9 +33,9 @@ pub(crate) struct Token {
 impl fmt::Debug for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
-            TokenKind::Punctuator(s) => write!(f, "Punctuator('{}') {:?}", s, self.span),
+            TokenKind::Punct(s) => write!(f, "Punct('{}') {:?}", s, self.span),
             TokenKind::Keyword(s) => write!(f, "Keyword('{}') {:?}", s, self.span),
-            TokenKind::Identifier(s) => write!(f, "Identifier('{}') {:?}", s, self.span),
+            TokenKind::Ident(s) => write!(f, "Ident('{}') {:?}", s, self.span),
             TokenKind::Number(n) => write!(f, "Num({}) {:?}", n, self.span),
             TokenKind::String(s) => write!(f, "StringLiteral(\"{}\") {:?}", s, self.span),
             TokenKind::Eof => write!(f, "EOF {:?}", self.span),

@@ -128,7 +128,7 @@ impl Generator {
                             if !is_local {
                                 self.builder.add_row(&format!(".quad {}", name), true);
                             } else {
-                                return Err(CompileError::InvalidExpression {
+                                return Err(CompileError::InvalidExpr {
                                     msg: format!(
                                         "グローバル変数の初期化式にローカル変数のアドレスは使用できません: {}",
                                         name
@@ -138,7 +138,7 @@ impl Generator {
                             }
                         }
                         _ => {
-                            return Err(CompileError::InvalidExpression {
+                            return Err(CompileError::InvalidExpr {
                                 msg: format!(
                                     "未対応のグローバル変数初期化式のアドレス指定: {:?}",
                                     expr.kind
@@ -176,7 +176,7 @@ impl Generator {
                         if !is_local {
                             self.builder.add_row(&format!(".quad {}", name), true);
                         } else {
-                            return Err(CompileError::InvalidExpression {
+                            return Err(CompileError::InvalidExpr {
                                 msg: format!(
                                     "グローバル変数の初期化式にローカル変数のアドレスは使用できません: {}",
                                     name
@@ -186,7 +186,7 @@ impl Generator {
                         }
                     }
                     _ => {
-                        return Err(CompileError::InvalidExpression {
+                        return Err(CompileError::InvalidExpr {
                             msg: format!(
                                 "未対応のグローバル変数初期化式のアドレス指定: {:?}",
                                 expr.kind
@@ -204,7 +204,7 @@ impl Generator {
                 }
             }
         } else {
-            return Err(CompileError::InvalidExpression {
+            return Err(CompileError::InvalidExpr {
                 msg: format!("スカラー変数の初期化式が複数あります: {}", symbol.name),
                 span: init[0].span,
             });
@@ -334,7 +334,7 @@ impl Generator {
             self.gen_expr(&init[0])?; // 初期化式のコードを生成し、スタックに値を積む
             self.store(&symbol.ty)?; // スタックトップの値を変数に格納
         } else {
-            return Err(CompileError::InvalidExpression {
+            return Err(CompileError::InvalidExpr {
                 msg: format!("スカラー変数の初期化式が複数あります: {}", symbol.name),
                 span: init[0].span,
             });
@@ -373,7 +373,7 @@ impl Generator {
                 self.builder.add_row("push rax", true); // メンバのアドレスをスタックに積む
             }
             _ => {
-                return Err(CompileError::InvalidExpression {
+                return Err(CompileError::InvalidExpr {
                     msg: format!("アドレスを取得できない式です: {:?}", node.kind),
                     span: node.span,
                 });

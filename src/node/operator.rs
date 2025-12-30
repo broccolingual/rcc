@@ -23,7 +23,7 @@ impl FromStr for BinaryOp {
     type Err = ();
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            // assignment operators
+            // assign operators
             "=" => Ok(BinaryOp::Assign),
             "*=" => Ok(BinaryOp::Mul),
             "/=" => Ok(BinaryOp::Div),

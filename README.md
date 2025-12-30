@@ -48,6 +48,24 @@
 x86-64アセンブリ
 ```
 
+# 本コンパイラで利用する略語について
+
+コード内で一貫して使用している略語の一覧です．C言語の文法用語に基づいています．
+
+| 略語 | 正式名称 | 意味 |
+|------|----------|------|
+| `decl` | declaration | 宣言（変数宣言，関数宣言など） |
+| `spec` | specifier | 指定子（型指定子，ストレージクラス指定子など） |
+| `qual` | qualifier | 修飾子（const，volatileなど） |
+| `param` | parameter | パラメータ，引数 |
+| `func` | function | 関数 |
+| `ptr` | pointer | ポインタ |
+| `abst` | abstract | 抽象（abstract declarator） |
+| `expr` | expression | 式 |
+| `stmt` | statement | 文 |
+
+**注意:** `declarator`，`initializer`は文法上重要な概念のため省略していません．
+
 # 雑記
 
 * Intel記法とAT&T記法でのレジスタのsrc，dstの違いに注意．

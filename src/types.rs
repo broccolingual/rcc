@@ -134,46 +134,46 @@ impl Type {
     }
 
     // TODO: constやvolatileの情報も扱う
-    pub(crate) fn from_ds(declaration_specifiers: Vec<DeclarationSpecifier>) -> Option<Self> {
+    pub(crate) fn from_ds(decl_specs: Vec<DeclSpec>) -> Option<Self> {
         let mut ty = Type::default();
-        let mut has_type_specifier = false;
-        for specifier in declaration_specifiers {
-            match specifier {
-                DeclarationSpecifier::TypeSpecifierQualifier(tsq) => match tsq {
-                    TypeSpecifierQualifier::TypeQualifier(tq) => {
-                        if tq == TypeQualifierKind::Const {
+        let mut has_type_spec = false;
+        for spec in decl_specs {
+            match spec {
+                DeclSpec::TypeSpecQual(tsq) => match tsq {
+                    TypeSpecQual::TypeQual(tq) => {
+                        if tq == TypeQualKind::Const {
                             ty.is_const = true;
                         }
                     }
-                    TypeSpecifierQualifier::TypeSpecifier(ty_kind) => {
+                    TypeSpecQual::TypeSpec(ty_kind) => {
                         ty = Type::from(ty_kind, ty.is_const);
-                        has_type_specifier = true;
+                        has_type_spec = true;
                     }
                 },
-                DeclarationSpecifier::StorageClassSpecifier(_) => {}
-                DeclarationSpecifier::FunctionSpecifier(_) => {}
+                DeclSpec::StorageClassSpec(_) => {}
+                DeclSpec::FuncSpec(_) => {}
             }
         }
-        if has_type_specifier { Some(ty) } else { None }
+        if has_type_spec { Some(ty) } else { None }
     }
 
-    pub(crate) fn from_tsq(type_specifier_qualifiers: Vec<TypeSpecifierQualifier>) -> Option<Self> {
+    pub(crate) fn from_tsq(type_spec_quals: Vec<TypeSpecQual>) -> Option<Self> {
         let mut ty = Type::default();
-        let mut has_type_specifier = false;
-        for specifier in type_specifier_qualifiers {
-            match specifier {
-                TypeSpecifierQualifier::TypeQualifier(tq) => {
-                    if tq == TypeQualifierKind::Const {
+        let mut has_type_spec = false;
+        for spec in type_spec_quals {
+            match spec {
+                TypeSpecQual::TypeQual(tq) => {
+                    if tq == TypeQualKind::Const {
                         ty.is_const = true;
                     }
                 }
-                TypeSpecifierQualifier::TypeSpecifier(ty_kind) => {
+                TypeSpecQual::TypeSpec(ty_kind) => {
                     ty = Type::from(ty_kind, ty.is_const);
-                    has_type_specifier = true;
+                    has_type_spec = true;
                 }
             }
         }
-        if has_type_specifier { Some(ty) } else { None }
+        if has_type_spec { Some(ty) } else { None }
     }
 
     // ポインタもしくは配列の指している型を取得
@@ -219,7 +219,7 @@ impl Type {
     }
 
     // 構造体メンバーの検索
-    pub(crate) fn find_struct_member(&self, name: &str) -> Option<&MemberDeclaration> {
+    pub(crate) fn find_struct_member(&self, name: &str) -> Option<&MemberDecl> {
         if let TypeKind::Struct { members, .. } = &self.kind {
             for member in members {
                 if member.name == name {
@@ -242,30 +242,30 @@ impl Type {
 }
 
 #[derive(Clone, PartialEq, Eq)]
-pub(crate) struct Declaration {
+pub(crate) struct Decl {
     pub(crate) name: String,
     pub(crate) ty: Type,
     pub(crate) init: Vec<Node>,
     pub(crate) span: (usize, usize),
 }
 
-impl fmt::Debug for Declaration {
+impl fmt::Debug for Decl {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:?} {}", self.ty, self.name)
     }
 }
 
 #[derive(Clone, PartialEq, Eq)]
-pub(crate) struct MemberDeclaration {
+pub(crate) struct MemberDecl {
     pub(crate) name: String,
     pub(crate) ty: Type,
     pub(crate) offset: Option<usize>,
     pub(crate) span: (usize, usize),
 }
 
-impl From<Declaration> for MemberDeclaration {
-    fn from(decl: Declaration) -> Self {
-        MemberDeclaration {
+impl From<Decl> for MemberDecl {
+    fn from(decl: Decl) -> Self {
+        MemberDecl {
             name: decl.name,
             ty: decl.ty,
             offset: None,
@@ -274,7 +274,7 @@ impl From<Declaration> for MemberDeclaration {
     }
 }
 
-impl fmt::Debug for MemberDeclaration {
+impl fmt::Debug for MemberDecl {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:?} {}", self.ty, self.name)
     }

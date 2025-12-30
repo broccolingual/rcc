@@ -3,7 +3,7 @@ use core::fmt;
 use crate::errors::CompileError;
 use crate::node::Node;
 use crate::symbol::{FlatTable, ScopedTable, Symbol, Variable};
-use crate::types::{AlignUp, Declaration, Type, TypeKind};
+use crate::types::{AlignUp, Decl, Type, TypeKind};
 
 struct StackFrame {
     next_offset: usize,
@@ -35,7 +35,7 @@ impl StackFrame {
 }
 
 #[derive(Debug)]
-pub(crate) struct Function {
+pub(crate) struct Func {
     pub(crate) name: String,
     pub(crate) body: Vec<Node>,
     pub(crate) locals: Vec<Variable>,
@@ -46,9 +46,9 @@ pub(crate) struct Function {
     pub(crate) return_ty: Type,
 }
 
-impl Function {
+impl Func {
     pub(crate) fn new(name: &str) -> Self {
-        Function {
+        Func {
             name: name.to_string(),
             body: Vec::new(),
             locals: Vec::new(),
@@ -61,7 +61,7 @@ impl Function {
     }
 }
 
-impl Function {
+impl Func {
     // スタックフレームのサイズを取得
     pub(crate) fn get_stack_size(&self) -> usize {
         self.stack_frame.next_offset.align_up(16) // 16バイトアラインメント
@@ -77,9 +77,9 @@ impl Function {
         self.local_tag_table.leave_scope();
     }
 
-    pub(crate) fn register_param(&mut self, decl: Declaration) -> Result<(), CompileError> {
+    pub(crate) fn register_param(&mut self, decl: Decl) -> Result<(), CompileError> {
         if self.param_symbol_table.find(&decl.name).is_some() {
-            return Err(CompileError::Redeclaration {
+            return Err(CompileError::Redecl {
                 name: decl.name,
                 span: decl.span,
             });
@@ -98,13 +98,13 @@ impl Function {
         self.param_symbol_table.iter()
     }
 
-    pub(crate) fn register_local_var(&mut self, decl: Declaration) -> Result<(), CompileError> {
+    pub(crate) fn register_local_var(&mut self, decl: Decl) -> Result<(), CompileError> {
         if self
             .local_symbol_table
             .find_in_current_scope(&decl.name)
             .is_some()
         {
-            return Err(CompileError::Redeclaration {
+            return Err(CompileError::Redecl {
                 name: decl.name,
                 span: decl.span,
             });
@@ -134,7 +134,7 @@ impl Function {
         span: (usize, usize),
     ) -> Result<(), CompileError> {
         if self.local_tag_table.find_in_current_scope(&name).is_some() {
-            return Err(CompileError::Redeclaration { name, span });
+            return Err(CompileError::Redecl { name, span });
         }
         self.local_tag_table.insert(name, ty);
         Ok(())
