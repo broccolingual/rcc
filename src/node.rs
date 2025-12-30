@@ -529,32 +529,57 @@ impl Node {
     }
 
     pub(crate) fn new_scaled_add(lhs: Box<Node>, rhs: Box<Node>) -> Result<Self, CompileError> {
-        let rhs = if lhs.ty.is_ptr() || lhs.ty.is_array() {
+        // 左辺がポインタ/配列、右辺がスカラーの場合: ptr + n -> ptr + (n * sizeof(*ptr))
+        if (lhs.ty.is_ptr() || lhs.ty.is_array()) && rhs.ty.is_scalar() {
             let base_size = lhs.ty.base_type().size_of();
-            // ポインタ加算の場合、右辺をスケーリングする
-            Box::new(Node::new_binary(
+            let scaled_rhs = Box::new(Node::new_binary(
                 BinaryOp::Mul,
                 rhs,
                 Box::new(Node::new_num(base_size as i64)),
-            )?)
-        } else {
-            rhs
-        };
-        Node::new_binary(BinaryOp::Add, lhs, rhs)
+            )?);
+            Node::new_binary(BinaryOp::Add, lhs, scaled_rhs)
+        }
+        // 右辺がポインタ/配列、左辺がスカラーの場合: n + ptr -> (n * sizeof(*ptr)) + ptr
+        else if lhs.ty.is_scalar() && (rhs.ty.is_ptr() || rhs.ty.is_array()) {
+            let base_size = rhs.ty.base_type().size_of();
+            let scaled_lhs = Box::new(Node::new_binary(
+                BinaryOp::Mul,
+                lhs,
+                Box::new(Node::new_num(base_size as i64)),
+            )?);
+            Node::new_binary(BinaryOp::Add, scaled_lhs, rhs)
+        }
+        // 両方ともスカラーの場合: 通常の加算
+        else {
+            Node::new_binary(BinaryOp::Add, lhs, rhs)
+        }
     }
 
     pub(crate) fn new_scaled_sub(lhs: Box<Node>, rhs: Box<Node>) -> Result<Self, CompileError> {
-        let rhs = if lhs.ty.is_ptr() || lhs.ty.is_array() {
+        // ポインタ同士の減算: ptr1 - ptr2 -> (ptr1 - ptr2) / sizeof(*ptr)
+        if (lhs.ty.is_ptr() || lhs.ty.is_array()) && (rhs.ty.is_ptr() || rhs.ty.is_array()) {
             let base_size = lhs.ty.base_type().size_of();
-            // ポインタ減算の場合、右辺をスケーリングする
-            Box::new(Node::new_binary(
+            let sub_result = Box::new(Node::new_binary(BinaryOp::Sub, lhs, rhs)?);
+            // 結果をsizeofで割って要素数の差にする
+            Node::new_binary(
+                BinaryOp::Div,
+                sub_result,
+                Box::new(Node::new_num(base_size as i64)),
+            )
+        }
+        // 左辺がポインタ/配列、右辺がスカラーの場合: ptr - n -> ptr - (n * sizeof(*ptr))
+        else if (lhs.ty.is_ptr() || lhs.ty.is_array()) && rhs.ty.is_scalar() {
+            let base_size = lhs.ty.base_type().size_of();
+            let scaled_rhs = Box::new(Node::new_binary(
                 BinaryOp::Mul,
                 rhs,
                 Box::new(Node::new_num(base_size as i64)),
-            )?)
-        } else {
-            rhs
-        };
-        Node::new_binary(BinaryOp::Sub, lhs, rhs)
+            )?);
+            Node::new_binary(BinaryOp::Sub, lhs, scaled_rhs)
+        }
+        // 両方ともスカラーの場合: 通常の減算
+        else {
+            Node::new_binary(BinaryOp::Sub, lhs, rhs)
+        }
     }
 }
