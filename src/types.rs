@@ -187,11 +187,7 @@ impl Type {
 
     // 型がポインタかどうか
     pub(crate) fn is_ptr(&self) -> bool {
-        match &self.kind {
-            TypeKind::Ptr { .. } => true,
-            TypeKind::Func { return_ty, .. } => return_ty.is_ptr(),
-            _ => false,
-        }
+        matches!(&self.kind, TypeKind::Ptr { .. })
     }
 
     // 型が配列かどうか
@@ -201,20 +197,15 @@ impl Type {
 
     // 型が整数型かどうか
     pub(crate) fn is_integer(&self) -> bool {
-        match &self.kind {
-            TypeKind::Char | TypeKind::Short | TypeKind::Int | TypeKind::Long => true,
-            TypeKind::Func { return_ty, .. } => return_ty.is_integer(),
-            _ => false,
-        }
+        matches!(
+            &self.kind,
+            TypeKind::Char | TypeKind::Short | TypeKind::Int | TypeKind::Long
+        )
     }
 
     // 型が浮動小数点型かどうか
     pub(crate) fn is_floating_point(&self) -> bool {
-        match &self.kind {
-            TypeKind::Float | TypeKind::Double => true,
-            TypeKind::Func { return_ty, .. } => return_ty.is_floating_point(),
-            _ => false,
-        }
+        matches!(&self.kind, TypeKind::Float | TypeKind::Double)
     }
 
     // 型がスカラー型かどうか（整数型または浮動小数点型）

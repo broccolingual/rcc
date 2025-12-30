@@ -612,6 +612,7 @@ impl Ast {
                 }
                 self.expect_punctuator("]")?;
             } else if self.consume_punctuator("(").is_some() {
+                // 関数呼び出し
                 let args = self.argument_expr_list()?;
                 self.expect_punctuator(")")?;
                 let func_name = if let Some(n) = &node
