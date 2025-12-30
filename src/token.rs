@@ -16,12 +16,12 @@ pub(crate) const KEYWORDS: [&str; 34] = [
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub(crate) enum TokenKind {
-    Punct(String), // 記号トークン
-    Keyword(String),    // キーワード
-    Ident(String), // 識別子
-    Number(i64),        // 整数トークン
-    String(String),     // 文字列リテラルトークン
-    Eof,                // 入力の終わりを表すトークン
+    Punct(String),   // 記号トークン
+    Keyword(String), // キーワード
+    Ident(String),   // 識別子
+    Number(i64),     // 整数トークン
+    String(String),  // 文字列リテラルトークン
+    Eof,             // 入力の終わりを表すトークン
 }
 
 #[derive(Clone, PartialEq, Eq)]

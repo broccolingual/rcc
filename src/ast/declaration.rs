@@ -546,7 +546,19 @@ impl<'a> Ast<'a> {
         // "[" type_qual_list? assign_expr? "]"
         if self.consume_punct("[").is_some() {
             self.type_qual_list(); // 現状は型修飾子を無視
-            let array_size = self.expect_number()? as usize; // TODO: assign_exprに置き換え
+            let array_size = if self.peek_punct("]") {
+                0
+            } else {
+                self.assign_expr()?
+                    .ok_or_else(|| {
+                        let span = self.get_prev_token_span().unwrap_or((0, 0));
+                        CompileError::InvalidDecl {
+                            msg: "配列のサイズが必要です".to_string(),
+                            span,
+                        }
+                    })?
+                    .eval_const_expr()? as usize
+            };
             self.expect_punct("]")?;
             let inner_ty = self.parse_abst_postfix_declarators(base_ty)?;
             Ok(Type::from(

@@ -216,24 +216,6 @@ impl<'a> Ast<'a> {
         self.expect(&TokenKind::Keyword(word.to_string()))
     }
 
-    fn expect_number(&mut self) -> Result<i64, CompileError> {
-        match self.get_token() {
-            Some(token) => {
-                if let TokenKind::Number(val) = &token.kind {
-                    let val_clone = *val;
-                    self.advance_token();
-                    return Ok(val_clone);
-                }
-                Err(CompileError::UnexpectedToken {
-                    expected: TokenKind::Number(0),
-                    found: token.kind.clone(),
-                    span: token.span,
-                })
-            }
-            _ => Err(CompileError::UnexpectedEof),
-        }
-    }
-
     fn peek_punct(&mut self, sym: &str) -> bool {
         match self.get_token() {
             Some(token) => matches!(&token.kind, TokenKind::Punct(s) if s == sym),
