@@ -141,6 +141,7 @@ impl Ast {
                 return Ok(Some(struct_ty.kind));
             } else if !struct_name.is_empty() {
                 // 既存の構造体タグを検索
+                // 現在の関数のスコープ内を優先して検索（無い場合はグローバルスコープを検索）
                 let struct_ty = self
                     .current_func
                     .as_ref()

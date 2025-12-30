@@ -637,7 +637,7 @@ impl Ast {
                     msg: "構造体ポインタがありません".to_string(),
                 })?;
                 // ポインタであることを確認
-                if !ptr.ty.is_ptr() {
+                if !(ptr.ty.is_ptr() || ptr.ty.is_array()) {
                     return Err(CompileError::InvalidExpression {
                         msg: format!(
                             "型 '{:?}' はポインタではないため、'->'演算子を使用できません",
