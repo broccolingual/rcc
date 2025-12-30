@@ -53,25 +53,23 @@ fn main() {
     let tokens = match lexer.tokenize(&args.input) {
         Ok(tokens) => tokens,
         Err(e) => {
-            eprintln!("Lexer Error: {}", e);
+            eprintln!("{}", e.format_error(&args.input));
             return;
         }
     };
     let mut ast = Ast::new(&tokens);
     if let Err(e) = ast.translation_unit() {
-        eprintln!("Parser Error: {}", e);
+        eprintln!("{}", e.format_error(&args.input));
         return;
     }
 
     let mut generator = Generator::default();
     if let Err(e) = generator.gen_asm(&ast) {
-        eprintln!("Compile Error: {}", e);
+        eprintln!("{}", e.format_error(&args.input));
         return;
     }
 
     if args.debug {
-        // println!("=== Tokens ===");
-        // println!("{:#?}", tokens);
         println!("=== Global Variables ===");
         println!("{:#?}", ast.globals);
         println!("=== Functions ===");

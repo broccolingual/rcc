@@ -798,12 +798,14 @@ impl<'a> Ast<'a> {
             return Ok(args);
         }
 
-        while self.consume_punctuator(",").is_some() {
+        while let Some(token) = self.consume_punctuator(",") {
+            let span = token.span;
             if let Some(arg) = self.assign_expr()? {
                 args.push(*arg);
             } else {
-                return Err(CompileError::InternalError {
+                return Err(CompileError::InvalidExpression {
                     msg: "関数呼び出しの引数リストのパースに失敗しました".to_string(),
+                    span,
                 })?;
             }
         }

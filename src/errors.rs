@@ -49,47 +49,125 @@ impl fmt::Display for CompileError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             CompileError::UnexpectedToken {
-                expected,
-                found,
-                span,
+                expected, found, ..
             } => {
                 write!(
                     f,
-                    "unexpected token: [expected] {:?}, [found] {:?} at {:?}",
-                    expected, found, span
+                    "Unexpected token: [expected] {:?}, [found] {:?}",
+                    expected, found
                 )
             }
-            CompileError::MissingToken { found, span } => {
-                write!(f, "missing token: {} at {:?}", found, span)
+            CompileError::MissingToken { found, .. } => {
+                write!(f, "Missing token: {}", found)
             }
-            CompileError::UndefinedIdentifier { name, span } => {
-                write!(f, "undefined identifier: '{}' at {:?}", name, span)
+            CompileError::UndefinedIdentifier { name, .. } => {
+                write!(f, "Undefined identifier: '{}'", name)
             }
-            CompileError::ReadOnlyLvalue { name, span } => {
-                write!(
-                    f,
-                    "attempt to assign to read-only variable: '{}' at {:?}",
-                    name, span
-                )
+            CompileError::ReadOnlyLvalue { name, .. } => {
+                write!(f, "Attempt to assign to read-only variable: '{}'", name)
             }
-            CompileError::Redeclaration { name, span } => {
-                write!(f, "redeclaration of variable: '{}' at {:?}", name, span)
+            CompileError::Redeclaration { name, .. } => {
+                write!(f, "Redeclaration of variable: '{}'", name)
             }
-            CompileError::InvalidExpression { msg, span } => {
-                write!(f, "invalid expression: {} at {:?}", msg, span)
+            CompileError::InvalidExpression { msg, .. } => {
+                write!(f, "Invalid expression: {}", msg)
             }
-            CompileError::InvalidStatement { msg, span } => {
-                write!(f, "invalid statement: {} at {:?}", msg, span)
+            CompileError::InvalidStatement { msg, .. } => {
+                write!(f, "Invalid statement: {}", msg)
             }
             CompileError::InvalidDeclaration { msg } => {
-                write!(f, "invalid declaration: {}", msg)
+                write!(f, "Invalid declaration: {}", msg)
             }
             CompileError::UnexpectedEof => {
-                write!(f, "unexpected end of file")
+                write!(f, "Unexpected end of file")
             }
             CompileError::InternalError { msg } => {
-                write!(f, "internal error: {}", msg)
+                write!(f, "Internal error: {}", msg)
             }
         }
+    }
+}
+
+impl CompileError {
+    pub(crate) fn format_error(&self, source: &str) -> String {
+        let span = match self {
+            CompileError::UnexpectedToken { span, .. }
+            | CompileError::MissingToken { span, .. }
+            | CompileError::UndefinedIdentifier { span, .. }
+            | CompileError::ReadOnlyLvalue { span, .. }
+            | CompileError::Redeclaration { span, .. }
+            | CompileError::InvalidExpression { span, .. }
+            | CompileError::InvalidStatement { span, .. } => Some(*span),
+            _ => None,
+        };
+
+        if let Some(span) = span {
+            self.format_error_with_source(source, span)
+        } else {
+            format!("{}", self)
+        }
+    }
+
+    fn format_error_with_source(&self, source: &str, span: (usize, usize)) -> String {
+        let (start, end) = span;
+        let (line_num, col_num) = self.get_line_and_column(source, start);
+        let line_content = self.get_line_content(source, line_num);
+
+        // 基本エラーメッセージ
+        let error_msg = format!("{}", self);
+
+        // 位置情報
+        let location = format!("\n  --> line {}:{}", line_num, col_num);
+
+        // ソースコード行の表示
+        let line_num_width = line_num.to_string().len();
+        let line_display = format!("\n{:>width$} |", "", width = line_num_width);
+        let source_line = format!(
+            "\n{:>width$} | {}",
+            line_num,
+            line_content,
+            width = line_num_width
+        );
+
+        // エラー箇所を示す矢印
+        let error_length = if end > start { end - start } else { 1 };
+        let arrow_padding = " ".repeat(col_num - 1);
+        let arrows =
+            "^".repeat(error_length.min(line_content.len().saturating_sub(col_num - 1).max(1)));
+        let arrow_line = format!(
+            "\n{:>width$} | {}{}",
+            "",
+            arrow_padding,
+            arrows,
+            width = line_num_width
+        );
+
+        format!(
+            "{}{}{}{}{}",
+            error_msg, location, line_display, source_line, arrow_line
+        )
+    }
+
+    fn get_line_and_column(&self, source: &str, pos: usize) -> (usize, usize) {
+        let mut line = 1;
+        let mut col = 1;
+
+        for (i, ch) in source.char_indices() {
+            if i >= pos {
+                break;
+            }
+            if ch == '\n' {
+                line += 1;
+                col = 1;
+            } else {
+                col += 1;
+            }
+        }
+
+        (line, col)
+    }
+
+    fn get_line_content<'a>(&self, source: &'a str, line_num: usize) -> &'a str {
+        source.lines().nth(line_num.saturating_sub(1)).unwrap_or("")
     }
 }
