@@ -246,6 +246,7 @@ pub(crate) struct Declaration {
     pub(crate) name: String,
     pub(crate) ty: Type,
     pub(crate) init: Vec<Node>,
+    pub(crate) span: (usize, usize),
 }
 
 impl fmt::Debug for Declaration {
@@ -259,6 +260,7 @@ pub(crate) struct MemberDeclaration {
     pub(crate) name: String,
     pub(crate) ty: Type,
     pub(crate) offset: Option<usize>,
+    pub(crate) span: (usize, usize),
 }
 
 impl From<Declaration> for MemberDeclaration {
@@ -267,6 +269,7 @@ impl From<Declaration> for MemberDeclaration {
             name: decl.name,
             ty: decl.ty,
             offset: None,
+            span: decl.span,
         }
     }
 }

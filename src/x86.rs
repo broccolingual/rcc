@@ -71,7 +71,7 @@ impl Generator {
             4 => "long",
             8 => "quad",
             _ => {
-                return Err(CompileError::InvalidExpression {
+                return Err(CompileError::InternalError {
                     msg: format!("不正なデータサイズ: {}", size),
                 });
             }
@@ -133,6 +133,7 @@ impl Generator {
                                         "グローバル変数の初期化式にローカル変数のアドレスは使用できません: {}",
                                         name
                                     ),
+                                    span: expr.span,
                                 });
                             }
                         }
@@ -142,6 +143,7 @@ impl Generator {
                                     "未対応のグローバル変数初期化式のアドレス指定: {:?}",
                                     expr.kind
                                 ),
+                                span: expr.span,
                             });
                         }
                     },
@@ -179,6 +181,7 @@ impl Generator {
                                     "グローバル変数の初期化式にローカル変数のアドレスは使用できません: {}",
                                     name
                                 ),
+                                span: expr.span,
                             });
                         }
                     }
@@ -188,6 +191,7 @@ impl Generator {
                                 "未対応のグローバル変数初期化式のアドレス指定: {:?}",
                                 expr.kind
                             ),
+                            span: expr.span,
                         });
                     }
                 },
@@ -202,6 +206,7 @@ impl Generator {
         } else {
             return Err(CompileError::InvalidExpression {
                 msg: format!("スカラー変数の初期化式が複数あります: {}", symbol.name),
+                span: init[0].span,
             });
         }
         Ok(())
@@ -331,6 +336,7 @@ impl Generator {
         } else {
             return Err(CompileError::InvalidExpression {
                 msg: format!("スカラー変数の初期化式が複数あります: {}", symbol.name),
+                span: init[0].span,
             });
         }
         Ok(())
@@ -369,6 +375,7 @@ impl Generator {
             _ => {
                 return Err(CompileError::InvalidExpression {
                     msg: format!("アドレスを取得できない式です: {:?}", node.kind),
+                    span: node.span,
                 });
             }
         }
@@ -384,7 +391,7 @@ impl Generator {
             4 => "movsxd rax, DWORD PTR [rax]",
             8 => "mov rax, QWORD PTR [rax]",
             _ => {
-                return Err(CompileError::InvalidExpression {
+                return Err(CompileError::InternalError {
                     msg: format!("不正なロードサイズ: {}", ty.size_of()),
                 });
             }
@@ -404,7 +411,7 @@ impl Generator {
             4 => "mov DWORD PTR [rax], edi",
             8 => "mov QWORD PTR [rax], rdi",
             _ => {
-                return Err(CompileError::InvalidExpression {
+                return Err(CompileError::InternalError {
                     msg: format!("不正なストアサイズ: {}", ty.size_of()),
                 });
             }

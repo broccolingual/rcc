@@ -4,10 +4,10 @@ mod statement;
 
 use crate::errors::CompileError;
 use crate::function::Function;
-use crate::node::{Node, NodeKind};
+use crate::node::NodeKind;
 use crate::symbol::{FlatTable, Symbol, Variable};
 use crate::token::{Token, TokenKind};
-use crate::types::{Type, TypeKind};
+use crate::types::{Declaration, Type, TypeKind};
 
 pub(crate) struct Ast<'a> {
     tokens: &'a [Token],
@@ -46,28 +46,36 @@ impl<'a> Ast<'a> {
             })
     }
 
+    fn get_prev_token_span(&self) -> Option<(usize, usize)> {
+        self.token_pos
+            .checked_sub(1)
+            .and_then(|pos| self.tokens.get(pos))
+            .map(|token| token.span)
+    }
+
     fn register_string_literal(&mut self, s: &str) -> usize {
         let index = self.string_literals.len();
         self.string_literals.push(s.to_string());
         index
     }
 
-    fn register_global_var(
-        &mut self,
-        name: String,
-        ty: Type,
-        init: Vec<Node>,
-    ) -> Result<(), CompileError> {
-        if self.global_symbol_table.find(&name).is_some() {
-            return Err(CompileError::Redeclaration { name });
+    fn register_global_var(&mut self, decl: Declaration) -> Result<(), CompileError> {
+        if self.global_symbol_table.find(&decl.name).is_some() {
+            return Err(CompileError::Redeclaration {
+                name: decl.name,
+                span: decl.span,
+            });
         }
         let symbol = Symbol {
-            name: name.clone(),
-            ty,
+            name: decl.name.clone(),
+            ty: decl.ty,
             offset: 0,
         };
-        let symbol_id = self.global_symbol_table.insert(name.clone(), symbol);
-        self.globals.push(Variable { symbol_id, init });
+        let symbol_id = self.global_symbol_table.insert(decl.name.clone(), symbol);
+        self.globals.push(Variable {
+            symbol_id,
+            init: decl.init,
+        });
         Ok(())
     }
 
@@ -75,9 +83,14 @@ impl<'a> Ast<'a> {
         self.global_symbol_table.find(name)
     }
 
-    fn register_struct_tag(&mut self, name: String, ty: Type) -> Result<(), CompileError> {
+    fn register_struct_tag(
+        &mut self,
+        name: String,
+        ty: Type,
+        span: (usize, usize),
+    ) -> Result<(), CompileError> {
         if self.global_tag_table.find(&name).is_some() {
-            return Err(CompileError::Redeclaration { name });
+            return Err(CompileError::Redeclaration { name, span });
         }
         self.global_tag_table.insert(name, ty);
         Ok(())
@@ -134,7 +147,8 @@ impl<'a> Ast<'a> {
         self.consume(&TokenKind::Keyword(word.to_string()))
     }
 
-    fn consume_ident(&mut self) -> Option<String> {
+    fn consume_ident(&mut self) -> Option<(String, &Token)> {
+        let token_pos = self.token_pos;
         match self.get_token() {
             Some(Token {
                 kind: TokenKind::Identifier(name),
@@ -142,13 +156,14 @@ impl<'a> Ast<'a> {
             }) => {
                 let name_clone = name.clone();
                 self.advance_token();
-                Some(name_clone)
+                Some((name_clone, &self.tokens[token_pos]))
             }
             _ => None,
         }
     }
 
-    fn consume_string(&mut self) -> Option<String> {
+    fn consume_string(&mut self) -> Option<(String, &Token)> {
+        let token_pos = self.token_pos;
         match self.get_token() {
             Some(Token {
                 kind: TokenKind::String(s),
@@ -156,21 +171,22 @@ impl<'a> Ast<'a> {
             }) => {
                 let s_clone = s.clone();
                 self.advance_token();
-                Some(s_clone)
+                Some((s_clone, &self.tokens[token_pos]))
             }
             _ => None,
         }
     }
 
-    fn consume_number(&mut self) -> Option<i64> {
+    fn consume_number(&mut self) -> Option<(i64, &Token)> {
+        let token_pos = self.token_pos;
         match self.get_token() {
             Some(Token {
                 kind: TokenKind::Number(val),
                 ..
             }) => {
-                let val_clone = *val;
+                let val = *val;
                 self.advance_token();
-                Some(val_clone)
+                Some((val, &self.tokens[token_pos]))
             }
             _ => None,
         }
@@ -258,12 +274,15 @@ impl<'a> Ast<'a> {
         // グローバル変数宣言
         if let Some(declarations) = self.declaration()? {
             for declaration in declarations {
-                self.register_global_var(declaration.name, declaration.ty, declaration.init)?;
+                self.register_global_var(declaration)?;
             }
             return Ok(());
         }
+        let span = self.get_prev_token_span().unwrap_or((0, 0));
         Err(CompileError::InvalidDeclaration {
-            msg: "外部宣言のパースに失敗しました".to_string(),
+            msg: "外部宣言のパースに失敗しました。関数定義またはグローバル変数宣言が必要です"
+                .to_string(),
+            span,
         })
     }
 
@@ -273,15 +292,18 @@ impl<'a> Ast<'a> {
         if specifiers.is_empty() {
             return Ok(None);
         }
-        let base_ty =
-            Type::from_ds(specifiers).ok_or_else(|| CompileError::InvalidDeclaration {
-                msg: "関数の基本型の解決に失敗しました".to_string(),
-            })?;
+        let base_ty = Type::from_ds(specifiers).ok_or_else(|| {
+            let span = self.get_prev_token_span().unwrap_or((0, 0));
+            CompileError::InvalidDeclaration {
+                msg: "関数の基本型の解決に失敗しました。無効な型指定子の組み合わせです".to_string(),
+                span,
+            }
+        })?;
         let func_decl = self.declarator(&base_ty)?;
         let mut func = Function::new(&func_decl.name);
         if let TypeKind::Func { params, return_ty } = func_decl.ty.kind {
-            for param in params {
-                func.register_param(param.name, param.ty)?;
+            for param_decl in params {
+                func.register_param(param_decl)?;
             }
             func.return_ty = *return_ty;
         } else {
@@ -302,8 +324,11 @@ impl<'a> Ast<'a> {
         if let NodeKind::Block { body } = func_body.kind {
             func.body = body;
         } else {
+            let span = func_body.span;
             return Err(CompileError::InvalidDeclaration {
-                msg: "関数本体がブロックではありません".to_string(),
+                msg: "関数本体がブロックではありません。'{' と '}' で囲まれた複合文が必要です"
+                    .to_string(),
+                span,
             });
         }
         self.current_func = None; // 関数の登録が終わったら現在の関数をクリア

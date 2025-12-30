@@ -3,7 +3,7 @@ use core::fmt;
 use crate::errors::CompileError;
 use crate::node::Node;
 use crate::symbol::{FlatTable, ScopedTable, Symbol, Variable};
-use crate::types::{AlignUp, Type, TypeKind};
+use crate::types::{AlignUp, Declaration, Type, TypeKind};
 
 struct StackFrame {
     next_offset: usize,
@@ -77,13 +77,16 @@ impl Function {
         self.local_tag_table.leave_scope();
     }
 
-    pub(crate) fn register_param(&mut self, name: String, ty: Type) -> Result<(), CompileError> {
-        if self.param_symbol_table.find(&name).is_some() {
-            return Err(CompileError::Redeclaration { name });
+    pub(crate) fn register_param(&mut self, decl: Declaration) -> Result<(), CompileError> {
+        if self.param_symbol_table.find(&decl.name).is_some() {
+            return Err(CompileError::Redeclaration {
+                name: decl.name,
+                span: decl.span,
+            });
         }
-        let offset = self.stack_frame.alloc(&ty);
-        let symbol = Symbol::new(&name, ty, offset);
-        self.param_symbol_table.insert(name, symbol);
+        let offset = self.stack_frame.alloc(&decl.ty);
+        let symbol = Symbol::new(&decl.name, decl.ty, offset);
+        self.param_symbol_table.insert(decl.name, symbol);
         Ok(())
     }
 
@@ -95,23 +98,24 @@ impl Function {
         self.param_symbol_table.iter()
     }
 
-    pub(crate) fn register_local_var(
-        &mut self,
-        name: String,
-        ty: Type,
-        init: Vec<Node>,
-    ) -> Result<(), CompileError> {
+    pub(crate) fn register_local_var(&mut self, decl: Declaration) -> Result<(), CompileError> {
         if self
             .local_symbol_table
-            .find_in_current_scope(&name)
+            .find_in_current_scope(&decl.name)
             .is_some()
         {
-            return Err(CompileError::Redeclaration { name });
+            return Err(CompileError::Redeclaration {
+                name: decl.name,
+                span: decl.span,
+            });
         }
-        let offset = self.stack_frame.alloc(&ty);
-        let symbol = Symbol::new(&name, ty, offset);
-        let symbol_id = self.local_symbol_table.insert(name, symbol);
-        self.locals.push(Variable { symbol_id, init });
+        let offset = self.stack_frame.alloc(&decl.ty);
+        let symbol = Symbol::new(&decl.name, decl.ty, offset);
+        let symbol_id = self.local_symbol_table.insert(decl.name, symbol);
+        self.locals.push(Variable {
+            symbol_id,
+            init: decl.init,
+        });
         Ok(())
     }
 
@@ -127,9 +131,10 @@ impl Function {
         &mut self,
         name: String,
         ty: Type,
+        span: (usize, usize),
     ) -> Result<(), CompileError> {
         if self.local_tag_table.find_in_current_scope(&name).is_some() {
-            return Err(CompileError::Redeclaration { name });
+            return Err(CompileError::Redeclaration { name, span });
         }
         self.local_tag_table.insert(name, ty);
         Ok(())
