@@ -33,7 +33,7 @@ impl<'a> Ast<'a> {
             {
                 let span = token.span;
                 let lhs = node.ok_or_else(|| CompileError::InvalidExpression {
-                    msg: "代入式の左辺値がありません".to_string(),
+                    msg: format!("代入演算子 '{}' の左辺に式がありません", assign_op_str),
                     span,
                 })?;
                 if let NodeKind::Var { name, .. } = &lhs.kind
@@ -47,7 +47,7 @@ impl<'a> Ast<'a> {
                 let rhs = self
                     .assign_expr()?
                     .ok_or_else(|| CompileError::InvalidExpression {
-                        msg: "代入式の右辺値がありません".to_string(),
+                        msg: format!("代入演算子 '{}' の右辺に式がありません", assign_op_str),
                         span,
                     })?;
                 node = Some(Box::new(Node::new_assign(kind, lhs, rhs, span)));
@@ -64,20 +64,20 @@ impl<'a> Ast<'a> {
         if let Some(token) = self.consume_punctuator("?") {
             let span = token.span;
             let cond = node.ok_or_else(|| CompileError::InvalidExpression {
-                msg: "三項演算子の条件式がありません".to_string(),
+                msg: "三項演算子 '?' の前に条件式がありません".to_string(),
                 span,
             })?;
             let then = self
                 .expr()?
                 .ok_or_else(|| CompileError::InvalidExpression {
-                    msg: "三項演算子のthenの場合の式がありません".to_string(),
+                    msg: "三項演算子の ':' の前に式がありません (true の場合の値)".to_string(),
                     span,
                 })?;
             self.expect_punctuator(":")?;
             let els = self
                 .cond_expr()?
                 .ok_or_else(|| CompileError::InvalidExpression {
-                    msg: "三項演算子のelseの場合の式がありません".to_string(),
+                    msg: "三項演算子の ':' の後に式がありません (false の場合の値)".to_string(),
                     span,
                 })?;
             return Ok(Some(Box::new(Node::new_ternary(cond, then, els, span)?)));
@@ -644,7 +644,7 @@ impl<'a> Ast<'a> {
         if !obj.ty.is_struct() {
             return Err(CompileError::InvalidExpression {
                 msg: format!(
-                    "型 '{:?}' は構造体ではないため、メンバアクセスできません",
+                    "型 '{:?}' は構造体型ではありません。メンバアクセス演算子 '.' は構造体型にのみ使用できます",
                     obj.ty
                 ),
                 span,
@@ -653,7 +653,10 @@ impl<'a> Ast<'a> {
 
         let member_decl = obj.ty.find_struct_member(member_name).ok_or_else(|| {
             CompileError::InvalidExpression {
-                msg: format!("構造体に指定されたメンバ {} が存在しません", member_name),
+                msg: format!(
+                    "構造体のメンバ '{}' が見つかりません。利用可能なメンバを確認してください",
+                    member_name
+                ),
                 span,
             }
         })?;
@@ -661,7 +664,7 @@ impl<'a> Ast<'a> {
             .offset
             .ok_or_else(|| CompileError::InternalError {
                 msg: format!(
-                    "構造体メンバ {:?} のオフセットが設定されていません",
+                    "構造体メンバ '{}' のオフセットが設定されていません",
                     member_name
                 ),
             })?;
@@ -754,7 +757,7 @@ impl<'a> Ast<'a> {
                 if !(ptr.ty.is_ptr() || ptr.ty.is_array()) {
                     return Err(CompileError::InvalidExpression {
                         msg: format!(
-                            "型 '{:?}' はポインタではないため、'->'演算子を使用できません",
+                            "型 '{:?}' はポインタ型または配列型ではありません。アロー演算子 '->' はポインタ型にのみ使用できます\n  ヒント: 通常の構造体変数には '.' 演算子を使用してください",
                             ptr.ty
                         ),
                         span: ptr.span,

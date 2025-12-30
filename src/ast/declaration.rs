@@ -13,10 +13,13 @@ impl<'a> Ast<'a> {
         if specifiers.is_empty() {
             return Ok(None);
         }
-        let base_ty =
-            Type::from_ds(specifiers).ok_or_else(|| CompileError::InvalidDeclaration {
+        let base_ty = Type::from_ds(specifiers).ok_or_else(|| {
+            let span = self.get_prev_token_span().unwrap_or((0, 0));
+            CompileError::InvalidDeclaration {
                 msg: "無効な型指定子です".to_string(),
-            })?;
+                span,
+            }
+        })?;
         let vars = self.init_declarator_list(&base_ty)?;
         if vars.is_empty() {
             return Ok(None);
@@ -156,13 +159,17 @@ impl<'a> Ast<'a> {
                 if let Some(ty) = struct_ty {
                     return Ok(Some(ty.kind.clone()));
                 } else {
+                    let span = self.get_prev_token_span().unwrap_or((0, 0));
                     return Err(CompileError::InvalidDeclaration {
-                        msg: format!("未宣言の構造体タグ: {}", struct_name),
+                        msg: format!("未宣言の構造体タグ: '{}'", struct_name),
+                        span,
                     });
                 }
             } else {
+                let span = self.get_prev_token_span().unwrap_or((0, 0));
                 return Err(CompileError::InvalidDeclaration {
                     msg: "無名構造体には定義が必要です".to_string(),
+                    span,
                 });
             }
         }
@@ -184,10 +191,13 @@ impl<'a> Ast<'a> {
         if specifiers.is_empty() {
             return Ok(None);
         }
-        let base_ty =
-            Type::from_tsq(specifiers).ok_or_else(|| CompileError::InvalidDeclaration {
+        let base_ty = Type::from_tsq(specifiers).ok_or_else(|| {
+            let span = self.get_prev_token_span().unwrap_or((0, 0));
+            CompileError::InvalidDeclaration {
                 msg: "無効な型指定子です".to_string(),
-            })?;
+                span,
+            }
+        })?;
         let members = self.struct_declarator_list(&base_ty)?;
         self.expect_punctuator(";")?;
         if members.is_empty() {
@@ -304,8 +314,10 @@ impl<'a> Ast<'a> {
             span = token.span;
             name
         } else {
+            let span = self.get_prev_token_span().unwrap_or((0, 0));
             return Err(CompileError::InvalidDeclaration {
                 msg: "識別子または括弧で囲まれた宣言子が必要です".to_string(),
+                span,
             });
         };
 
@@ -323,13 +335,16 @@ impl<'a> Ast<'a> {
         // "[" type_qualifier_list? assignment_expression? "]"
         if self.consume_punctuator("[").is_some() {
             self.type_qualifier_list(); // 現状は型修飾子を無視
-            // TODO: assign_exprに置き換え
             let array_size = if self.peek_punctuator("]") {
                 0
             } else {
                 self.assign_expr()?
-                    .ok_or_else(|| CompileError::InvalidDeclaration {
-                        msg: "配列のサイズが必要です".to_string(),
+                    .ok_or_else(|| {
+                        let span = self.get_prev_token_span().unwrap_or((0, 0));
+                        CompileError::InvalidDeclaration {
+                            msg: "配列のサイズが必要です".to_string(),
+                            span,
+                        }
                     })?
                     .eval_const_expr()? as usize
             };
@@ -389,16 +404,21 @@ impl<'a> Ast<'a> {
     fn parameter_declaration(&mut self) -> Result<Declaration, CompileError> {
         let specifiers = self.declaration_specifiers()?;
         if !specifiers.is_empty() {
-            let base_kind =
-                Type::from_ds(specifiers).ok_or_else(|| CompileError::InvalidDeclaration {
+            let base_kind = Type::from_ds(specifiers).ok_or_else(|| {
+                let span = self.get_prev_token_span().unwrap_or((0, 0));
+                CompileError::InvalidDeclaration {
                     msg: "無効な型指定子です".to_string(),
-                })?;
+                    span,
+                }
+            })?;
             if let Ok(declaration) = self.declarator(&base_kind) {
                 return Ok(declaration);
             }
         }
+        let span = self.get_prev_token_span().unwrap_or((0, 0));
         Err(CompileError::InvalidDeclaration {
             msg: "無効なパラメータ宣言です".to_string(),
+            span,
         })
     }
 
@@ -406,14 +426,19 @@ impl<'a> Ast<'a> {
     pub(super) fn type_name(&mut self) -> Result<Type, CompileError> {
         let specifiers = self.specifier_qualifier_list()?;
         if specifiers.is_empty() {
+            let span = self.get_prev_token_span().unwrap_or((0, 0));
             return Err(CompileError::InvalidDeclaration {
                 msg: "無効な型名です".to_string(),
+                span,
             });
         }
-        let base_ty =
-            Type::from_tsq(specifiers).ok_or_else(|| CompileError::InvalidDeclaration {
+        let base_ty = Type::from_tsq(specifiers).ok_or_else(|| {
+            let span = self.get_prev_token_span().unwrap_or((0, 0));
+            CompileError::InvalidDeclaration {
                 msg: "無効な型指定子です".to_string(),
-            })?;
+                span,
+            }
+        })?;
         if let Ok(abstract_ty) = self.abstract_declarator(&base_ty) {
             return Ok(abstract_ty);
         }
@@ -485,7 +510,7 @@ impl<'a> Ast<'a> {
 
     // initializer ::= assignment_expr
     //                 | "{" initializer_list "}"
-    //                 | "{" initializer_list "," "}" // 未対応（initializer_listの処理と重複して問題が発生）
+    //                 | "{" initializer_list "," "}" // TODO: 未対応（initializer_listの処理と重複して問題が発生）
     fn initializer(&mut self) -> Result<Vec<Node>, CompileError> {
         if self.consume_punctuator("{").is_some() {
             let init_list = self.initializer_list()?;
@@ -493,8 +518,10 @@ impl<'a> Ast<'a> {
             return Ok(init_list);
         }
         Ok(vec![*self.assign_expr()?.ok_or_else(|| {
+            let span = self.get_prev_token_span().unwrap_or((0, 0));
             CompileError::InvalidDeclaration {
-                msg: "初期化式が必要です".to_string(),
+                msg: "初期化式が必要です。'= 定数式' の形式で初期値を指定してください".to_string(),
+                span,
             }
         })?])
     }

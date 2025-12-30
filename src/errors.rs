@@ -36,6 +36,7 @@ pub(crate) enum CompileError {
     },
     InvalidDeclaration {
         msg: String,
+        span: (usize, usize),
     },
     UnexpectedEof,
     InternalError {
@@ -53,36 +54,55 @@ impl fmt::Display for CompileError {
             } => {
                 write!(
                     f,
-                    "Unexpected token: [expected] {:?}, [found] {:?}",
+                    "Unexpected Token\n  Expected: {:?}\n  Found: {:?}",
                     expected, found
                 )
             }
             CompileError::MissingToken { found, .. } => {
-                write!(f, "Missing token: {}", found)
+                write!(f, "Missing Token: {}", found)
             }
             CompileError::UndefinedIdentifier { name, .. } => {
-                write!(f, "Undefined identifier: '{}'", name)
+                write!(
+                    f,
+                    "Undefined Identifier: '{}'\n  ヒント: 変数や関数が宣言されていない可能性があります",
+                    name
+                )
             }
             CompileError::ReadOnlyLvalue { name, .. } => {
-                write!(f, "Attempt to assign to read-only variable: '{}'", name)
+                write!(
+                    f,
+                    "Read-Only Lvalue: '{}'\n  ヒント: const修飾された変数には代入できません",
+                    name
+                )
             }
             CompileError::Redeclaration { name, .. } => {
-                write!(f, "Redeclaration of variable: '{}'", name)
+                write!(
+                    f,
+                    "Redeclaration: '{}'\n  ヒント: 同じスコープ内で同じ名前の変数を複数回宣言することはできません",
+                    name
+                )
             }
             CompileError::InvalidExpression { msg, .. } => {
-                write!(f, "Invalid expression: {}", msg)
+                write!(f, "Invalid Expression: {}", msg)
             }
             CompileError::InvalidStatement { msg, .. } => {
-                write!(f, "Invalid statement: {}", msg)
+                write!(f, "Invalid Statement: {}", msg)
             }
-            CompileError::InvalidDeclaration { msg } => {
-                write!(f, "Invalid declaration: {}", msg)
+            CompileError::InvalidDeclaration { msg, .. } => {
+                write!(f, "Invalid Declaration: {}", msg)
             }
             CompileError::UnexpectedEof => {
-                write!(f, "Unexpected end of file")
+                write!(
+                    f,
+                    "Unexpected End of File\n  ヒント: 閉じ括弧やセミコロンが不足している可能性があります"
+                )
             }
             CompileError::InternalError { msg } => {
-                write!(f, "Internal error: {}", msg)
+                write!(
+                    f,
+                    "Internal Error: {}\n  これはコンパイラのバグの可能性があります",
+                    msg
+                )
             }
         }
     }
@@ -97,7 +117,8 @@ impl CompileError {
             | CompileError::ReadOnlyLvalue { span, .. }
             | CompileError::Redeclaration { span, .. }
             | CompileError::InvalidExpression { span, .. }
-            | CompileError::InvalidStatement { span, .. } => Some(*span),
+            | CompileError::InvalidStatement { span, .. }
+            | CompileError::InvalidDeclaration { span, .. } => Some(*span),
             _ => None,
         };
 

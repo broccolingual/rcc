@@ -46,6 +46,14 @@ impl<'a> Ast<'a> {
             })
     }
 
+    fn get_prev_token_span(&self) -> Option<(usize, usize)> {
+        if self.token_pos == 0 {
+            None
+        } else {
+            self.tokens.get(self.token_pos - 1).map(|t| t.span)
+        }
+    }
+
     fn register_string_literal(&mut self, s: &str) -> usize {
         let index = self.string_literals.len();
         self.string_literals.push(s.to_string());
@@ -277,8 +285,11 @@ impl<'a> Ast<'a> {
             }
             return Ok(());
         }
+        let span = self.get_prev_token_span().unwrap_or((0, 0));
         Err(CompileError::InvalidDeclaration {
-            msg: "外部宣言のパースに失敗しました".to_string(),
+            msg: "外部宣言のパースに失敗しました。関数定義またはグローバル変数宣言が必要です"
+                .to_string(),
+            span,
         })
     }
 
@@ -288,10 +299,13 @@ impl<'a> Ast<'a> {
         if specifiers.is_empty() {
             return Ok(None);
         }
-        let base_ty =
-            Type::from_ds(specifiers).ok_or_else(|| CompileError::InvalidDeclaration {
-                msg: "関数の基本型の解決に失敗しました".to_string(),
-            })?;
+        let base_ty = Type::from_ds(specifiers).ok_or_else(|| {
+            let span = self.get_prev_token_span().unwrap_or((0, 0));
+            CompileError::InvalidDeclaration {
+                msg: "関数の基本型の解決に失敗しました。無効な型指定子の組み合わせです".to_string(),
+                span,
+            }
+        })?;
         let func_decl = self.declarator(&base_ty)?;
         let mut func = Function::new(&func_decl.name);
         if let TypeKind::Func { params, return_ty } = func_decl.ty.kind {
@@ -317,8 +331,11 @@ impl<'a> Ast<'a> {
         if let NodeKind::Block { body } = func_body.kind {
             func.body = body;
         } else {
+            let span = func_body.span;
             return Err(CompileError::InvalidDeclaration {
-                msg: "関数本体がブロックではありません".to_string(),
+                msg: "関数本体がブロックではありません。'{' と '}' で囲まれた複合文が必要です"
+                    .to_string(),
+                span,
             });
         }
         self.current_func = None; // 関数の登録が終わったら現在の関数をクリア
