@@ -3,10 +3,10 @@ mod expression;
 mod statement;
 
 use crate::errors::CompileError;
-use crate::function::Function;
+use crate::function::Func;
 use crate::symbol::{FlatTable, Symbol, Variable};
 use crate::token::{Token, TokenKind};
-use crate::types::{Declaration, Type};
+use crate::types::{Decl, Type};
 
 pub(crate) struct Ast<'a> {
     tokens: &'a [Token],
@@ -14,8 +14,8 @@ pub(crate) struct Ast<'a> {
     pub(crate) globals: Vec<Variable>,
     global_symbol_table: FlatTable<Symbol>,
     global_tag_table: FlatTable<Type>,
-    pub(crate) funcs: Vec<Function>,
-    current_func: Option<Function>,
+    pub(crate) funcs: Vec<Func>,
+    current_func: Option<Func>,
     pub(crate) string_literals: Vec<String>,
 }
 
@@ -37,7 +37,7 @@ impl<'a> Ast<'a> {
         self.global_symbol_table.items.get(symbol_id)
     }
 
-    fn get_current_func(&mut self) -> Result<&mut Function, CompileError> {
+    fn get_current_func(&mut self) -> Result<&mut Func, CompileError> {
         self.current_func
             .as_mut()
             .ok_or_else(|| CompileError::InternalError {
@@ -58,9 +58,9 @@ impl<'a> Ast<'a> {
         index
     }
 
-    fn register_global_var(&mut self, decl: Declaration) -> Result<(), CompileError> {
+    fn register_global_var(&mut self, decl: Decl) -> Result<(), CompileError> {
         if self.global_symbol_table.find(&decl.name).is_some() {
-            return Err(CompileError::Redeclaration {
+            return Err(CompileError::Redecl {
                 name: decl.name,
                 span: decl.span,
             });
@@ -89,7 +89,7 @@ impl<'a> Ast<'a> {
         span: (usize, usize),
     ) -> Result<(), CompileError> {
         if self.global_tag_table.find(&name).is_some() {
-            return Err(CompileError::Redeclaration { name, span });
+            return Err(CompileError::Redecl { name, span });
         }
         self.global_tag_table.insert(name, ty);
         Ok(())
@@ -100,7 +100,7 @@ impl<'a> Ast<'a> {
     }
 
     // 関数名から関数を検索し、戻り値の型を取得
-    fn get_function_return_type(&self, name: &str) -> Option<&Type> {
+    fn get_func_return_type(&self, name: &str) -> Option<&Type> {
         for func in &self.funcs {
             if func.name == name {
                 return Some(&func.return_ty);
@@ -138,8 +138,8 @@ impl<'a> Ast<'a> {
         None
     }
 
-    fn consume_punctuator(&mut self, sym: &str) -> Option<&Token> {
-        self.consume(&TokenKind::Punctuator(sym.to_string()))
+    fn consume_punct(&mut self, sym: &str) -> Option<&Token> {
+        self.consume(&TokenKind::Punct(sym.to_string()))
     }
 
     fn consume_keyword(&mut self, word: &str) -> Option<&Token> {
@@ -150,7 +150,7 @@ impl<'a> Ast<'a> {
         let token_pos = self.token_pos;
         match self.get_token() {
             Some(Token {
-                kind: TokenKind::Identifier(name),
+                kind: TokenKind::Ident(name),
                 ..
             }) => {
                 let name_clone = name.clone();
@@ -208,8 +208,8 @@ impl<'a> Ast<'a> {
         }
     }
 
-    fn expect_punctuator(&mut self, sym: &str) -> Result<(), CompileError> {
-        self.expect(&TokenKind::Punctuator(sym.to_string()))
+    fn expect_punct(&mut self, sym: &str) -> Result<(), CompileError> {
+        self.expect(&TokenKind::Punct(sym.to_string()))
     }
 
     fn expect_keyword(&mut self, word: &str) -> Result<(), CompileError> {
@@ -234,9 +234,9 @@ impl<'a> Ast<'a> {
         }
     }
 
-    fn peek_punctuator(&mut self, sym: &str) -> bool {
+    fn peek_punct(&mut self, sym: &str) -> bool {
         match self.get_token() {
-            Some(token) => matches!(&token.kind, TokenKind::Punctuator(s) if s == sym),
+            Some(token) => matches!(&token.kind, TokenKind::Punct(s) if s == sym),
             _ => false,
         }
     }
@@ -252,10 +252,10 @@ impl<'a> Ast<'a> {
             )
     }
 
-    // translation_unit ::= external_declaration*
+    // translation_unit ::= external_decl*
     pub(crate) fn translation_unit(&mut self) -> Result<(), CompileError> {
         while !self.at_eof() {
-            self.external_declaration()?;
+            self.external_decl()?;
         }
         Ok(())
     }

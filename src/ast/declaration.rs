@@ -1,29 +1,29 @@
 use crate::ast::Ast;
 use crate::errors::CompileError;
-use crate::function::Function;
+use crate::function::Func;
 use crate::node::{Node, NodeKind};
 use crate::types::{
-    Declaration, DeclarationSpecifier, FunctionKind, MemberDeclaration, StorageClassKind, Type,
-    TypeKind, TypeQualifierKind, TypeSpecifierQualifier,
+    Decl, DeclSpec, FuncKind, MemberDecl, StorageClassKind, Type, TypeKind, TypeQualKind,
+    TypeSpecQual,
 };
 
 impl<'a> Ast<'a> {
-    // external_declaration ::= func_def | declaration
-    // func_def    ::= declaration_specifiers declarator compound_stmt
-    // declaration ::= declaration_specifiers init_declarator_list ";"
-    pub(super) fn external_declaration(&mut self) -> Result<(), CompileError> {
-        let specifiers = self.declaration_specifiers()?;
-        if specifiers.is_empty() {
+    // external_decl ::= func_def | decl
+    // func_def      ::= decl_specs declarator compound_stmt
+    // decl          ::= decl_specs init_declarator_list ";"
+    pub(super) fn external_decl(&mut self) -> Result<(), CompileError> {
+        let specs = self.decl_specs()?;
+        if specs.is_empty() {
             let span = self.get_prev_token_span().unwrap_or((0, 0));
-            return Err(CompileError::InvalidDeclaration {
+            return Err(CompileError::InvalidDecl {
                 msg: "外部宣言のパースに失敗しました。型指定子が必要です".to_string(),
                 span,
             });
         }
 
-        let base_ty = Type::from_ds(specifiers).ok_or_else(|| {
+        let base_ty = Type::from_ds(specs).ok_or_else(|| {
             let span = self.get_prev_token_span().unwrap_or((0, 0));
-            CompileError::InvalidDeclaration {
+            CompileError::InvalidDecl {
                 msg: "無効な型指定子です".to_string(),
                 span,
             }
@@ -34,9 +34,9 @@ impl<'a> Ast<'a> {
 
         // 関数型の場合の分岐
         if let TypeKind::Func { params, return_ty } = &first_decl.ty.kind {
-            if self.peek_punctuator("{") {
+            if self.peek_punct("{") {
                 // 関数定義: declarator compound_stmt
-                let mut func = Function::new(&first_decl.name);
+                let mut func = Func::new(&first_decl.name);
                 for param_decl in params.clone() {
                     func.register_param(param_decl)?;
                 }
@@ -45,7 +45,7 @@ impl<'a> Ast<'a> {
                 self.current_func = Some(func);
                 let func_body = self.compound_stmt()?.ok_or_else(|| {
                     let span = self.get_prev_token_span().unwrap_or((0, 0));
-                    CompileError::InvalidDeclaration {
+                    CompileError::InvalidDecl {
                         msg: "関数本体が必要です".to_string(),
                         span,
                     }
@@ -62,7 +62,7 @@ impl<'a> Ast<'a> {
                     func.body = body;
                 } else {
                     let span = func_body.span;
-                    return Err(CompileError::InvalidDeclaration {
+                    return Err(CompileError::InvalidDecl {
                         msg: "関数本体がブロックではありません。'{' と '}' で囲まれた複合文が必要です".to_string(),
                         span,
                     });
@@ -71,13 +71,13 @@ impl<'a> Ast<'a> {
                 self.current_func = None;
                 self.funcs.push(func);
                 return Ok(());
-            } else if self.consume_punctuator(";").is_some() {
+            } else if self.consume_punct(";").is_some() {
                 // 関数プロトタイプ宣言: declarator ";"
                 // TODO: 現状では何もせず無視（将来的には関数テーブルに登録するなど）
                 return Ok(());
             } else {
                 let span = self.get_prev_token_span().unwrap_or((0, 0));
-                return Err(CompileError::InvalidDeclaration {
+                return Err(CompileError::InvalidDecl {
                     msg: "関数宣言には ';' または '{' が必要です".to_string(),
                     span,
                 });
@@ -86,26 +86,26 @@ impl<'a> Ast<'a> {
 
         // グローバル変数宣言の場合: init_declarator_list ";"
         self.token_pos = token_pos; // バックトラックして再度パース
-        let declarations = self.init_declarator_list(&base_ty)?;
-        self.expect_punctuator(";")?;
+        let decls = self.init_declarator_list(&base_ty)?;
+        self.expect_punct(";")?;
 
         // グローバル変数として登録
-        for declaration in declarations {
-            self.register_global_var(declaration)?;
+        for decl in decls {
+            self.register_global_var(decl)?;
         }
 
         Ok(())
     }
 
-    // declaration ::= declaration_specifiers init_declarator_list ";"
-    pub(super) fn declaration(&mut self) -> Result<Option<Vec<Declaration>>, CompileError> {
-        let specifiers = self.declaration_specifiers()?;
-        if specifiers.is_empty() {
+    // decl ::= decl_specs init_declarator_list ";"
+    pub(super) fn decl(&mut self) -> Result<Option<Vec<Decl>>, CompileError> {
+        let specs = self.decl_specs()?;
+        if specs.is_empty() {
             return Ok(None);
         }
-        let base_ty = Type::from_ds(specifiers).ok_or_else(|| {
+        let base_ty = Type::from_ds(specs).ok_or_else(|| {
             let span = self.get_prev_token_span().unwrap_or((0, 0));
-            CompileError::InvalidDeclaration {
+            CompileError::InvalidDecl {
                 msg: "無効な型指定子です".to_string(),
                 span,
             }
@@ -114,103 +114,93 @@ impl<'a> Ast<'a> {
         if vars.is_empty() {
             return Ok(None);
         }
-        self.expect_punctuator(";")?;
+        self.expect_punct(";")?;
         Ok(Some(vars))
     }
 
-    // declaration_specifiers ::= declaration_specifier+
-    pub(super) fn declaration_specifiers(
-        &mut self,
-    ) -> Result<Vec<DeclarationSpecifier>, CompileError> {
-        let mut specifiers = Vec::new();
-        while let Some(specifier) = self.declaration_specifier()? {
-            specifiers.push(specifier);
+    // decl_specs ::= decl_spec+
+    pub(super) fn decl_specs(&mut self) -> Result<Vec<DeclSpec>, CompileError> {
+        let mut specs = Vec::new();
+        while let Some(spec) = self.decl_spec()? {
+            specs.push(spec);
         }
-        Ok(specifiers)
+        Ok(specs)
     }
 
-    // declaration_specifier ::= storage_class_specifier | type_specifier_qualifier | function_specifier
-    pub(super) fn declaration_specifier(
-        &mut self,
-    ) -> Result<Option<DeclarationSpecifier>, CompileError> {
-        if let Some(storage_class_specifier) = self.storage_class_specifier() {
-            return Ok(Some(DeclarationSpecifier::StorageClassSpecifier(
-                storage_class_specifier,
-            )));
+    // decl_spec ::= storage_class_spec | type_spec_qual | func_spec
+    pub(super) fn decl_spec(&mut self) -> Result<Option<DeclSpec>, CompileError> {
+        if let Some(storage_class_spec) = self.storage_class_spec() {
+            return Ok(Some(DeclSpec::StorageClassSpec(storage_class_spec)));
         }
-        if let Some(type_specifier_qualifier) = self.type_specifier_qualifier()? {
-            return Ok(Some(DeclarationSpecifier::TypeSpecifierQualifier(
-                type_specifier_qualifier,
-            )));
+        if let Some(type_spec_qual) = self.type_spec_qual()? {
+            return Ok(Some(DeclSpec::TypeSpecQual(type_spec_qual)));
         }
-        if let Some(function_specifier) = self.function_specifier() {
-            return Ok(Some(DeclarationSpecifier::FunctionSpecifier(
-                function_specifier,
-            )));
+        if let Some(func_spec) = self.func_spec() {
+            return Ok(Some(DeclSpec::FuncSpec(func_spec)));
         }
         Ok(None)
     }
 
     // init_declarator_list ::= init_declarator ("," init_declarator)*
-    fn init_declarator_list(&mut self, base_ty: &Type) -> Result<Vec<Declaration>, CompileError> {
-        let mut declarations = Vec::new();
-        if let Some(declaration) = self.init_declarator(base_ty)? {
-            declarations.push(declaration);
+    fn init_declarator_list(&mut self, base_ty: &Type) -> Result<Vec<Decl>, CompileError> {
+        let mut decls = Vec::new();
+        if let Some(decl) = self.init_declarator(base_ty)? {
+            decls.push(decl);
         }
-        while self.consume_punctuator(",").is_some() {
-            if let Some(declaration) = self.init_declarator(base_ty)? {
-                declarations.push(declaration);
+        while self.consume_punct(",").is_some() {
+            if let Some(decl) = self.init_declarator(base_ty)? {
+                decls.push(decl);
             }
         }
-        Ok(declarations)
+        Ok(decls)
     }
 
     // init_declarator ::= declarator
-    //                     | declarator "=" initializer
-    fn init_declarator(&mut self, base_ty: &Type) -> Result<Option<Declaration>, CompileError> {
-        if let Ok(mut declaration) = self.declarator(base_ty) {
-            if self.consume_punctuator("=").is_some() {
+    //                   | declarator "=" initializer
+    fn init_declarator(&mut self, base_ty: &Type) -> Result<Option<Decl>, CompileError> {
+        if let Ok(mut decl) = self.declarator(base_ty) {
+            if self.consume_punct("=").is_some() {
                 // TODO: 代入時の型チェック
-                declaration.init = self.initializer()?; // initializerを設定
-                match declaration.ty.kind {
+                decl.init = self.initializer()?; // initializerを設定
+                match decl.ty.kind {
                     // サイズ不明な配列型の場合、初期化子の要素数でサイズを決定
                     TypeKind::Array { ref base, ref size } if *size == 0 => {
-                        declaration.ty = Type::from(
+                        decl.ty = Type::from(
                             TypeKind::Array {
                                 base: base.clone(),
-                                size: declaration.init.len(),
+                                size: decl.init.len(),
                             },
-                            declaration.ty.is_const,
+                            decl.ty.is_const,
                         );
                     }
                     _ => {}
                 }
             }
-            return Ok(Some(declaration));
+            return Ok(Some(decl));
         }
         Ok(None)
     }
 
-    // storage_class_specifier ::= "auto" | "extern" | "register" | "static" | "typedef"
-    fn storage_class_specifier(&mut self) -> Option<StorageClassKind> {
+    // storage_class_spec ::= "auto" | "extern" | "register" | "static" | "typedef"
+    fn storage_class_spec(&mut self) -> Option<StorageClassKind> {
         StorageClassKind::all()
             .into_iter()
-            .find(|specifier| self.consume_keyword(&specifier.to_string()).is_some())
+            .find(|spec| self.consume_keyword(&spec.to_string()).is_some())
     }
 
-    // type_specifier ::= "void" | "char" | "short" | "int" | "long" | "float" | "double" | struct_or_union_specifier
-    fn type_specifier(&mut self) -> Result<Option<TypeKind>, CompileError> {
-        if let Some(ty) = self.struct_or_union_specifier()? {
+    // type_spec ::= "void" | "char" | "short" | "int" | "long" | "float" | "double" | struct_or_union_spec
+    fn type_spec(&mut self) -> Result<Option<TypeKind>, CompileError> {
+        if let Some(ty) = self.struct_or_union_spec()? {
             return Ok(Some(ty));
         }
         Ok(TypeKind::all()
             .into_iter()
-            .find(|specifier| self.consume_keyword(&specifier.to_string()).is_some()))
+            .find(|spec| self.consume_keyword(&spec.to_string()).is_some()))
     }
 
-    // struct_or_union_specifier ::= "struct" ident? "{" struct_declaration_list "}"
-    //                               | "struct" ident
-    fn struct_or_union_specifier(&mut self) -> Result<Option<TypeKind>, CompileError> {
+    // struct_or_union_spec ::= "struct" ident? "{" struct_decl_list "}"
+    //                        | "struct" ident
+    fn struct_or_union_spec(&mut self) -> Result<Option<TypeKind>, CompileError> {
         if let Some(struct_token) = self.consume_keyword("struct") {
             let mut span = struct_token.span;
             let struct_name = if let Some((name, ident_token)) = self.consume_ident() {
@@ -219,9 +209,9 @@ impl<'a> Ast<'a> {
             } else {
                 String::new()
             };
-            if self.consume_punctuator("{").is_some() {
-                let members = self.struct_declaration_list()?;
-                self.expect_punctuator("}")?;
+            if self.consume_punct("{").is_some() {
+                let members = self.struct_decl_list()?;
+                self.expect_punct("}")?;
                 let struct_ty = Type::from(
                     TypeKind::Struct {
                         name: struct_name.clone(),
@@ -250,14 +240,14 @@ impl<'a> Ast<'a> {
                     return Ok(Some(ty.kind.clone()));
                 } else {
                     let span = self.get_prev_token_span().unwrap_or((0, 0));
-                    return Err(CompileError::InvalidDeclaration {
+                    return Err(CompileError::InvalidDecl {
                         msg: format!("未宣言の構造体タグ: '{}'", struct_name),
                         span,
                     });
                 }
             } else {
                 let span = self.get_prev_token_span().unwrap_or((0, 0));
-                return Err(CompileError::InvalidDeclaration {
+                return Err(CompileError::InvalidDecl {
                     msg: "無名構造体には定義が必要です".to_string(),
                     span,
                 });
@@ -266,30 +256,30 @@ impl<'a> Ast<'a> {
         Ok(None)
     }
 
-    // struct_declaration_list ::= struct_declaration+
-    fn struct_declaration_list(&mut self) -> Result<Vec<MemberDeclaration>, CompileError> {
-        let mut members: Vec<MemberDeclaration> = Vec::new();
-        while let Some(member_list) = self.struct_declaration()? {
+    // struct_decl_list ::= struct_decl+
+    fn struct_decl_list(&mut self) -> Result<Vec<MemberDecl>, CompileError> {
+        let mut members: Vec<MemberDecl> = Vec::new();
+        while let Some(member_list) = self.struct_decl()? {
             members.extend(member_list);
         }
         Ok(members)
     }
 
-    // struct_declaration ::= specifier_qualifier_list struct_declarator_list? ";"
-    fn struct_declaration(&mut self) -> Result<Option<Vec<MemberDeclaration>>, CompileError> {
-        let specifiers = self.specifier_qualifier_list()?;
-        if specifiers.is_empty() {
+    // struct_decl ::= spec_qual_list struct_declarator_list? ";"
+    fn struct_decl(&mut self) -> Result<Option<Vec<MemberDecl>>, CompileError> {
+        let specs = self.spec_qual_list()?;
+        if specs.is_empty() {
             return Ok(None);
         }
-        let base_ty = Type::from_tsq(specifiers).ok_or_else(|| {
+        let base_ty = Type::from_tsq(specs).ok_or_else(|| {
             let span = self.get_prev_token_span().unwrap_or((0, 0));
-            CompileError::InvalidDeclaration {
+            CompileError::InvalidDecl {
                 msg: "無効な型指定子です".to_string(),
                 span,
             }
         })?;
         let members = self.struct_declarator_list(&base_ty)?;
-        self.expect_punctuator(";")?;
+        self.expect_punct(";")?;
         if members.is_empty() {
             return Ok(None);
         }
@@ -297,15 +287,12 @@ impl<'a> Ast<'a> {
     }
 
     // struct_declarator_list ::= struct_declarator ("," struct_declarator)*
-    fn struct_declarator_list(
-        &mut self,
-        base_ty: &Type,
-    ) -> Result<Vec<MemberDeclaration>, CompileError> {
+    fn struct_declarator_list(&mut self, base_ty: &Type) -> Result<Vec<MemberDecl>, CompileError> {
         let mut members = Vec::new();
         if let Some(member) = self.struct_declarator(base_ty)? {
             members.push(member);
         }
-        while self.consume_punctuator(",").is_some() {
+        while self.consume_punct(",").is_some() {
             if let Some(member) = self.struct_declarator(base_ty)? {
                 members.push(member);
             }
@@ -314,105 +301,102 @@ impl<'a> Ast<'a> {
     }
 
     // struct_declarator ::= declarator
-    fn struct_declarator(
-        &mut self,
-        base_ty: &Type,
-    ) -> Result<Option<MemberDeclaration>, CompileError> {
-        if let Ok(declaration) = self.declarator(base_ty) {
-            return Ok(Some(declaration.into()));
+    fn struct_declarator(&mut self, base_ty: &Type) -> Result<Option<MemberDecl>, CompileError> {
+        if let Ok(decl) = self.declarator(base_ty) {
+            return Ok(Some(decl.into()));
         }
         Ok(None)
     }
 
-    // specifier_qualifier_list ::= type_specifier_qualifier+
-    fn specifier_qualifier_list(&mut self) -> Result<Vec<TypeSpecifierQualifier>, CompileError> {
-        let mut specifiers = Vec::new();
-        while let Some(specifier) = self.type_specifier_qualifier()? {
-            specifiers.push(specifier);
+    // spec_qual_list ::= type_spec_qual+
+    fn spec_qual_list(&mut self) -> Result<Vec<TypeSpecQual>, CompileError> {
+        let mut specs = Vec::new();
+        while let Some(spec) = self.type_spec_qual()? {
+            specs.push(spec);
         }
-        Ok(specifiers)
+        Ok(specs)
     }
 
-    // type_specifier_qualifier ::= type_specifier | type_qualifier
-    fn type_specifier_qualifier(&mut self) -> Result<Option<TypeSpecifierQualifier>, CompileError> {
-        if let Some(specifier) = self.type_specifier()? {
-            return Ok(Some(TypeSpecifierQualifier::TypeSpecifier(specifier)));
+    // type_spec_qual ::= type_spec | type_qual
+    fn type_spec_qual(&mut self) -> Result<Option<TypeSpecQual>, CompileError> {
+        if let Some(spec) = self.type_spec()? {
+            return Ok(Some(TypeSpecQual::TypeSpec(spec)));
         }
-        if let Some(qualifier) = self.type_qualifier() {
-            return Ok(Some(TypeSpecifierQualifier::TypeQualifier(qualifier)));
+        if let Some(qual) = self.type_qual() {
+            return Ok(Some(TypeSpecQual::TypeQual(qual)));
         }
         Ok(None)
     }
 
-    // type_qualifier ::= "const" | "volatile" | "restrict"
-    fn type_qualifier(&mut self) -> Option<TypeQualifierKind> {
-        TypeQualifierKind::all()
+    // type_qual ::= "const" | "volatile" | "restrict"
+    fn type_qual(&mut self) -> Option<TypeQualKind> {
+        TypeQualKind::all()
             .into_iter()
-            .find(|qualifier| self.consume_keyword(&qualifier.to_string()).is_some())
+            .find(|qual| self.consume_keyword(&qual.to_string()).is_some())
     }
 
-    // function_specifier ::= "inline"
-    fn function_specifier(&mut self) -> Option<FunctionKind> {
-        FunctionKind::all()
+    // func_spec ::= "inline"
+    fn func_spec(&mut self) -> Option<FuncKind> {
+        FuncKind::all()
             .into_iter()
-            .find(|specifier| self.consume_keyword(&specifier.to_string()).is_some())
+            .find(|spec| self.consume_keyword(&spec.to_string()).is_some())
     }
 
-    // type_qualifier_list ::= type_qualifier*
-    fn type_qualifier_list(&mut self) -> Vec<TypeQualifierKind> {
-        let mut qualifiers = Vec::new();
-        while let Some(qualifier) = self.type_qualifier() {
-            qualifiers.push(qualifier);
+    // type_qual_list ::= type_qual*
+    fn type_qual_list(&mut self) -> Vec<TypeQualKind> {
+        let mut quals = Vec::new();
+        while let Some(qual) = self.type_qual() {
+            quals.push(qual);
         }
-        qualifiers
+        quals
     }
 
-    // pointer ::= "*" type_qualifier_list* pointer?
+    // ptr ::= "*" type_qual_list* ptr?
     #[allow(clippy::never_loop)]
-    fn pointer(&mut self, base_ty: &Type) -> Type {
-        while self.consume_punctuator("*").is_some() {
+    fn ptr(&mut self, base_ty: &Type) -> Type {
+        while self.consume_punct("*").is_some() {
             let ptr_type = Type::from(
                 TypeKind::Ptr {
                     to: Box::new(base_ty.clone()),
                 },
                 false,
             );
-            return self.pointer(&ptr_type);
+            return self.ptr(&ptr_type);
         }
-        self.type_qualifier_list(); // 現状は型修飾子を無視
+        self.type_qual_list(); // 現状は型修飾子を無視
         base_ty.clone()
     }
 
-    // declarator ::= pointer? direct_declarator
-    pub(super) fn declarator(&mut self, base_ty: &Type) -> Result<Declaration, CompileError> {
-        let ty = self.pointer(base_ty);
+    // declarator ::= ptr? direct_declarator
+    pub(super) fn declarator(&mut self, base_ty: &Type) -> Result<Decl, CompileError> {
+        let ty = self.ptr(base_ty);
         self.direct_declarator(&ty)
     }
 
     // direct_declarator ::= "(" declarator ")"
-    //                       | identifier
-    //                       | direct_declarator "[" type_qualifier_list? assignment_expression? "]"
-    //                       | direct_declarator "(" parameter_type_list ")"
-    fn direct_declarator(&mut self, base_ty: &Type) -> Result<Declaration, CompileError> {
+    //                     | ident
+    //                     | direct_declarator "[" type_qual_list? assign_expr? "]"
+    //                     | direct_declarator "(" param_type_list ")"
+    fn direct_declarator(&mut self, base_ty: &Type) -> Result<Decl, CompileError> {
         let span;
-        let name = if let Some(token) = self.consume_punctuator("(") {
+        let name = if let Some(token) = self.consume_punct("(") {
             span = token.span;
             let inner_var = self.declarator(base_ty)?;
-            self.expect_punctuator(")")?;
+            self.expect_punct(")")?;
             inner_var.name
         } else if let Some((name, token)) = self.consume_ident() {
             span = token.span;
             name
         } else {
             let span = self.get_prev_token_span().unwrap_or((0, 0));
-            return Err(CompileError::InvalidDeclaration {
+            return Err(CompileError::InvalidDecl {
                 msg: "識別子または括弧で囲まれた宣言子が必要です".to_string(),
                 span,
             });
         };
 
         let final_ty = self.parse_postfix_declarators(base_ty)?;
-        Ok(Declaration {
+        Ok(Decl {
             name,
             ty: final_ty,
             init: Vec::new(),
@@ -422,23 +406,23 @@ impl<'a> Ast<'a> {
 
     // 右結合で解析
     fn parse_postfix_declarators(&mut self, base_ty: &Type) -> Result<Type, CompileError> {
-        // "[" type_qualifier_list? assignment_expression? "]"
-        if self.consume_punctuator("[").is_some() {
-            self.type_qualifier_list(); // 現状は型修飾子を無視
-            let array_size = if self.peek_punctuator("]") {
+        // "[" type_qual_list? assign_expr? "]"
+        if self.consume_punct("[").is_some() {
+            self.type_qual_list(); // 現状は型修飾子を無視
+            let array_size = if self.peek_punct("]") {
                 0
             } else {
                 self.assign_expr()?
                     .ok_or_else(|| {
                         let span = self.get_prev_token_span().unwrap_or((0, 0));
-                        CompileError::InvalidDeclaration {
+                        CompileError::InvalidDecl {
                             msg: "配列のサイズが必要です".to_string(),
                             span,
                         }
                     })?
                     .eval_const_expr()? as usize
             };
-            self.expect_punctuator("]")?;
+            self.expect_punct("]")?;
             let inner_ty = self.parse_postfix_declarators(base_ty)?;
             Ok(Type::from(
                 TypeKind::Array {
@@ -448,16 +432,16 @@ impl<'a> Ast<'a> {
                 false,
             ))
         }
-        // "(" parameter_type_list ")"
-        else if self.consume_punctuator("(").is_some() {
-            let params = if self.peek_punctuator(")") {
+        // "(" param_type_list ")"
+        else if self.consume_punct("(").is_some() {
+            let params = if self.peek_punct(")") {
                 // パラメータが0個の場合
-                self.expect_punctuator(")")?;
+                self.expect_punct(")")?;
                 Vec::new()
             } else {
                 // パラメータが1個以上の場合
-                let params = self.parameter_type_list()?;
-                self.expect_punctuator(")")?;
+                let params = self.param_type_list()?;
+                self.expect_punct(")")?;
                 params
             };
             let inner_ty = self.parse_postfix_declarators(base_ty)?;
@@ -473,98 +457,98 @@ impl<'a> Ast<'a> {
         }
     }
 
-    // parameter_type_list ::= parameter_list
-    fn parameter_type_list(&mut self) -> Result<Vec<Declaration>, CompileError> {
-        self.parameter_list()
+    // param_type_list ::= param_list
+    fn param_type_list(&mut self) -> Result<Vec<Decl>, CompileError> {
+        self.param_list()
     }
 
-    // parameter_list ::= parameter_declaration ("," parameter_declaration)*
-    fn parameter_list(&mut self) -> Result<Vec<Declaration>, CompileError> {
+    // param_list ::= param_decl ("," param_decl)*
+    fn param_list(&mut self) -> Result<Vec<Decl>, CompileError> {
         let mut params = Vec::new();
-        let param = self.parameter_declaration()?;
+        let param = self.param_decl()?;
         params.push(param);
-        while self.consume_punctuator(",").is_some() {
-            let param = self.parameter_declaration()?;
+        while self.consume_punct(",").is_some() {
+            let param = self.param_decl()?;
             params.push(param);
         }
         Ok(params)
     }
 
-    // parameter_declaration ::= declaration_specifiers declarator
-    fn parameter_declaration(&mut self) -> Result<Declaration, CompileError> {
-        let specifiers = self.declaration_specifiers()?;
-        if !specifiers.is_empty() {
-            let base_kind = Type::from_ds(specifiers).ok_or_else(|| {
+    // param_decl ::= decl_specs declarator
+    fn param_decl(&mut self) -> Result<Decl, CompileError> {
+        let specs = self.decl_specs()?;
+        if !specs.is_empty() {
+            let base_kind = Type::from_ds(specs).ok_or_else(|| {
                 let span = self.get_prev_token_span().unwrap_or((0, 0));
-                CompileError::InvalidDeclaration {
+                CompileError::InvalidDecl {
                     msg: "無効な型指定子です".to_string(),
                     span,
                 }
             })?;
-            if let Ok(declaration) = self.declarator(&base_kind) {
-                return Ok(declaration);
+            if let Ok(decl) = self.declarator(&base_kind) {
+                return Ok(decl);
             }
         }
         let span = self.get_prev_token_span().unwrap_or((0, 0));
-        Err(CompileError::InvalidDeclaration {
+        Err(CompileError::InvalidDecl {
             msg: "無効なパラメータ宣言です".to_string(),
             span,
         })
     }
 
-    // type_name ::= specifier_qualifier_list abstract_declarator?
+    // type_name ::= spec_qual_list abst_declarator?
     pub(super) fn type_name(&mut self) -> Result<Type, CompileError> {
-        let specifiers = self.specifier_qualifier_list()?;
-        if specifiers.is_empty() {
+        let specs = self.spec_qual_list()?;
+        if specs.is_empty() {
             let span = self.get_prev_token_span().unwrap_or((0, 0));
-            return Err(CompileError::InvalidDeclaration {
+            return Err(CompileError::InvalidDecl {
                 msg: "無効な型名です".to_string(),
                 span,
             });
         }
-        let base_ty = Type::from_tsq(specifiers).ok_or_else(|| {
+        let base_ty = Type::from_tsq(specs).ok_or_else(|| {
             let span = self.get_prev_token_span().unwrap_or((0, 0));
-            CompileError::InvalidDeclaration {
+            CompileError::InvalidDecl {
                 msg: "無効な型指定子です".to_string(),
                 span,
             }
         })?;
-        if let Ok(abstract_ty) = self.abstract_declarator(&base_ty) {
-            return Ok(abstract_ty);
+        if let Ok(abst_ty) = self.abst_declarator(&base_ty) {
+            return Ok(abst_ty);
         }
         Ok(base_ty)
     }
 
-    // abstract_declarator ::= pointer // 未実装
-    //                         | pointer? direct_abstract_declarator
-    fn abstract_declarator(&mut self, base_ty: &Type) -> Result<Type, CompileError> {
-        let ty = self.pointer(base_ty);
-        self.direct_abstract_declarator(&ty)
+    // abst_declarator ::= ptr // TODO: 未実装
+    //                   | ptr? direct_abst_declarator
+    fn abst_declarator(&mut self, base_ty: &Type) -> Result<Type, CompileError> {
+        let ty = self.ptr(base_ty);
+        self.direct_abst_declarator(&ty)
     }
 
-    // direct_abstract_declarator ::= "(" abstract_declarator ")"
-    //                                | direct_abstract_declarator "[" type_qualifier_list? assignment_expression? "]"
-    //                                | direct_abstract_declarator "(" parameter_type_list ")"
-    fn direct_abstract_declarator(&mut self, base_ty: &Type) -> Result<Type, CompileError> {
-        let mut current_ty = if self.consume_punctuator("(").is_some() {
-            let inner_ty = self.abstract_declarator(base_ty)?;
-            self.expect_punctuator(")")?;
+    // direct_abst_declarator ::= "(" abst_declarator ")"
+    //                          | direct_abst_declarator "[" type_qual_list? assign_expr? "]"
+    //                          | direct_abst_declarator "(" param_type_list ")"
+    fn direct_abst_declarator(&mut self, base_ty: &Type) -> Result<Type, CompileError> {
+        let mut current_ty = if self.consume_punct("(").is_some() {
+            let inner_ty = self.abst_declarator(base_ty)?;
+            self.expect_punct(")")?;
             inner_ty
         } else {
             base_ty.clone()
         };
-        current_ty = self.parse_abstract_postfix_declarators(&current_ty)?;
+        current_ty = self.parse_abst_postfix_declarators(&current_ty)?;
         Ok(current_ty)
     }
 
     // 右結合で解析
-    fn parse_abstract_postfix_declarators(&mut self, base_ty: &Type) -> Result<Type, CompileError> {
-        // "[" type_qualifier_list? assignment_expression? "]"
-        if self.consume_punctuator("[").is_some() {
-            self.type_qualifier_list(); // 現状は型修飾子を無視
+    fn parse_abst_postfix_declarators(&mut self, base_ty: &Type) -> Result<Type, CompileError> {
+        // "[" type_qual_list? assign_expr? "]"
+        if self.consume_punct("[").is_some() {
+            self.type_qual_list(); // 現状は型修飾子を無視
             let array_size = self.expect_number()? as usize; // TODO: assign_exprに置き換え
-            self.expect_punctuator("]")?;
-            let inner_ty = self.parse_abstract_postfix_declarators(base_ty)?;
+            self.expect_punct("]")?;
+            let inner_ty = self.parse_abst_postfix_declarators(base_ty)?;
             Ok(Type::from(
                 TypeKind::Array {
                     base: Box::new(inner_ty),
@@ -573,19 +557,19 @@ impl<'a> Ast<'a> {
                 false,
             ))
         }
-        // "(" parameter_type_list ")"
-        else if self.consume_punctuator("(").is_some() {
-            let params = if self.peek_punctuator(")") {
+        // "(" param_type_list ")"
+        else if self.consume_punct("(").is_some() {
+            let params = if self.peek_punct(")") {
                 // パラメータが0個の場合
-                self.expect_punctuator(")")?;
+                self.expect_punct(")")?;
                 Vec::new()
             } else {
                 // パラメータが1個以上の場合
-                let params = self.parameter_type_list()?;
-                self.expect_punctuator(")")?;
+                let params = self.param_type_list()?;
+                self.expect_punct(")")?;
                 params
             };
-            let inner_ty = self.parse_abstract_postfix_declarators(base_ty)?;
+            let inner_ty = self.parse_abst_postfix_declarators(base_ty)?;
             Ok(Type::from(
                 TypeKind::Func {
                     return_ty: Box::new(inner_ty),
@@ -598,18 +582,18 @@ impl<'a> Ast<'a> {
         }
     }
 
-    // initializer ::= assignment_expr
-    //                 | "{" initializer_list "}"
-    //                 | "{" initializer_list "," "}" // TODO: 未対応（initializer_listの処理と重複して問題が発生）
+    // initializer ::= assign_expr
+    //               | "{" initializer_list "}"
+    //               | "{" initializer_list "," "}" // TODO: 未対応（initializer_listの処理と重複して問題が発生）
     pub(super) fn initializer(&mut self) -> Result<Vec<Node>, CompileError> {
-        if self.consume_punctuator("{").is_some() {
+        if self.consume_punct("{").is_some() {
             let init_list = self.initializer_list()?;
-            self.expect_punctuator("}")?;
+            self.expect_punct("}")?;
             return Ok(init_list);
         }
         Ok(vec![*self.assign_expr()?.ok_or_else(|| {
             let span = self.get_prev_token_span().unwrap_or((0, 0));
-            CompileError::InvalidDeclaration {
+            CompileError::InvalidDecl {
                 msg: "初期化式が必要です。'= 定数式' の形式で初期値を指定してください".to_string(),
                 span,
             }
@@ -620,7 +604,7 @@ impl<'a> Ast<'a> {
     fn initializer_list(&mut self) -> Result<Vec<Node>, CompileError> {
         let mut init_list = Vec::new();
         init_list.extend(self.initializer()?);
-        while self.consume_punctuator(",").is_some() {
+        while self.consume_punct(",").is_some() {
             init_list.extend(self.initializer()?);
         }
         Ok(init_list)

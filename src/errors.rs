@@ -14,7 +14,7 @@ pub(crate) enum CompileError {
         found: String,
         span: (usize, usize),
     },
-    UndefinedIdentifier {
+    UndefinedIdent {
         name: String,
         span: (usize, usize),
     },
@@ -22,19 +22,19 @@ pub(crate) enum CompileError {
         name: String,
         span: (usize, usize),
     },
-    Redeclaration {
+    Redecl {
         name: String,
         span: (usize, usize),
     },
-    InvalidExpression {
+    InvalidExpr {
         msg: String,
         span: (usize, usize),
     },
-    InvalidStatement {
+    InvalidStmt {
         msg: String,
         span: (usize, usize),
     },
-    InvalidDeclaration {
+    InvalidDecl {
         msg: String,
         span: (usize, usize),
     },
@@ -61,7 +61,7 @@ impl fmt::Display for CompileError {
             CompileError::MissingToken { found, .. } => {
                 write!(f, "Missing Token: {}", found)
             }
-            CompileError::UndefinedIdentifier { name, .. } => {
+            CompileError::UndefinedIdent { name, .. } => {
                 write!(
                     f,
                     "Undefined Identifier: '{}'\n  ヒント: 変数や関数が宣言されていない可能性があります",
@@ -75,20 +75,20 @@ impl fmt::Display for CompileError {
                     name
                 )
             }
-            CompileError::Redeclaration { name, .. } => {
+            CompileError::Redecl { name, .. } => {
                 write!(
                     f,
                     "Redeclaration: '{}'\n  ヒント: 同じスコープ内で同じ名前の変数を複数回宣言することはできません",
                     name
                 )
             }
-            CompileError::InvalidExpression { msg, .. } => {
+            CompileError::InvalidExpr { msg, .. } => {
                 write!(f, "Invalid Expression: {}", msg)
             }
-            CompileError::InvalidStatement { msg, .. } => {
+            CompileError::InvalidStmt { msg, .. } => {
                 write!(f, "Invalid Statement: {}", msg)
             }
-            CompileError::InvalidDeclaration { msg, .. } => {
+            CompileError::InvalidDecl { msg, .. } => {
                 write!(f, "Invalid Declaration: {}", msg)
             }
             CompileError::UnexpectedEof => {
@@ -113,12 +113,12 @@ impl CompileError {
         let span = match self {
             CompileError::UnexpectedToken { span, .. }
             | CompileError::MissingToken { span, .. }
-            | CompileError::UndefinedIdentifier { span, .. }
+            | CompileError::UndefinedIdent { span, .. }
             | CompileError::ReadOnlyLvalue { span, .. }
-            | CompileError::Redeclaration { span, .. }
-            | CompileError::InvalidExpression { span, .. }
-            | CompileError::InvalidStatement { span, .. }
-            | CompileError::InvalidDeclaration { span, .. } => Some(*span),
+            | CompileError::Redecl { span, .. }
+            | CompileError::InvalidExpr { span, .. }
+            | CompileError::InvalidStmt { span, .. }
+            | CompileError::InvalidDecl { span, .. } => Some(*span),
             _ => None,
         };
 

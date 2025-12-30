@@ -32,7 +32,7 @@ impl fmt::Debug for Node {
                     name, offset, is_local
                 )?;
             }
-            NodeKind::Identifier { ref name } => {
+            NodeKind::Ident { ref name } => {
                 write!(f, ", ident: {}", name)?;
             }
             NodeKind::BinaryOp {
@@ -125,7 +125,7 @@ impl Node {
                     // 右辺がポインタ/配列型、左辺がスカラー型の場合、右辺の型を結果型とする
                     rhs_ty.clone()
                 } else {
-                    return Err(CompileError::InvalidExpression {
+                    return Err(CompileError::InvalidExpr {
                         msg: format!(
                             "算術演算子はスカラー型またはポインタ/配列型にのみ適用可能です: {:?} と {:?}",
                             lhs_ty, rhs_ty
@@ -146,7 +146,7 @@ impl Node {
                         rhs_ty.clone()
                     }
                 } else {
-                    return Err(CompileError::InvalidExpression {
+                    return Err(CompileError::InvalidExpr {
                         msg: format!(
                             "剰余演算子は整数型にのみ適用可能です: {:?} と {:?}",
                             lhs_ty, rhs_ty
@@ -167,7 +167,7 @@ impl Node {
                         rhs_ty.clone()
                     }
                 } else {
-                    return Err(CompileError::InvalidExpression {
+                    return Err(CompileError::InvalidExpr {
                         msg: format!(
                             "ビット演算子は整数型にのみ適用可能です: {:?} と {:?}",
                             lhs_ty, rhs_ty
@@ -184,7 +184,7 @@ impl Node {
                     // 両方とも整数型の場合、昇格後の型を結果型とする
                     Type::from(TypeKind::Int, false)
                 } else {
-                    return Err(CompileError::InvalidExpression {
+                    return Err(CompileError::InvalidExpr {
                         msg: format!(
                             "シフト演算子は整数型にのみ適用可能です: {:?} と {:?}",
                             lhs_ty, rhs_ty
@@ -204,7 +204,7 @@ impl Node {
                     // 両方ともスカラー型の場合、結果型はint型とする
                     Type::from(TypeKind::Int, false)
                 } else {
-                    return Err(CompileError::InvalidExpression {
+                    return Err(CompileError::InvalidExpr {
                         msg: format!(
                             "比較演算子はスカラー型またはポインタ/配列型にのみ適用可能です: {:?} と {:?}",
                             lhs_ty, rhs_ty
@@ -235,7 +235,7 @@ impl Node {
                 if expr_ty.is_integer() {
                     Type::from(TypeKind::Int, false) // 整数拡張
                 } else {
-                    return Err(CompileError::InvalidExpression {
+                    return Err(CompileError::InvalidExpr {
                         msg: format!("ビット否定演算子は整数型にのみ適用可能です: {:?}", expr_ty),
                         span,
                     });
@@ -247,7 +247,7 @@ impl Node {
                 if expr_ty.is_scalar() || expr_ty.is_ptr() || expr_ty.is_array() {
                     Type::from(TypeKind::Int, false) // 結果型はint型
                 } else {
-                    return Err(CompileError::InvalidExpression {
+                    return Err(CompileError::InvalidExpr {
                         msg: format!(
                             "論理否定演算子はスカラー型またはポインタ/配列型にのみ適用可能です: {:?}",
                             expr_ty
@@ -272,7 +272,7 @@ impl Node {
 
                 // デリファレンス演算子の型はポインタの指す型にする
                 if !(expr_ty.is_ptr() || expr_ty.is_array()) {
-                    return Err(CompileError::InvalidExpression {
+                    return Err(CompileError::InvalidExpr {
                         msg: format!(
                             "デリファレンス演算子はポインタ/配列型にのみ適用可能です: {:?}",
                             expr_ty
@@ -326,7 +326,7 @@ impl Node {
             // 両方ともスカラー型の場合、結果型はint型とする
             Type::from(TypeKind::Int, false)
         } else {
-            return Err(CompileError::InvalidExpression {
+            return Err(CompileError::InvalidExpr {
                 msg: format!(
                     "論理演算子はスカラー型またはポインタ/配列型にのみ適用可能です: {:?} と {:?}",
                     lhs_ty, rhs_ty
@@ -356,7 +356,7 @@ impl Node {
             // 両方ともスカラー型の場合、結果型はint型とする
             Type::from(TypeKind::Int, false)
         } else {
-            return Err(CompileError::InvalidExpression {
+            return Err(CompileError::InvalidExpr {
                 msg: format!(
                     "論理演算子はスカラー型またはポインタ/配列型にのみ適用可能です: {:?} と {:?}",
                     lhs_ty, rhs_ty
@@ -394,7 +394,7 @@ impl Node {
                     els_ty.clone()
                 }
             } else {
-                return Err(CompileError::InvalidExpression {
+                return Err(CompileError::InvalidExpr {
                     msg: format!(
                         "条件演算子のthen節とelse節は同じ型か、両方ともスカラー型である必要があります: {:?} と {:?}",
                         then_ty, els_ty
@@ -403,7 +403,7 @@ impl Node {
                 });
             }
         } else {
-            return Err(CompileError::InvalidExpression {
+            return Err(CompileError::InvalidExpr {
                 msg: format!(
                     "条件演算子の条件式はスカラー型にのみ適用可能です: {:?}",
                     cond_ty
@@ -472,7 +472,7 @@ impl Node {
                 match op {
                     UnaryOp::BitNot => Ok(!val),
                     UnaryOp::LogicalNot => Ok(if val == 0 { 1 } else { 0 }),
-                    _ => Err(CompileError::InvalidExpression {
+                    _ => Err(CompileError::InvalidExpr {
                         msg: format!("定数式に不正な単項演算子が含まれています: {:?}", op),
                         span: expr.span,
                     }),
@@ -487,7 +487,7 @@ impl Node {
                     BinaryOp::Mul => Ok(lval * rval),
                     BinaryOp::Div => {
                         if rval == 0 {
-                            return Err(CompileError::InvalidExpression {
+                            return Err(CompileError::InvalidExpr {
                                 msg: "定数式の除算でゼロ除算が発生しました".to_string(),
                                 span: rhs.span,
                             });
@@ -496,7 +496,7 @@ impl Node {
                     }
                     BinaryOp::Rem => {
                         if rval == 0 {
-                            return Err(CompileError::InvalidExpression {
+                            return Err(CompileError::InvalidExpr {
                                 msg: "定数式の剰余演算でゼロ除算が発生しました".to_string(),
                                 span: rhs.span,
                             });
@@ -505,7 +505,7 @@ impl Node {
                     }
                     BinaryOp::Shl => {
                         if !(0..64).contains(&rval) {
-                            return Err(CompileError::InvalidExpression {
+                            return Err(CompileError::InvalidExpr {
                                 msg: "定数式の左シフト演算で不正なシフト量が指定されました"
                                     .to_string(),
                                 span: rhs.span,
@@ -515,7 +515,7 @@ impl Node {
                     }
                     BinaryOp::Shr => {
                         if !(0..64).contains(&rval) {
-                            return Err(CompileError::InvalidExpression {
+                            return Err(CompileError::InvalidExpr {
                                 msg: "定数式の右シフト演算で不正なシフト量が指定されました"
                                     .to_string(),
                                 span: rhs.span,
@@ -530,7 +530,7 @@ impl Node {
                     BinaryOp::Ne => Ok(if lval != rval { 1 } else { 0 }),
                     BinaryOp::Lt => Ok(if lval < rval { 1 } else { 0 }),
                     BinaryOp::Le => Ok(if lval <= rval { 1 } else { 0 }),
-                    _ => Err(CompileError::InvalidExpression {
+                    _ => Err(CompileError::InvalidExpr {
                         msg: format!("定数式に不正な二項演算子が含まれています: {:?}", op),
                         span: self.span,
                     }),
@@ -564,7 +564,7 @@ impl Node {
             }
             NodeKind::Var { name, is_local, .. } => {
                 if *is_local {
-                    Err(CompileError::InvalidExpression {
+                    Err(CompileError::InvalidExpr {
                         msg: format!("定数式にローカル変数 '{}' が含まれています", name),
                         span: self.span,
                     })
@@ -573,7 +573,7 @@ impl Node {
                     unimplemented!("グローバル変数の定数式評価は未実装です");
                 }
             }
-            _ => Err(CompileError::InvalidExpression {
+            _ => Err(CompileError::InvalidExpr {
                 msg: "定数式に不正なノードが含まれています".to_string(),
                 span: self.span,
             }),

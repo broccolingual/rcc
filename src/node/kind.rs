@@ -75,7 +75,7 @@ pub(crate) enum NodeKind {
         name: String,
         offset: usize,
     }, // 構造体メンバーアクセス
-    Identifier {
+    Ident {
         name: String,
     }, // 識別子（変数名など）
     Return {

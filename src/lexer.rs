@@ -17,8 +17,8 @@ impl Lexer {
 
     pub(crate) fn tokenize(&self, input: &str) -> Result<Vec<Token>, CompileError> {
         // 演算子トークンを長い順にソート
-        let mut sorted_punctuators = PUNCTUATORS.to_vec();
-        sorted_punctuators.sort_by_key(|a| std::cmp::Reverse(a.len()));
+        let mut sorted_puncts = PUNCTUATORS.to_vec();
+        sorted_puncts.sort_by_key(|a| std::cmp::Reverse(a.len()));
 
         let mut tokens = Vec::new();
         let chars = input.chars().collect::<Vec<char>>();
@@ -63,13 +63,13 @@ impl Lexer {
 
             // 演算子トークン
             let mut matched = false;
-            for symbol in &sorted_punctuators {
+            for symbol in &sorted_puncts {
                 let symbol_len = symbol.len();
                 if pos + symbol_len <= chars.len() {
                     let candidate: String = chars[pos..pos + symbol_len].iter().collect();
                     if candidate == *symbol {
                         tokens.push(Token::new(
-                            TokenKind::Punctuator(symbol.to_string()),
+                            TokenKind::Punct(symbol.to_string()),
                             (pos, pos + symbol_len),
                         ));
                         pos += symbol_len;
@@ -196,7 +196,7 @@ impl Lexer {
                 } else {
                     // それ以外は識別子トークン
                     tokens.push(Token::new(
-                        TokenKind::Identifier(ident.clone()),
+                        TokenKind::Ident(ident.clone()),
                         (pos - ident.len(), pos),
                     ));
                     continue;
