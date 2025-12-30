@@ -3,7 +3,7 @@ use crate::errors::CompileError;
 use crate::node::{BinaryOp, Node, NodeKind, UnaryOp};
 use core::str::FromStr;
 
-impl Ast {
+impl<'a> Ast<'a> {
     // const_expr ::= cond_expr
     #[allow(dead_code)]
     pub(super) fn const_expr(&mut self) -> Result<i64, CompileError> {
@@ -601,17 +601,17 @@ impl Ast {
                 let func_name = if let Some(n) = &node
                     && let NodeKind::Identifier { name } = &n.kind
                 {
-                    name.clone()
+                    name
                 } else {
                     return Err(CompileError::InternalError {
                         msg: "関数呼び出しの関数名のパースに失敗しました".to_string(),
                     });
                 };
                 let return_ty = self
-                    .get_function_return_type(&func_name)
+                    .get_function_return_type(func_name)
                     .cloned()
                     .unwrap_or_default();
-                node = Some(Box::new(Node::new_call(&func_name, args, return_ty)));
+                node = Some(Box::new(Node::new_call(func_name, args, return_ty)));
             } else if self.consume_punctuator(".").is_some() {
                 // 構造体のメンバアクセス
                 node = self.resolve_ident_to_var(node)?; // 識別子を変数に割り当て

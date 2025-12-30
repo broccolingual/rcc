@@ -9,8 +9,8 @@ use crate::symbol::{FlatTable, Symbol, Variable};
 use crate::token::{Token, TokenKind};
 use crate::types::{Type, TypeKind};
 
-pub(crate) struct Ast {
-    tokens: Vec<Token>,
+pub(crate) struct Ast<'a> {
+    tokens: &'a [Token],
     token_pos: usize,
     pub(crate) globals: Vec<Variable>,
     global_symbol_table: FlatTable<Symbol>,
@@ -20,10 +20,10 @@ pub(crate) struct Ast {
     pub(crate) string_literals: Vec<String>,
 }
 
-impl Ast {
-    pub(crate) fn new(tokens: &[Token]) -> Self {
+impl<'a> Ast<'a> {
+    pub(crate) fn new(tokens: &'a [Token]) -> Self {
         Ast {
-            tokens: tokens.to_vec(),
+            tokens,
             token_pos: 0,
             global_symbol_table: FlatTable::new(),
             global_tag_table: FlatTable::new(),

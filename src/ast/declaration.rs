@@ -6,7 +6,7 @@ use crate::types::{
     TypeKind, TypeQualifierKind, TypeSpecifierQualifier,
 };
 
-impl Ast {
+impl<'a> Ast<'a> {
     // declaration ::= declaration_specifiers init_declarator_list ";"
     pub(super) fn declaration(&mut self) -> Result<Option<Vec<Declaration>>, CompileError> {
         let specifiers = self.declaration_specifiers()?;
