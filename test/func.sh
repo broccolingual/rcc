@@ -2,51 +2,27 @@
 
 set -e
 
-mkdir -p ./bin
+# 共通関数を読み込む
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/common.sh"
 
-cargo build
+setup_test
 
-cc -c ./bin/func.c -o ./bin/func.o
+# func.cをコンパイル
+cc -c $SCRIPT_DIR/bin/func.c -o $SCRIPT_DIR/bin/func.o
 
-assert() {
-  expected="$1"
-  input="$2"
-
-  ./target/debug/c-compiler -i "$input" > ./bin/tmp.s || {
-    echo -e "\033[31m( ERROR )\033[0m Compilation failed: $input"
-    exit 1
-  }
-
-  cc -g -o ./bin/tmp ./bin/tmp.s ./bin/func.o || {
-    echo -e "\033[31m( ERROR )\033[0m Linking failed: $input"
-    exit 1
-  }
-  
-  set +e
-  ./bin/tmp
-  actual="$?"
-  set -e
-
-  if [ "$actual" = "$expected" ]; then
-    echo -e "\033[32m( OK )\033[0m $input => $actual"
-  else
-    echo -e "\033[31m( NG )\033[0m $input => $expected expected, but got $actual"
-    exit 1
-  fi
-}
-
-assert 3 '
+assert_func 3 '
 int main() {
     return foo();
 }'
-assert 3 '
+assert_func 3 '
 int hoge(int x) {
     return x + 1;
 }
 int main() {
     return hoge(2);
 }'
-assert 12 '
+assert_func 12 '
 int add(int x, int y) {
     return x + y * 2;
 }
@@ -55,7 +31,7 @@ int main() {
     a = 5;
     return add(2, a);
 }'
-assert 3 '
+assert_func 3 '
 int add(int x, int y) {
     return x + y;
 }
@@ -67,7 +43,7 @@ int main() {
     a = b;
     return add(2, a);
 }'
-assert 3 '
+assert_func 3 '
 int main() {
     int x;
     int *y;
@@ -75,7 +51,7 @@ int main() {
     *y = 3;
     return x;
 }'
-assert 8 '
+assert_func 8 '
 int main() {
     int *p;
     alloc4(&p, 1, 2, 4, 8);
@@ -85,14 +61,14 @@ int main() {
     q = p + 3;
     return *q;
 }'
-assert 6 '
+assert_func 6 '
 int add(int a, int b, int c) {
     return a + b + c;
 }
 int main() {
     return add(1, 2, 3);
 }'
-assert 8 '
+assert_func 8 '
 int a;
 
 int main() {
@@ -101,7 +77,7 @@ int main() {
     b = 5;
     return a + b;
 }'
-assert 3 '
+assert_func 3 '
 int main() {
     int a[2];
     *a = 1;
@@ -110,7 +86,7 @@ int main() {
     p = a;
     return *p + *(p + 1);
 }'
-assert 3 '
+assert_func 3 '
 int a[2];
 int main() {
     *a = 1;
@@ -119,7 +95,7 @@ int main() {
     p = a;
     return *p + *(p + 1);
 }'
-assert 3 '
+assert_func 3 '
 int main() {
     int a[2];
     a[0] = 1;
@@ -128,7 +104,7 @@ int main() {
     p = a;
     return p[0] + p[1];
 }'
-assert 6 '
+assert_func 6 '
 int main() {
     char x[20];
     x[0] = -1;
@@ -137,13 +113,13 @@ int main() {
     y = 4;
     return x[17] + y;
 }'
-assert 98 '
+assert_func 98 '
 char main() {
     char *a;
     a = "abc";
     return a[1];
 }'
-assert 15 '
+assert_func 15 '
 int main() {
     int a = 3;
     int b = a * 5;
@@ -152,13 +128,13 @@ int main() {
     return b;
 }'
 # GCCがlibcをリンクしてくれるおかげでprintfが使える
-assert 0 '
+assert_func 0 '
 int main() {
     char *a = "Hello, World! %d\n";
     printf(a, 3);
     return 0;
 }'
-assert 5 '
+assert_func 5 '
 int a = 5;
 short b = 3;
 long c = 8;
@@ -172,14 +148,14 @@ int main() {
     printf(h);
     return **f;
 }'
-assert 8 '
+assert_func 8 '
 int a[3] = {1, 2, 3};
 int b[] = {4, 5};
 int main() {
     return a[2] + b[1];
 }
 '
-assert 5 '
+assert_func 5 '
 int main() {
     int a;
     int b = 3;

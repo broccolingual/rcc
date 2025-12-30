@@ -41,15 +41,7 @@ jobs:
     - name: Run format check
       run: cargo fmt --all --check
 
-    - name: Create bin directory
-      run: mkdir -p bin
-
-    - name: Run inline integration tests
+    - name: Run integration tests
       run: |
-        chmod +x ./test_inline.sh
-        ./test_inline.sh
-
-    - name: Run function integration tests
-      run: |
-        chmod +x ./test_func.sh
-        ./test_func.sh
+        chmod +x ./test.sh
+        ./test.sh

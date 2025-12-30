@@ -1,2 +1,3 @@
-/bin/tmp*
+test/bin/tmp*
+test/bin/*.o
 /target
