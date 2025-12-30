@@ -5,12 +5,16 @@ use crate::node::{Node, NodeKind};
 impl<'a> Ast<'a> {
     // TODO: case文, default文の実装
     fn labeled_stmt(&mut self) -> Result<Option<Box<Node>>, CompileError> {
-        if let Some(name) = self.consume_ident() {
+        if let Some((name, token)) = self.consume_ident() {
+            let span = token.span;
             if self.consume_punctuator(":").is_some() {
                 let expr = self.stmt()?.ok_or_else(|| CompileError::InvalidStatement {
                     msg: "ラベルの後に文がありません".to_string(),
                 })?;
-                return Ok(Some(Box::new(Node::new(NodeKind::Label { name, expr }))));
+                return Ok(Some(Box::new(Node::new(
+                    NodeKind::Label { name, expr },
+                    span,
+                ))));
             } else {
                 // ラベル名ではなかった場合、トークンを元に戻す
                 self.retreat_token();
@@ -21,7 +25,8 @@ impl<'a> Ast<'a> {
 
     // compound_stmt ::= "{" declaration* stmt* "}"
     pub(super) fn compound_stmt(&mut self) -> Result<Option<Box<Node>>, CompileError> {
-        if self.consume_punctuator("{").is_some() {
+        if let Some(token) = self.consume_punctuator("{") {
+            let span = token.span;
             self.get_current_func()?.enter_scope();
             let mut body = Vec::new();
             while self.consume_punctuator("}").is_none() {
@@ -43,7 +48,7 @@ impl<'a> Ast<'a> {
                 }
             }
             self.get_current_func()?.leave_scope();
-            return Ok(Some(Box::new(Node::new(NodeKind::Block { body }))));
+            return Ok(Some(Box::new(Node::new(NodeKind::Block { body }, span))));
         }
         Ok(None)
     }
@@ -51,7 +56,8 @@ impl<'a> Ast<'a> {
     // TODO: switch文の実装
     // selection_stmt ::= "if" "(" expr ")" stmt ("else" stmt)?
     fn selection_stmt(&mut self) -> Result<Option<Box<Node>>, CompileError> {
-        if self.consume_keyword("if").is_some() {
+        if let Some(token) = self.consume_keyword("if") {
+            let span = token.span;
             self.expect_punctuator("(")?;
             let cond = self.expr()?.ok_or_else(|| CompileError::InvalidStatement {
                 msg: "if文の条件式がありません".to_string(),
@@ -65,7 +71,10 @@ impl<'a> Ast<'a> {
             } else {
                 None
             };
-            return Ok(Some(Box::new(Node::new(NodeKind::If { cond, then, els }))));
+            return Ok(Some(Box::new(Node::new(
+                NodeKind::If { cond, then, els },
+                span,
+            ))));
         }
         Ok(None)
     }
@@ -74,7 +83,8 @@ impl<'a> Ast<'a> {
     //                    | "do" stmt "while" "(" expr ")" ";"
     //                    | "for" "(" expr? ";" expr? ";" expr? ")" stmt
     fn iteration_stmt(&mut self) -> Result<Option<Box<Node>>, CompileError> {
-        if self.consume_keyword("while").is_some() {
+        if let Some(token) = self.consume_keyword("while") {
+            let span = token.span;
             self.expect_punctuator("(")?;
             let cond = self.expr()?.ok_or_else(|| CompileError::InvalidStatement {
                 msg: "while文の条件式がありません".to_string(),
@@ -83,10 +93,14 @@ impl<'a> Ast<'a> {
             let then = self.stmt()?.ok_or_else(|| CompileError::InvalidStatement {
                 msg: "while文のthen文がありません".to_string(),
             })?;
-            return Ok(Some(Box::new(Node::new(NodeKind::While { cond, then }))));
+            return Ok(Some(Box::new(Node::new(
+                NodeKind::While { cond, then },
+                span,
+            ))));
         }
 
-        if self.consume_keyword("do").is_some() {
+        if let Some(token) = self.consume_keyword("do") {
+            let span = token.span;
             let then = self.stmt()?.ok_or_else(|| CompileError::InvalidStatement {
                 msg: "do-while文のthen文がありません".to_string(),
             })?;
@@ -97,10 +111,11 @@ impl<'a> Ast<'a> {
             })?;
             self.expect_punctuator(")")?;
             self.expect_punctuator(";")?;
-            return Ok(Some(Box::new(Node::new(NodeKind::Do { then, cond }))));
+            return Ok(Some(Box::new(Node::new(NodeKind::Do { then, cond }, span))));
         }
 
-        if self.consume_keyword("for").is_some() {
+        if let Some(token) = self.consume_keyword("for") {
+            let span = token.span;
             self.expect_punctuator("(")?;
             // 初期化式
             let init = if self.consume_punctuator(";").is_none() {
@@ -129,12 +144,15 @@ impl<'a> Ast<'a> {
             let then = self.stmt()?.ok_or_else(|| CompileError::InvalidStatement {
                 msg: "for文のthen文がありません".to_string(),
             })?;
-            return Ok(Some(Box::new(Node::new(NodeKind::For {
-                init,
-                cond,
-                inc,
-                then,
-            }))));
+            return Ok(Some(Box::new(Node::new(
+                NodeKind::For {
+                    init,
+                    cond,
+                    inc,
+                    then,
+                },
+                span,
+            ))));
         }
         Ok(None)
     }
@@ -144,25 +162,29 @@ impl<'a> Ast<'a> {
     //               | "break" ";"
     //               | "return" expr? ";"
     fn jump_stmt(&mut self) -> Result<Option<Box<Node>>, CompileError> {
-        if self.consume_keyword("goto").is_some() {
-            let name = self.consume_ident().ok_or(CompileError::InvalidStatement {
+        if let Some(token) = self.consume_keyword("goto") {
+            let span = token.span;
+            let (name, _) = self.consume_ident().ok_or(CompileError::InvalidStatement {
                 msg: "goto文の後にラベル名が必要です".to_string(),
             })?;
             self.expect_punctuator(";")?;
-            return Ok(Some(Box::new(Node::new(NodeKind::Goto { name }))));
+            return Ok(Some(Box::new(Node::new(NodeKind::Goto { name }, span))));
         }
 
-        if self.consume_keyword("continue").is_some() {
+        if let Some(token) = self.consume_keyword("continue") {
+            let span = token.span;
             self.expect_punctuator(";")?;
-            return Ok(Some(Box::new(Node::new(NodeKind::Continue))));
+            return Ok(Some(Box::new(Node::new(NodeKind::Continue, span))));
         }
 
-        if self.consume_keyword("break").is_some() {
+        if let Some(token) = self.consume_keyword("break") {
+            let span = token.span;
             self.expect_punctuator(";")?;
-            return Ok(Some(Box::new(Node::new(NodeKind::Break))));
+            return Ok(Some(Box::new(Node::new(NodeKind::Break, span))));
         }
 
-        if self.consume_keyword("return").is_some() {
+        if let Some(token) = self.consume_keyword("return") {
+            let span = token.span;
             if self.consume_punctuator(";").is_some() {
                 // TODO: プロトタイプ宣言実装まで保留
                 // if TypeKind::Void != self.get_current_func()?.return_ty.kind {
@@ -171,7 +193,10 @@ impl<'a> Ast<'a> {
                 //         found: TypeKind::Void,
                 //     });
                 // }
-                return Ok(Some(Box::new(Node::new(NodeKind::Return { expr: None }))));
+                return Ok(Some(Box::new(Node::new(
+                    NodeKind::Return { expr: None },
+                    span,
+                ))));
             }
             let node = self.expr()?;
             // TODO: プロトタイプ宣言実装まで保留
@@ -185,7 +210,10 @@ impl<'a> Ast<'a> {
             //     // }
             // }
             self.expect_punctuator(";")?;
-            return Ok(Some(Box::new(Node::new(NodeKind::Return { expr: node }))));
+            return Ok(Some(Box::new(Node::new(
+                NodeKind::Return { expr: node },
+                span,
+            ))));
         }
         Ok(None)
     }
@@ -222,8 +250,9 @@ impl<'a> Ast<'a> {
 
     // expr_stmt ::= expr? ";"
     fn expr_stmt(&mut self) -> Result<Option<Box<Node>>, CompileError> {
-        if self.consume_punctuator(";").is_some() {
-            Ok(Some(Box::new(Node::new(NodeKind::Nop))))
+        if let Some(token) = self.consume_punctuator(";") {
+            let span = token.span;
+            Ok(Some(Box::new(Node::new(NodeKind::Nop, span))))
         } else {
             let expr_node = self.expr()?;
             self.expect_punctuator(";")?;

@@ -119,7 +119,10 @@ impl<'a> Ast<'a> {
     //                               | "struct" ident
     fn struct_or_union_specifier(&mut self) -> Result<Option<TypeKind>, CompileError> {
         if self.consume_keyword("struct").is_some() {
-            let struct_name = self.consume_ident().unwrap_or_default();
+            let struct_name = self
+                .consume_ident()
+                .map(|(name, _)| name)
+                .unwrap_or_default();
             if self.consume_punctuator("{").is_some() {
                 let members = self.struct_declaration_list()?;
                 self.expect_punctuator("}")?;
@@ -292,7 +295,7 @@ impl<'a> Ast<'a> {
             let inner_var = self.declarator(base_ty)?;
             self.expect_punctuator(")")?;
             inner_var.name
-        } else if let Some(name) = self.consume_ident() {
+        } else if let Some((name, _)) = self.consume_ident() {
             name
         } else {
             return Err(CompileError::InvalidDeclaration {

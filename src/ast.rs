@@ -134,7 +134,7 @@ impl<'a> Ast<'a> {
         self.consume(&TokenKind::Keyword(word.to_string()))
     }
 
-    fn consume_ident(&mut self) -> Option<String> {
+    fn consume_ident(&mut self) -> Option<(String, &Token)> {
         match self.get_token() {
             Some(Token {
                 kind: TokenKind::Identifier(name),
@@ -142,13 +142,16 @@ impl<'a> Ast<'a> {
             }) => {
                 let name_clone = name.clone();
                 self.advance_token();
-                Some(name_clone)
+                Some((
+                    name_clone,
+                    self.tokens.get(self.token_pos.saturating_sub(1)).unwrap(),
+                ))
             }
             _ => None,
         }
     }
 
-    fn consume_string(&mut self) -> Option<String> {
+    fn consume_string(&mut self) -> Option<(String, &Token)> {
         match self.get_token() {
             Some(Token {
                 kind: TokenKind::String(s),
@@ -156,13 +159,16 @@ impl<'a> Ast<'a> {
             }) => {
                 let s_clone = s.clone();
                 self.advance_token();
-                Some(s_clone)
+                Some((
+                    s_clone,
+                    self.tokens.get(self.token_pos.saturating_sub(1)).unwrap(),
+                ))
             }
             _ => None,
         }
     }
 
-    fn consume_number(&mut self) -> Option<i64> {
+    fn consume_number(&mut self) -> Option<(i64, &Token)> {
         match self.get_token() {
             Some(Token {
                 kind: TokenKind::Number(val),
@@ -170,7 +176,10 @@ impl<'a> Ast<'a> {
             }) => {
                 let val_clone = *val;
                 self.advance_token();
-                Some(val_clone)
+                Some((
+                    val_clone,
+                    self.tokens.get(self.token_pos.saturating_sub(1)).unwrap(),
+                ))
             }
             _ => None,
         }
