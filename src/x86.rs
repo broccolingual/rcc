@@ -361,7 +361,6 @@ impl Generator {
                 self.builder.add_row("push rax", true); // 変数のアドレスをスタックに積む
             }
             NodeKind::Member { obj, offset, .. } => {
-                // TODO: グローバル変数として定義された構造体のメンバアクセスに対応
                 self.gen_addr(obj)?; // オブジェクトのアドレスを取得
                 self.builder.add_row("pop rax", true); // オブジェクトのアドレス
                 self.builder.add_row(&format!("add rax, {}", offset), true); // メンバのオフセットを加算
