@@ -1,7 +1,6 @@
 use crate::ast::Ast;
 use crate::errors::CompileError;
 use crate::node::{BinaryOp, Node, NodeKind, UnaryOp};
-use crate::types::Type;
 use core::str::FromStr;
 
 impl Ast {
@@ -608,11 +607,10 @@ impl Ast {
                         msg: "関数呼び出しの関数名のパースに失敗しました".to_string(),
                     });
                 };
-                let return_ty = if let Some(return_ty) = self.get_function_return_type(&func_name) {
-                    return_ty.clone()
-                } else {
-                    Type::default()
-                };
+                let return_ty = self
+                    .get_function_return_type(&func_name)
+                    .cloned()
+                    .unwrap_or_default();
                 node = Some(Box::new(Node::new_call(&func_name, args, return_ty)));
             } else if self.consume_punctuator(".").is_some() {
                 // 構造体のメンバアクセス

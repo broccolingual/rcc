@@ -119,11 +119,7 @@ impl Ast {
     //                               | "struct" ident
     fn struct_or_union_specifier(&mut self) -> Result<Option<TypeKind>, CompileError> {
         if self.consume_keyword("struct").is_some() {
-            let struct_name = if let Some(name) = self.consume_ident() {
-                name
-            } else {
-                "".to_string()
-            };
+            let struct_name = self.consume_ident().unwrap_or_default();
             if self.consume_punctuator("{").is_some() {
                 let members = self.struct_declaration_list()?;
                 self.expect_punctuator("}")?;
@@ -320,12 +316,11 @@ impl Ast {
             let array_size = if self.peek_punctuator("]") {
                 0
             } else {
-                let size_expr =
-                    self.assign_expr()?
-                        .ok_or_else(|| CompileError::InvalidDeclaration {
-                            msg: "配列のサイズが必要です".to_string(),
-                        })?;
-                size_expr.eval_const_expr()? as usize
+                self.assign_expr()?
+                    .ok_or_else(|| CompileError::InvalidDeclaration {
+                        msg: "配列のサイズが必要です".to_string(),
+                    })?
+                    .eval_const_expr()? as usize
             };
             self.expect_punctuator("]")?;
             let inner_ty = self.parse_postfix_declarators(base_ty)?;
@@ -339,8 +334,9 @@ impl Ast {
         }
         // "(" parameter_type_list ")"
         else if self.consume_punctuator("(").is_some() {
-            let params = if self.consume_punctuator(")").is_some() {
+            let params = if self.peek_punctuator(")") {
                 // パラメータが0個の場合
+                self.expect_punctuator(")")?;
                 Vec::new()
             } else {
                 // パラメータが1個以上の場合
@@ -453,8 +449,9 @@ impl Ast {
         }
         // "(" parameter_type_list ")"
         else if self.consume_punctuator("(").is_some() {
-            let params = if self.consume_punctuator(")").is_some() {
+            let params = if self.peek_punctuator(")") {
                 // パラメータが0個の場合
+                self.expect_punctuator(")")?;
                 Vec::new()
             } else {
                 // パラメータが1個以上の場合
