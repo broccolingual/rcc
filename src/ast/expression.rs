@@ -324,12 +324,22 @@ impl Ast {
             if self.consume_punctuator("+").is_some() {
                 // addition
                 if let Some(n) = &mut node {
-                    node = n.scaled_add(self.mul_expr()?)?;
+                    let rhs = self
+                        .mul_expr()?
+                        .ok_or_else(|| CompileError::InvalidExpression {
+                            msg: "'+'演算子の右辺値がありません".to_string(),
+                        })?;
+                    node = Some(Box::new(Node::new_scaled_add(n.clone(), rhs)?));
                 }
             } else if self.consume_punctuator("-").is_some() {
                 // subtraction
                 if let Some(n) = &mut node {
-                    node = n.scaled_sub(self.mul_expr()?)?;
+                    let rhs = self
+                        .mul_expr()?
+                        .ok_or_else(|| CompileError::InvalidExpression {
+                            msg: "'-'演算子の右辺値がありません".to_string(),
+                        })?;
+                    node = Some(Box::new(Node::new_scaled_sub(n.clone(), rhs)?));
                 }
             } else {
                 return Ok(node);
@@ -507,9 +517,9 @@ impl Ast {
         self.postfix_expr()
     }
 
-    // 未確定の識別子をローカル変数またはグローバル変数に割り当てる
+    // 識別子ノードを変数ノードに解決するヘルパー関数
     // その他のノードはそのまま返す
-    fn assign_identifier(
+    fn resolve_ident_to_var(
         &mut self,
         node: Option<Box<Node>>,
     ) -> Result<Option<Box<Node>>, CompileError> {
@@ -538,6 +548,46 @@ impl Ast {
         Ok(node)
     }
 
+    // 構造体のメンバアクセスノードを作成するヘルパー関数
+    fn create_member_access_node(
+        &mut self,
+        obj: Box<Node>,
+        member_name: &str,
+    ) -> Result<Box<Node>, CompileError> {
+        if !obj.ty.is_struct() {
+            return Err(CompileError::InvalidExpression {
+                msg: format!(
+                    "型 '{:?}' は構造体ではないため、メンバアクセスできません",
+                    obj.ty
+                ),
+            });
+        }
+
+        let member_decl = obj.ty.find_struct_member(member_name).ok_or_else(|| {
+            CompileError::InvalidExpression {
+                msg: format!("構造体に指定されたメンバ {:?} が存在しません", member_name),
+            }
+        })?;
+
+        let member_offset = member_decl
+            .offset
+            .ok_or_else(|| CompileError::InternalError {
+                msg: format!(
+                    "構造体メンバ {:?} のオフセットが設定されていません",
+                    member_name
+                ),
+            })?;
+
+        let member_ty = member_decl.ty.clone();
+
+        Ok(Box::new(Node::new_member(
+            obj,
+            member_name,
+            member_offset,
+            &member_ty,
+        )))
+    }
+
     // postfix_expr ::= primary_expr
     //                  | postfix_expr "[" expr "]"
     //                  | postfix_expr "(" argument_expr_list? ")"
@@ -552,14 +602,12 @@ impl Ast {
                 // 配列の場合は自動的にアドレスに変換
                 // 例: a[0] -> *(a + 0)
                 // 例: a[1][2] -> *(*(a + 1) + 2)
-                node = self.assign_identifier(node)?; // 識別子を変数に割り当て
-                let index_expr = self.expr()?;
+                node = self.resolve_ident_to_var(node)?; // 識別子を変数に割り当て
+                let index_expr = self.expr()?.ok_or_else(|| CompileError::InternalError {
+                    msg: "配列のインデックス計算に失敗しました".to_string(),
+                })?;
                 if let Some(n) = &mut node {
-                    let scaled_add =
-                        n.scaled_add(index_expr)?
-                            .ok_or_else(|| CompileError::InternalError {
-                                msg: "配列のインデックス計算に失敗しました".to_string(),
-                            })?;
+                    let scaled_add = Box::new(Node::new_scaled_add(n.clone(), index_expr)?);
                     node = Some(Box::new(Node::new_unary(UnaryOp::Deref, scaled_add)?));
                 }
                 self.expect_punctuator("]")?;
@@ -583,7 +631,7 @@ impl Ast {
                 node = Some(Box::new(Node::new_call(&func_name, args, return_ty)));
             } else if self.consume_punctuator(".").is_some() {
                 // 構造体のメンバアクセス
-                node = self.assign_identifier(node)?; // 識別子を変数に割り当て
+                node = self.resolve_ident_to_var(node)?; // 識別子を変数に割り当て
                 let member_name =
                     self.consume_ident()
                         .ok_or_else(|| CompileError::InvalidExpression {
@@ -592,39 +640,11 @@ impl Ast {
                 let obj = node.ok_or_else(|| CompileError::InvalidExpression {
                     msg: "構造体オブジェクトがありません".to_string(),
                 })?;
-                if !obj.ty.is_struct() {
-                    return Err(CompileError::InvalidExpression {
-                        msg: format!(
-                            "型 '{:?}' は構造体ではないため、メンバアクセスできません",
-                            obj.ty
-                        ),
-                    });
-                }
-                let member_decl = obj.ty.find_struct_member(&member_name).ok_or_else(|| {
-                    CompileError::InvalidExpression {
-                        msg: format!("構造体に指定されたメンバ {:?} が存在しません", member_name),
-                    }
-                })?;
-                let member_offset =
-                    member_decl
-                        .offset
-                        .ok_or_else(|| CompileError::InternalError {
-                            msg: format!(
-                                "構造体メンバ {:?} のオフセットが設定されていません",
-                                member_name
-                            ),
-                        })?;
-                let member_ty = member_decl.ty.clone();
-                node = Some(Box::new(Node::new_member(
-                    obj,
-                    &member_name,
-                    member_offset,
-                    &member_ty,
-                )));
+                node = Some(self.create_member_access_node(obj, &member_name)?);
             } else if self.consume_punctuator("->").is_some() {
                 // 構造体ポインタのメンバアクセス
                 // ptr->member は (*ptr).member と同等
-                node = self.assign_identifier(node)?; // 識別子を変数に割り当て
+                node = self.resolve_ident_to_var(node)?; // 識別子を変数に割り当て
                 let member_name =
                     self.consume_ident()
                         .ok_or_else(|| CompileError::InvalidExpression {
@@ -633,7 +653,6 @@ impl Ast {
                 let ptr = node.ok_or_else(|| CompileError::InvalidExpression {
                     msg: "構造体ポインタがありません".to_string(),
                 })?;
-
                 // ポインタであることを確認
                 if !matches!(ptr.ty.kind, TypeKind::Ptr { .. }) {
                     return Err(CompileError::InvalidExpression {
@@ -643,52 +662,12 @@ impl Ast {
                         ),
                     });
                 }
-
                 // デリファレンスして構造体を取得
                 let deref_node = Box::new(Node::new_unary(UnaryOp::Deref, ptr)?);
-
-                // デリファレンスした結果が構造体であることを確認
-                if !deref_node.ty.is_struct() {
-                    return Err(CompileError::InvalidExpression {
-                        msg: format!(
-                            "型 '{:?}' は構造体ではないため、メンバアクセスできません",
-                            deref_node.ty
-                        ),
-                    });
-                }
-
-                // メンバー情報を取得
-                let member_decl =
-                    deref_node
-                        .ty
-                        .find_struct_member(&member_name)
-                        .ok_or_else(|| CompileError::InvalidExpression {
-                            msg: format!(
-                                "構造体に指定されたメンバ {:?} が存在しません",
-                                member_name
-                            ),
-                        })?;
-                let member_offset =
-                    member_decl
-                        .offset
-                        .ok_or_else(|| CompileError::InternalError {
-                            msg: format!(
-                                "構造体メンバ {:?} のオフセットが設定されていません",
-                                member_name
-                            ),
-                        })?;
-                let member_ty = member_decl.ty.clone();
-
-                // メンバーアクセスノードを作成
-                node = Some(Box::new(Node::new_member(
-                    deref_node,
-                    &member_name,
-                    member_offset,
-                    &member_ty,
-                )));
+                node = Some(self.create_member_access_node(deref_node, &member_name)?);
             } else if self.consume_punctuator("++").is_some() {
                 // post-increment
-                node = self.assign_identifier(node)?; // 識別子を変数に割り当て
+                node = self.resolve_ident_to_var(node)?; // 識別子を変数に割り当て
                 let expr = node.ok_or_else(|| CompileError::InvalidExpression {
                     msg: "単項'++'の前に式がありません".to_string(),
                 })?;
@@ -709,7 +688,7 @@ impl Ast {
                 }
             } else if self.consume_punctuator("--").is_some() {
                 // post-decrement
-                node = self.assign_identifier(node)?; // 識別子を変数に割り当て
+                node = self.resolve_ident_to_var(node)?; // 識別子を変数に割り当て
                 let expr = node.ok_or_else(|| CompileError::InvalidExpression {
                     msg: "単項'--'の前に式がありません".to_string(),
                 })?;
@@ -729,7 +708,7 @@ impl Ast {
                     node = Some(Box::new(Node::new_unary(UnaryOp::PostDec, expr)?));
                 }
             } else {
-                node = self.assign_identifier(node)?; // 識別子を変数に割り当て
+                node = self.resolve_ident_to_var(node)?; // 識別子を変数に割り当て
                 return Ok(node);
             }
         }
@@ -771,14 +750,12 @@ impl Ast {
         }
 
         if let Some(name) = self.consume_ident() {
-            let node = Node::new(NodeKind::Identifier { name: name.clone() });
-            return Ok(Some(Box::new(node)));
+            return Ok(Some(Box::new(Node::new(NodeKind::Identifier { name }))));
         }
 
-        if let Some(string) = self.consume_string() {
-            let index = self.register_string_literal(&string);
-            let node = Node::new(NodeKind::String { val: string, index });
-            return Ok(Some(Box::new(node)));
+        if let Some(val) = self.consume_string() {
+            let index = self.register_string_literal(&val);
+            return Ok(Some(Box::new(Node::new(NodeKind::String { val, index }))));
         }
 
         if let Some(num) = self.consume_number() {

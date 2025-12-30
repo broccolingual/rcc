@@ -52,9 +52,9 @@ impl Function {
             name: name.to_string(),
             body: Vec::new(),
             locals: Vec::new(),
-            local_symbol_table: ScopedTable::<Symbol>::new(),
-            param_symbol_table: FlatTable::<Symbol>::new(),
-            local_tag_table: ScopedTable::<Type>::new(),
+            local_symbol_table: ScopedTable::new(),
+            param_symbol_table: FlatTable::new(),
+            local_tag_table: ScopedTable::new(),
             stack_frame: StackFrame::new(),
             return_ty: Type::from(TypeKind::Void, false),
         }

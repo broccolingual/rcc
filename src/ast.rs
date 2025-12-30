@@ -25,8 +25,8 @@ impl Ast {
         Ast {
             tokens: tokens.to_vec(),
             token_pos: 0,
-            global_symbol_table: FlatTable::<Symbol>::new(),
-            global_tag_table: FlatTable::<Type>::new(),
+            global_symbol_table: FlatTable::new(),
+            global_tag_table: FlatTable::new(),
             globals: Vec::new(),
             funcs: Vec::new(),
             current_func: None,

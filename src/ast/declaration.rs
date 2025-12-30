@@ -145,14 +145,11 @@ impl Ast {
                 return Ok(Some(struct_ty.kind));
             } else if !struct_name.is_empty() {
                 // 既存の構造体タグを検索
-                let struct_ty = if let Some(func) = &self.current_func {
-                    // 関数内ならローカル→グローバルの順で検索
-                    func.find_struct_tag(&struct_name)
-                        .or_else(|| self.find_struct_tag(&struct_name))
-                } else {
-                    // グローバル検索のみ
-                    self.find_struct_tag(&struct_name)
-                };
+                let struct_ty = self
+                    .current_func
+                    .as_ref()
+                    .and_then(|f| f.find_struct_tag(&struct_name))
+                    .or_else(|| self.find_struct_tag(&struct_name));
                 if let Some(ty) = struct_ty {
                     return Ok(Some(ty.kind.clone()));
                 } else {

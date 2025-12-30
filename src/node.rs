@@ -528,15 +528,9 @@ impl Node {
         }
     }
 
-    pub(crate) fn scaled_add(
-        &mut self,
-        rhs: Option<Box<Node>>,
-    ) -> Result<Option<Box<Node>>, CompileError> {
-        let rhs = rhs.ok_or_else(|| CompileError::InvalidExpression {
-            msg: "expression required after '+' operator".to_string(),
-        })?;
-        let rhs = if self.ty.is_ptr() || self.ty.is_array() {
-            let base_size = self.ty.base_type().size_of();
+    pub(crate) fn new_scaled_add(lhs: Box<Node>, rhs: Box<Node>) -> Result<Self, CompileError> {
+        let rhs = if lhs.ty.is_ptr() || lhs.ty.is_array() {
+            let base_size = lhs.ty.base_type().size_of();
             // ポインタ加算の場合、右辺をスケーリングする
             Box::new(Node::new_binary(
                 BinaryOp::Mul,
@@ -546,22 +540,12 @@ impl Node {
         } else {
             rhs
         };
-        Ok(Some(Box::new(Node::new_binary(
-            BinaryOp::Add,
-            Box::new(self.clone()),
-            rhs,
-        )?)))
+        Node::new_binary(BinaryOp::Add, lhs, rhs)
     }
 
-    pub(crate) fn scaled_sub(
-        &mut self,
-        rhs: Option<Box<Node>>,
-    ) -> Result<Option<Box<Node>>, CompileError> {
-        let rhs = rhs.ok_or_else(|| CompileError::InvalidExpression {
-            msg: "expression required after '-' operator".to_string(),
-        })?;
-        let rhs = if self.ty.is_ptr() || self.ty.is_array() {
-            let base_size = self.ty.base_type().size_of();
+    pub(crate) fn new_scaled_sub(lhs: Box<Node>, rhs: Box<Node>) -> Result<Self, CompileError> {
+        let rhs = if lhs.ty.is_ptr() || lhs.ty.is_array() {
+            let base_size = lhs.ty.base_type().size_of();
             // ポインタ減算の場合、右辺をスケーリングする
             Box::new(Node::new_binary(
                 BinaryOp::Mul,
@@ -571,10 +555,6 @@ impl Node {
         } else {
             rhs
         };
-        Ok(Some(Box::new(Node::new_binary(
-            BinaryOp::Sub,
-            Box::new(self.clone()),
-            rhs,
-        )?)))
+        Node::new_binary(BinaryOp::Sub, lhs, rhs)
     }
 }
