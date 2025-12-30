@@ -1,7 +1,7 @@
 use crate::ast::Ast;
 use crate::errors::CompileError;
 use crate::node::{BinaryOp, Node, NodeKind, UnaryOp};
-use crate::types::{Type, TypeKind};
+use crate::types::Type;
 use core::str::FromStr;
 
 impl Ast {
@@ -323,23 +323,23 @@ impl Ast {
         loop {
             if self.consume_punctuator("+").is_some() {
                 // addition
-                if let Some(n) = &mut node {
+                if let Some(n) = node.take() {
                     let rhs = self
                         .mul_expr()?
                         .ok_or_else(|| CompileError::InvalidExpression {
                             msg: "'+'演算子の右辺値がありません".to_string(),
                         })?;
-                    node = Some(Box::new(Node::new_scaled_add(n.clone(), rhs)?));
+                    node = Some(Box::new(Node::new_scaled_add(n, rhs)?));
                 }
             } else if self.consume_punctuator("-").is_some() {
                 // subtraction
-                if let Some(n) = &mut node {
+                if let Some(n) = node.take() {
                     let rhs = self
                         .mul_expr()?
                         .ok_or_else(|| CompileError::InvalidExpression {
                             msg: "'-'演算子の右辺値がありません".to_string(),
                         })?;
-                    node = Some(Box::new(Node::new_scaled_sub(n.clone(), rhs)?));
+                    node = Some(Box::new(Node::new_scaled_sub(n, rhs)?));
                 }
             } else {
                 return Ok(node);
@@ -606,8 +606,8 @@ impl Ast {
                 let index_expr = self.expr()?.ok_or_else(|| CompileError::InternalError {
                     msg: "配列のインデックス計算に失敗しました".to_string(),
                 })?;
-                if let Some(n) = &mut node {
-                    let scaled_add = Box::new(Node::new_scaled_add(n.clone(), index_expr)?);
+                if let Some(n) = node.take() {
+                    let scaled_add = Box::new(Node::new_scaled_add(n, index_expr)?);
                     node = Some(Box::new(Node::new_unary(UnaryOp::Deref, scaled_add)?));
                 }
                 self.expect_punctuator("]")?;
@@ -654,7 +654,7 @@ impl Ast {
                     msg: "構造体ポインタがありません".to_string(),
                 })?;
                 // ポインタであることを確認
-                if !matches!(ptr.ty.kind, TypeKind::Ptr { .. }) {
+                if !ptr.ty.is_ptr() {
                     return Err(CompileError::InvalidExpression {
                         msg: format!(
                             "型 '{:?}' はポインタではないため、'->'演算子を使用できません",

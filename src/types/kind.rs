@@ -37,8 +37,8 @@ impl fmt::Debug for TypeKind {
             TypeKind::Long => write!(f, "long"),
             TypeKind::Float => write!(f, "float"),
             TypeKind::Double => write!(f, "double"),
-            TypeKind::Ptr { to } => write!(f, "ptr->{:?}", to),
-            TypeKind::Array { base, size } => write!(f, "[{:?}; {}]", base, size),
+            TypeKind::Ptr { to } => write!(f, "ptr -> {:?}", to),
+            TypeKind::Array { base, size } => write!(f, "array[{}] of {:?}", size, base),
             TypeKind::Struct { name, members } => {
                 write!(f, "struct {} {{ ", name)?;
                 for (i, member) in members.iter().enumerate() {
