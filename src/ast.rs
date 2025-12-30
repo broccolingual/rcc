@@ -47,11 +47,10 @@ impl<'a> Ast<'a> {
     }
 
     fn get_prev_token_span(&self) -> Option<(usize, usize)> {
-        if self.token_pos == 0 {
-            None
-        } else {
-            self.tokens.get(self.token_pos - 1).map(|t| t.span)
-        }
+        self.token_pos
+            .checked_sub(1)
+            .and_then(|pos| self.tokens.get(pos))
+            .map(|token| token.span)
     }
 
     fn register_string_literal(&mut self, s: &str) -> usize {
@@ -149,6 +148,7 @@ impl<'a> Ast<'a> {
     }
 
     fn consume_ident(&mut self) -> Option<(String, &Token)> {
+        let token_pos = self.token_pos;
         match self.get_token() {
             Some(Token {
                 kind: TokenKind::Identifier(name),
@@ -156,16 +156,14 @@ impl<'a> Ast<'a> {
             }) => {
                 let name_clone = name.clone();
                 self.advance_token();
-                Some((
-                    name_clone,
-                    self.tokens.get(self.token_pos.saturating_sub(1)).unwrap(),
-                ))
+                Some((name_clone, &self.tokens[token_pos]))
             }
             _ => None,
         }
     }
 
     fn consume_string(&mut self) -> Option<(String, &Token)> {
+        let token_pos = self.token_pos;
         match self.get_token() {
             Some(Token {
                 kind: TokenKind::String(s),
@@ -173,27 +171,22 @@ impl<'a> Ast<'a> {
             }) => {
                 let s_clone = s.clone();
                 self.advance_token();
-                Some((
-                    s_clone,
-                    self.tokens.get(self.token_pos.saturating_sub(1)).unwrap(),
-                ))
+                Some((s_clone, &self.tokens[token_pos]))
             }
             _ => None,
         }
     }
 
     fn consume_number(&mut self) -> Option<(i64, &Token)> {
+        let token_pos = self.token_pos;
         match self.get_token() {
             Some(Token {
                 kind: TokenKind::Number(val),
                 ..
             }) => {
-                let val_clone = *val;
+                let val = *val;
                 self.advance_token();
-                Some((
-                    val_clone,
-                    self.tokens.get(self.token_pos.saturating_sub(1)).unwrap(),
-                ))
+                Some((val, &self.tokens[token_pos]))
             }
             _ => None,
         }

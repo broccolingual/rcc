@@ -305,11 +305,11 @@ impl<'a> Ast<'a> {
                 let lhs = self
                     .shift_expr()?
                     .ok_or_else(|| CompileError::InvalidExpression {
-                        msg: "'>'演算子の左辺値がありません".to_string(),
+                        msg: "'>'演算子の右辺値がありません".to_string(),
                         span,
                     })?;
                 let rhs = node.ok_or_else(|| CompileError::InvalidExpression {
-                    msg: "'>'演算子の右辺値がありません".to_string(),
+                    msg: "'>'演算子の左辺値がありません".to_string(),
                     span,
                 })?;
                 node = Some(Box::new(Node::new_binary(BinaryOp::Lt, lhs, rhs, span)?));
@@ -319,11 +319,11 @@ impl<'a> Ast<'a> {
                 let lhs = self
                     .shift_expr()?
                     .ok_or_else(|| CompileError::InvalidExpression {
-                        msg: "'>='演算子の左辺値がありません".to_string(),
+                        msg: "'>='演算子の右辺値がありません".to_string(),
                         span,
                     })?;
                 let rhs = node.ok_or_else(|| CompileError::InvalidExpression {
-                    msg: "'>='演算子の右辺値がありません".to_string(),
+                    msg: "'>='演算子の左辺値がありません".to_string(),
                     span,
                 })?;
                 node = Some(Box::new(Node::new_binary(BinaryOp::Le, lhs, rhs, span)?));
