@@ -1,12 +1,102 @@
 use crate::ast::Ast;
 use crate::errors::CompileError;
-use crate::node::Node;
+use crate::function::Function;
+use crate::node::{Node, NodeKind};
 use crate::types::{
     Declaration, DeclarationSpecifier, FunctionKind, MemberDeclaration, StorageClassKind, Type,
     TypeKind, TypeQualifierKind, TypeSpecifierQualifier,
 };
 
 impl<'a> Ast<'a> {
+    // external_declaration ::= func_def | declaration
+    // func_def    ::= declaration_specifiers declarator compound_stmt
+    // declaration ::= declaration_specifiers init_declarator_list ";"
+    pub(super) fn external_declaration(&mut self) -> Result<(), CompileError> {
+        let specifiers = self.declaration_specifiers()?;
+        if specifiers.is_empty() {
+            let span = self.get_prev_token_span().unwrap_or((0, 0));
+            return Err(CompileError::InvalidDeclaration {
+                msg: "外部宣言のパースに失敗しました。型指定子が必要です".to_string(),
+                span,
+            });
+        }
+
+        let base_ty = Type::from_ds(specifiers).ok_or_else(|| {
+            let span = self.get_prev_token_span().unwrap_or((0, 0));
+            CompileError::InvalidDeclaration {
+                msg: "無効な型指定子です".to_string(),
+                span,
+            }
+        })?;
+
+        let token_pos = self.token_pos; // 関数定義でなかった場合にバックトラックするために保存
+        let first_decl = self.declarator(&base_ty)?;
+
+        // 関数型の場合の分岐
+        if let TypeKind::Func { params, return_ty } = &first_decl.ty.kind {
+            if self.peek_punctuator("{") {
+                // 関数定義: declarator compound_stmt
+                let mut func = Function::new(&first_decl.name);
+                for param_decl in params.clone() {
+                    func.register_param(param_decl)?;
+                }
+                func.return_ty = *return_ty.clone();
+
+                self.current_func = Some(func);
+                let func_body = self.compound_stmt()?.ok_or_else(|| {
+                    let span = self.get_prev_token_span().unwrap_or((0, 0));
+                    CompileError::InvalidDeclaration {
+                        msg: "関数本体が必要です".to_string(),
+                        span,
+                    }
+                })?;
+
+                func = self
+                    .current_func
+                    .take()
+                    .ok_or_else(|| CompileError::InternalError {
+                        msg: "現在の関数が設定されていません".to_string(),
+                    })?;
+
+                if let NodeKind::Block { body } = func_body.kind {
+                    func.body = body;
+                } else {
+                    let span = func_body.span;
+                    return Err(CompileError::InvalidDeclaration {
+                        msg: "関数本体がブロックではありません。'{' と '}' で囲まれた複合文が必要です".to_string(),
+                        span,
+                    });
+                }
+
+                self.current_func = None;
+                self.funcs.push(func);
+                return Ok(());
+            } else if self.consume_punctuator(";").is_some() {
+                // 関数プロトタイプ宣言: declarator ";"
+                // TODO: 現状では何もせず無視（将来的には関数テーブルに登録するなど）
+                return Ok(());
+            } else {
+                let span = self.get_prev_token_span().unwrap_or((0, 0));
+                return Err(CompileError::InvalidDeclaration {
+                    msg: "関数宣言には ';' または '{' が必要です".to_string(),
+                    span,
+                });
+            }
+        }
+
+        // グローバル変数宣言の場合: init_declarator_list ";"
+        self.token_pos = token_pos; // バックトラックして再度パース
+        let declarations = self.init_declarator_list(&base_ty)?;
+        self.expect_punctuator(";")?;
+
+        // グローバル変数として登録
+        for declaration in declarations {
+            self.register_global_var(declaration)?;
+        }
+
+        Ok(())
+    }
+
     // declaration ::= declaration_specifiers init_declarator_list ";"
     pub(super) fn declaration(&mut self) -> Result<Option<Vec<Declaration>>, CompileError> {
         let specifiers = self.declaration_specifiers()?;
@@ -511,7 +601,7 @@ impl<'a> Ast<'a> {
     // initializer ::= assignment_expr
     //                 | "{" initializer_list "}"
     //                 | "{" initializer_list "," "}" // TODO: 未対応（initializer_listの処理と重複して問題が発生）
-    fn initializer(&mut self) -> Result<Vec<Node>, CompileError> {
+    pub(super) fn initializer(&mut self) -> Result<Vec<Node>, CompileError> {
         if self.consume_punctuator("{").is_some() {
             let init_list = self.initializer_list()?;
             self.expect_punctuator("}")?;
