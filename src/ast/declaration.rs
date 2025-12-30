@@ -118,13 +118,12 @@ impl<'a> Ast<'a> {
     // struct_or_union_specifier ::= "struct" ident? "{" struct_declaration_list "}"
     //                               | "struct" ident
     fn struct_or_union_specifier(&mut self) -> Result<Option<TypeKind>, CompileError> {
-        if self.consume_keyword("struct").is_some() {
-            let span;
-            let struct_name = if let Some((name, token_ident)) = self.consume_ident() {
-                span = token_ident.span;
+        if let Some(struct_token) = self.consume_keyword("struct") {
+            let mut span = struct_token.span;
+            let struct_name = if let Some((name, ident_token)) = self.consume_ident() {
+                span = ident_token.span;
                 name
             } else {
-                span = (0, 0);
                 String::new()
             };
             if self.consume_punctuator("{").is_some() {
