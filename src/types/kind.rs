@@ -37,10 +37,18 @@ impl fmt::Debug for TypeKind {
             TypeKind::Long => write!(f, "long"),
             TypeKind::Float => write!(f, "float"),
             TypeKind::Double => write!(f, "double"),
-            // ポインタや配列は再帰的に*をつけて表示
-            TypeKind::Ptr { to } => write!(f, "{:?}*", to),
+            TypeKind::Ptr { to } => write!(f, "ptr->{:?}", to),
             TypeKind::Array { base, size } => write!(f, "[{:?}; {}]", base, size),
-            TypeKind::Struct { name, members } => write!(f, "struct {} {{ {:?} }}", name, members),
+            TypeKind::Struct { name, members } => {
+                write!(f, "struct {} {{ ", name)?;
+                for (i, member) in members.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{:?}", member)?;
+                }
+                write!(f, " }}")
+            }
             TypeKind::Func { return_ty, params } => {
                 write!(f, "func(")?;
                 for (i, param) in params.iter().enumerate() {
@@ -65,14 +73,7 @@ impl fmt::Display for TypeKind {
             TypeKind::Long => write!(f, "long"),
             TypeKind::Float => write!(f, "float"),
             TypeKind::Double => write!(f, "double"),
-            TypeKind::Ptr { to } => write!(f, "ptr to {:?}", to),
-            TypeKind::Array { base, size } => write!(f, "array[{}] of {:?}", size, base),
-            TypeKind::Struct { name, members } => {
-                write!(f, "struct {} {{ {:?} }}", name, members)
-            }
-            TypeKind::Func { return_ty, params } => {
-                write!(f, "func({:?}) -> {:?}", params, return_ty)
-            }
+            _ => write!(f, "{:?}", self),
         }
     }
 }

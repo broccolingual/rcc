@@ -185,19 +185,18 @@ impl Type {
         }
     }
 
+    // 型がポインタかどうか
+    pub(crate) fn is_ptr(&self) -> bool {
+        match &self.kind {
+            TypeKind::Ptr { .. } => true,
+            TypeKind::Func { return_ty, .. } => return_ty.is_ptr(),
+            _ => false,
+        }
+    }
+
     // 型が配列かどうか
     pub(crate) fn is_array(&self) -> bool {
         matches!(&self.kind, TypeKind::Array { .. })
-    }
-
-    // 型がポインタもしくは配列かどうか
-    pub(crate) fn is_ptr_or_array(&self) -> bool {
-        match &self.kind {
-            TypeKind::Ptr { .. } => true,
-            TypeKind::Array { .. } => true,
-            TypeKind::Func { return_ty, .. } => return_ty.is_ptr_or_array(),
-            _ => false,
-        }
     }
 
     // 型が整数型かどうか
@@ -251,14 +250,20 @@ impl Type {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq)]
 pub(crate) struct Declaration {
     pub(crate) name: String,
     pub(crate) ty: Type,
     pub(crate) init: Vec<Node>,
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+impl fmt::Debug for Declaration {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?} {}", self.ty, self.name)
+    }
+}
+
+#[derive(Clone, PartialEq, Eq)]
 pub(crate) struct MemberDeclaration {
     pub(crate) name: String,
     pub(crate) ty: Type,
@@ -272,6 +277,12 @@ impl From<Declaration> for MemberDeclaration {
             ty: decl.ty,
             offset: None,
         }
+    }
+}
+
+impl fmt::Debug for MemberDeclaration {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?} {}", self.ty, self.name)
     }
 }
 

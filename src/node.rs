@@ -108,10 +108,10 @@ impl Node {
                     } else {
                         rhs_ty.clone()
                     }
-                } else if lhs_ty.is_ptr_or_array() && rhs_ty.is_scalar() {
+                } else if (lhs_ty.is_ptr() || lhs_ty.is_array()) && rhs_ty.is_scalar() {
                     // 左辺がポインタ/配列型、右辺がスカラー型の場合、左辺の型を結果型とする
                     lhs_ty.clone()
-                } else if lhs_ty.is_scalar() && rhs_ty.is_ptr_or_array() {
+                } else if lhs_ty.is_scalar() && (rhs_ty.is_ptr() || rhs_ty.is_array()) {
                     // 右辺がポインタ/配列型、左辺がスカラー型の場合、右辺の型を結果型とする
                     rhs_ty.clone()
                 } else {
@@ -184,7 +184,8 @@ impl Node {
                 let rhs_ty = &rhs.ty;
 
                 if lhs_ty.is_scalar() && rhs_ty.is_scalar()
-                    || lhs_ty.is_ptr_or_array() && rhs_ty.is_ptr_or_array()
+                    || (lhs_ty.is_ptr() || lhs_ty.is_array())
+                        && (rhs_ty.is_ptr() || rhs_ty.is_array())
                 {
                     // 両方ともスカラー型の場合、結果型はint型とする
                     Type::from(TypeKind::Int, false)
@@ -222,7 +223,7 @@ impl Node {
             UnaryOp::LogicalNot => {
                 let expr_ty = &expr.ty;
 
-                if expr_ty.is_scalar() || expr_ty.is_ptr_or_array() {
+                if expr_ty.is_scalar() || expr_ty.is_ptr() || expr_ty.is_array() {
                     Type::from(TypeKind::Int, false) // 結果型はint型
                 } else {
                     return Err(CompileError::InvalidExpression {
@@ -248,7 +249,7 @@ impl Node {
                 let expr_ty = &expr.ty;
 
                 // デリファレンス演算子の型はポインタの指す型にする
-                if !expr_ty.is_ptr_or_array() {
+                if !(expr_ty.is_ptr() || expr_ty.is_array()) {
                     return Err(CompileError::InvalidExpression {
                         msg: format!(
                             "デリファレンス演算子はポインタ/配列型にのみ適用可能です: {:?}",
@@ -286,7 +287,7 @@ impl Node {
         let rhs_ty = &rhs.ty;
 
         let ty = if lhs_ty.is_scalar() && rhs_ty.is_scalar()
-            || lhs_ty.is_ptr_or_array() && rhs_ty.is_ptr_or_array()
+            || (lhs_ty.is_ptr() || lhs_ty.is_array()) && (rhs_ty.is_ptr() || rhs_ty.is_array())
         {
             // 両方ともスカラー型の場合、結果型はint型とする
             Type::from(TypeKind::Int, false)
@@ -310,7 +311,7 @@ impl Node {
         let rhs_ty = &rhs.ty;
 
         let ty = if lhs_ty.is_scalar() && rhs_ty.is_scalar()
-            || lhs_ty.is_ptr_or_array() && rhs_ty.is_ptr_or_array()
+            || (lhs_ty.is_ptr() || lhs_ty.is_array()) && (rhs_ty.is_ptr() || rhs_ty.is_array())
         {
             // 両方ともスカラー型の場合、結果型はint型とする
             Type::from(TypeKind::Int, false)
@@ -338,7 +339,7 @@ impl Node {
         let then_ty = &then.ty;
         let els_ty = &els.ty;
 
-        let ty = if cond_ty.is_scalar() || cond_ty.is_ptr_or_array() {
+        let ty = if cond_ty.is_scalar() || cond_ty.is_ptr() || cond_ty.is_array() {
             if then_ty == els_ty {
                 // then節とelse節の型が同じ場合、その型を結果型とする
                 then_ty.clone()
@@ -534,7 +535,7 @@ impl Node {
         let rhs = rhs.ok_or_else(|| CompileError::InvalidExpression {
             msg: "expression required after '+' operator".to_string(),
         })?;
-        let rhs = if self.ty.is_ptr_or_array() {
+        let rhs = if self.ty.is_ptr() || self.ty.is_array() {
             let base_size = self.ty.base_type().size_of();
             // ポインタ加算の場合、右辺をスケーリングする
             Box::new(Node::new_binary(
@@ -559,7 +560,7 @@ impl Node {
         let rhs = rhs.ok_or_else(|| CompileError::InvalidExpression {
             msg: "expression required after '-' operator".to_string(),
         })?;
-        let rhs = if self.ty.is_ptr_or_array() {
+        let rhs = if self.ty.is_ptr() || self.ty.is_array() {
             let base_size = self.ty.base_type().size_of();
             // ポインタ減算の場合、右辺をスケーリングする
             Box::new(Node::new_binary(

@@ -234,4 +234,12 @@ assert 8 'struct {int a; short b; int c;} s; s.a = 3; s.c = 5; return s.a + s.c;
 assert 3 'struct {struct {int a; int b;} inner; int x;} outer; outer.inner.b = 3; return outer.inner.b;'
 assert 3 'struct Point {int x; int y;}; struct Point p; p.x = 1; p.y = 2; return p.x + p.y;'
 
+echo + struct pointers and arrow operator
+assert 30 'struct Point {int x; int y;}; struct Point p; struct Point *ptr; p.x = 10; p.y = 20; ptr = &p; return ptr->x + ptr->y;'
+assert 10 'struct Point {int x; int y;}; struct Point p; struct Point *ptr; p.x = 10; p.y = 20; ptr = &p; return ptr->x;'
+assert 20 'struct Point {int x; int y;}; struct Point p; struct Point *ptr; p.x = 10; p.y = 20; ptr = &p; return ptr->y;'
+assert 70 'struct Point {int x; int y;}; struct Point p; struct Point *ptr; p.x = 10; p.y = 20; ptr = &p; ptr->x = 30; ptr->y = 40; return ptr->x + ptr->y;'
+assert 30 'struct Point {int x; int y;}; struct Point p; struct Point *ptr; p.x = 10; p.y = 20; ptr = &p; ptr->x = 30; return p.x;'
+assert 15 'struct Point {int x; int y;}; struct Point p; struct Point *ptr; p.x = 5; p.y = 10; ptr = &p; return (*ptr).x + (*ptr).y;'
+
 echo OK

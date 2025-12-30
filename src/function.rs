@@ -1,9 +1,10 @@
+use core::fmt;
+
 use crate::errors::CompileError;
 use crate::node::Node;
 use crate::symbol::{FlatTable, ScopedTable, Symbol, Variable};
 use crate::types::{AlignUp, Type, TypeKind};
 
-#[derive(Debug)]
 struct StackFrame {
     next_offset: usize,
 }
@@ -11,6 +12,12 @@ struct StackFrame {
 impl Default for StackFrame {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl fmt::Debug for StackFrame {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} (16 byte aligned)", self.next_offset.align_up(16))
     }
 }
 

@@ -1,7 +1,7 @@
 use crate::ast::Ast;
 use crate::errors::CompileError;
 use crate::node::{BinaryOp, Node, NodeKind, UnaryOp};
-use crate::types::Type;
+use crate::types::{Type, TypeKind};
 use core::str::FromStr;
 
 impl Ast {
@@ -401,7 +401,7 @@ impl Ast {
                 .ok_or_else(|| CompileError::InvalidExpression {
                     msg: "単項'++'の後に式がありません".to_string(),
                 })?;
-            if node.ty.is_ptr_or_array() {
+            if node.ty.is_ptr() || node.ty.is_array() {
                 let size = node.ty.base_type().size_of();
                 return Ok(Some(Box::new(Node::new_assign(
                     BinaryOp::Add,
@@ -418,7 +418,7 @@ impl Ast {
                 .ok_or_else(|| CompileError::InvalidExpression {
                     msg: "単項'--'の後に式がありません".to_string(),
                 })?;
-            if node.ty.is_ptr_or_array() {
+            if node.ty.is_ptr() || node.ty.is_array() {
                 let size = node.ty.base_type().size_of();
                 return Ok(Some(Box::new(Node::new_assign(
                     BinaryOp::Sub,
@@ -582,6 +582,7 @@ impl Ast {
                 };
                 node = Some(Box::new(Node::new_call(&func_name, args, return_ty)));
             } else if self.consume_punctuator(".").is_some() {
+                // 構造体のメンバアクセス
                 node = self.assign_identifier(node)?; // 識別子を変数に割り当て
                 let member_name =
                     self.consume_ident()
@@ -621,14 +622,77 @@ impl Ast {
                     &member_ty,
                 )));
             } else if self.consume_punctuator("->").is_some() {
-                unimplemented!("構造体ポインタメンバアクセスは未実装です");
+                // 構造体ポインタのメンバアクセス
+                // ptr->member は (*ptr).member と同等
+                node = self.assign_identifier(node)?; // 識別子を変数に割り当て
+                let member_name =
+                    self.consume_ident()
+                        .ok_or_else(|| CompileError::InvalidExpression {
+                            msg: "構造体ポインタメンバアクセスのメンバ名がありません".to_string(),
+                        })?;
+                let ptr = node.ok_or_else(|| CompileError::InvalidExpression {
+                    msg: "構造体ポインタがありません".to_string(),
+                })?;
+
+                // ポインタであることを確認
+                if !matches!(ptr.ty.kind, TypeKind::Ptr { .. }) {
+                    return Err(CompileError::InvalidExpression {
+                        msg: format!(
+                            "型 '{:?}' はポインタではないため、'->'演算子を使用できません",
+                            ptr.ty
+                        ),
+                    });
+                }
+
+                // デリファレンスして構造体を取得
+                let deref_node = Box::new(Node::new_unary(UnaryOp::Deref, ptr)?);
+
+                // デリファレンスした結果が構造体であることを確認
+                if !deref_node.ty.is_struct() {
+                    return Err(CompileError::InvalidExpression {
+                        msg: format!(
+                            "型 '{:?}' は構造体ではないため、メンバアクセスできません",
+                            deref_node.ty
+                        ),
+                    });
+                }
+
+                // メンバー情報を取得
+                let member_decl =
+                    deref_node
+                        .ty
+                        .find_struct_member(&member_name)
+                        .ok_or_else(|| CompileError::InvalidExpression {
+                            msg: format!(
+                                "構造体に指定されたメンバ {:?} が存在しません",
+                                member_name
+                            ),
+                        })?;
+                let member_offset =
+                    member_decl
+                        .offset
+                        .ok_or_else(|| CompileError::InternalError {
+                            msg: format!(
+                                "構造体メンバ {:?} のオフセットが設定されていません",
+                                member_name
+                            ),
+                        })?;
+                let member_ty = member_decl.ty.clone();
+
+                // メンバーアクセスノードを作成
+                node = Some(Box::new(Node::new_member(
+                    deref_node,
+                    &member_name,
+                    member_offset,
+                    &member_ty,
+                )));
             } else if self.consume_punctuator("++").is_some() {
                 // post-increment
                 node = self.assign_identifier(node)?; // 識別子を変数に割り当て
                 let expr = node.ok_or_else(|| CompileError::InvalidExpression {
                     msg: "単項'++'の前に式がありません".to_string(),
                 })?;
-                if expr.ty.is_ptr_or_array() {
+                if expr.ty.is_ptr() || expr.ty.is_array() {
                     let size = expr.ty.base_type().size_of();
                     let assign_node = Box::new(Node::new_assign(
                         BinaryOp::Add,
@@ -649,7 +713,7 @@ impl Ast {
                 let expr = node.ok_or_else(|| CompileError::InvalidExpression {
                     msg: "単項'--'の前に式がありません".to_string(),
                 })?;
-                if expr.ty.is_ptr_or_array() {
+                if expr.ty.is_ptr() || expr.ty.is_array() {
                     let size = expr.ty.base_type().size_of();
                     let assign_node = Box::new(Node::new_assign(
                         BinaryOp::Sub,

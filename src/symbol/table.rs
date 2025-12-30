@@ -1,23 +1,34 @@
+use core::fmt;
 use std::collections::HashMap;
 
-#[derive(Debug)]
-pub(crate) struct Scope<T> {
-    table: HashMap<String, T>, // シンボル名からシンボルのインデックスへのマッピング
+pub(crate) struct Scope {
+    table: HashMap<String, usize>, // シンボル名からシンボルのインデックスへのマッピング
 }
 
-#[derive(Debug)]
-pub(crate) struct ScopedTable<T> {
-    pub(crate) items: Vec<T>,  // 全てのシンボルのリスト（永続）
-    scopes: Vec<Scope<usize>>, // スコープのスタック（AST構成時のみ）
+pub(crate) struct ScopedTable<T: fmt::Debug> {
+    pub(crate) items: Vec<T>, // 全てのシンボルのリスト（永続）
+    scopes: Vec<Scope>,       // スコープのスタック（AST構成時のみ）
 }
 
-impl<T> Default for ScopedTable<T> {
+impl<T: fmt::Debug> Default for ScopedTable<T> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T> ScopedTable<T> {
+impl<T: fmt::Debug> fmt::Debug for ScopedTable<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (i, item) in self.items.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "{:?}", item)?;
+        }
+        Ok(())
+    }
+}
+
+impl<T: fmt::Debug> ScopedTable<T> {
     pub(crate) fn new() -> Self {
         Self {
             items: Vec::new(),
@@ -63,19 +74,30 @@ impl<T> ScopedTable<T> {
     }
 }
 
-#[derive(Debug)]
-pub(crate) struct FlatTable<T> {
+pub(crate) struct FlatTable<T: fmt::Debug> {
     pub(crate) items: Vec<T>,      // 全てのシンボルのリスト
     table: HashMap<String, usize>, // パラメータ名からインデックスへのマッピング
 }
 
-impl<T> Default for FlatTable<T> {
+impl<T: fmt::Debug> Default for FlatTable<T> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T> FlatTable<T> {
+impl<T: fmt::Debug> fmt::Debug for FlatTable<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (i, item) in self.items.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "{:?}", item)?;
+        }
+        Ok(())
+    }
+}
+
+impl<T: fmt::Debug> FlatTable<T> {
     pub(crate) fn new() -> Self {
         Self {
             items: Vec::new(),
