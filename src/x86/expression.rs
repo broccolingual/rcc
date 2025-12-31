@@ -4,7 +4,7 @@ use crate::types::Type;
 use crate::x86::Generator;
 use crate::x86::register::ARG_REGS;
 
-impl Generator {
+impl Generator<'_> {
     // 式のコード生成
     pub(super) fn gen_expr(&mut self, node: &Node) -> Result<(), CompileError> {
         match &node.kind {

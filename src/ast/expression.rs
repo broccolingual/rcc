@@ -3,7 +3,7 @@ use crate::errors::CompileError;
 use crate::node::{BinaryOp, Node, NodeKind, UnaryOp};
 use core::str::FromStr;
 
-impl<'a> Ast<'a> {
+impl Ast<'_> {
     // const_expr ::= cond_expr
     #[allow(dead_code)]
     pub(super) fn const_expr(&mut self) -> Result<i64, CompileError> {

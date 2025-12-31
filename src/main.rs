@@ -49,8 +49,8 @@ fn main() {
         }
     }
 
-    let lexer = Lexer::default();
-    let tokens = match lexer.tokenize(&args.input) {
+    let lexer = Lexer::new(&args.input);
+    let tokens = match lexer.tokenize() {
         Ok(tokens) => tokens,
         Err(e) => {
             eprintln!("{}", e.format_error(&args.input));
@@ -62,9 +62,8 @@ fn main() {
         eprintln!("{}", e.format_error(&args.input));
         return;
     }
-
-    let mut generator = Generator::default();
-    if let Err(e) = generator.gen_asm(&ast) {
+    let mut generator = Generator::new(&ast);
+    if let Err(e) = generator.gen_asm() {
         eprintln!("{}", e.format_error(&args.input));
         return;
     }

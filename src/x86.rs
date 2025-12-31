@@ -11,27 +11,23 @@ use crate::node::{Node, NodeKind, UnaryOp};
 use crate::symbol::Symbol;
 use crate::types::{Type, TypeKind};
 
-pub(crate) struct Generator {
+pub(crate) struct Generator<'a> {
+    ast: &'a Ast<'a>,
     label_seq: usize,
     break_seq: usize,
     continue_seq: usize,
-    current_func_name: String,
+    current_func_name: &'a str,
     pub(crate) builder: AsmBuilder,
 }
 
-impl Default for Generator {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Generator {
-    pub(crate) fn new() -> Self {
+impl<'a> Generator<'a> {
+    pub(crate) fn new(ast: &'a Ast<'a>) -> Self {
         Generator {
+            ast,
             label_seq: 1,
             break_seq: 0,
             continue_seq: 0,
-            current_func_name: String::new(),
+            current_func_name: "",
             builder: AsmBuilder::new(),
         }
     }
@@ -57,7 +53,7 @@ impl Generator {
             return;
         }
         self.builder.add_row(".section .rodata", true);
-        for (i, string) in ast.string_literals.iter().enumerate() {
+        for (string, i) in ast.string_literals.iter() {
             self.builder.add_row(&format!(".L.str.{}:", i), false);
             self.builder
                 .add_row(&format!(".string \"{}\"", string), true);
@@ -218,15 +214,15 @@ impl Generator {
     }
 
     // ASTからアセンブリコードを生成
-    pub(crate) fn gen_asm(&mut self, ast: &Ast) -> Result<(), CompileError> {
+    pub(crate) fn gen_asm(&mut self) -> Result<(), CompileError> {
         self.emit_prologue();
-        self.emit_rodata(ast); // 文字列リテラルの定義
-        self.emit_data(ast)?; // グローバル変数の定義
+        self.emit_rodata(self.ast); // 文字列リテラルの定義
+        self.emit_data(self.ast)?; // グローバル変数の定義
 
         // 関数の定義
         self.builder.add_row(".text", true);
-        for func in ast.funcs.iter() {
-            self.current_func_name = func.name.clone();
+        for func in self.ast.funcs.iter() {
+            self.current_func_name = &func.name;
             self.builder
                 .add_row(&format!(".globl {}", self.current_func_name), true);
             self.builder.add_row(

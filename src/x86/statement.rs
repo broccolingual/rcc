@@ -2,7 +2,7 @@ use crate::errors::CompileError;
 use crate::node::{Node, NodeKind};
 use crate::x86::Generator;
 
-impl Generator {
+impl Generator<'_> {
     // 文のコード生成
     pub(super) fn gen_stmt(&mut self, node: &Node) -> Result<(), CompileError> {
         match &node.kind {

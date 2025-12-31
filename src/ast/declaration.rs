@@ -7,7 +7,7 @@ use crate::types::{
     TypeSpecQual,
 };
 
-impl<'a> Ast<'a> {
+impl Ast<'_> {
     // external_decl ::= func_def | decl
     // func_def      ::= decl_specs declarator compound_stmt
     // decl          ::= decl_specs init_declarator_list ";"

@@ -2,7 +2,7 @@ use crate::ast::Ast;
 use crate::errors::CompileError;
 use crate::node::{Node, NodeKind};
 
-impl<'a> Ast<'a> {
+impl Ast<'_> {
     // TODO: case文, default文の実装
     fn labeled_stmt(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         if let Some((name, token)) = self.consume_ident() {

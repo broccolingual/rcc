@@ -7,6 +7,7 @@ use crate::function::Func;
 use crate::symbol::{FlatTable, Symbol, Variable};
 use crate::token::{Token, TokenKind};
 use crate::types::{Decl, Type};
+use std::collections::HashMap;
 
 pub(crate) struct Ast<'a> {
     tokens: &'a [Token],
@@ -16,7 +17,7 @@ pub(crate) struct Ast<'a> {
     global_tag_table: FlatTable<Type>,
     pub(crate) funcs: Vec<Func>,
     current_func: Option<Func>,
-    pub(crate) string_literals: Vec<String>,
+    pub(crate) string_literals: HashMap<String, usize>,
 }
 
 impl<'a> Ast<'a> {
@@ -29,7 +30,7 @@ impl<'a> Ast<'a> {
             globals: Vec::new(),
             funcs: Vec::new(),
             current_func: None,
-            string_literals: Vec::new(),
+            string_literals: HashMap::new(),
         }
     }
 
@@ -52,9 +53,14 @@ impl<'a> Ast<'a> {
             .map(|token| token.span)
     }
 
-    fn register_string_literal(&mut self, s: &str) -> usize {
+    fn register_string_literal(&mut self, string: &str) -> usize {
+        // 既に登録されている場合はそのインデックスを返す
+        if let Some(&index) = self.string_literals.get(string) {
+            return index;
+        }
+        // 新規登録
         let index = self.string_literals.len();
-        self.string_literals.push(s.to_string());
+        self.string_literals.insert(string.to_string(), index);
         index
     }
 
@@ -65,12 +71,8 @@ impl<'a> Ast<'a> {
                 span: decl.span,
             });
         }
-        let symbol = Symbol {
-            name: decl.name.clone(),
-            ty: decl.ty,
-            offset: 0,
-        };
-        let symbol_id = self.global_symbol_table.insert(decl.name.clone(), symbol);
+        let symbol = Symbol::new(&decl.name, decl.ty, 0);
+        let symbol_id = self.global_symbol_table.insert(decl.name, symbol);
         self.globals.push(Variable {
             symbol_id,
             init: decl.init,
