@@ -174,6 +174,28 @@ assert_inline 0 'int i; for (i = 0; 0; i = i + 1) i = i + 1; return i;'  # 条�
 assert_inline 10 'int i; for (i = 0; i < 10; i++); return i;'  # 空のループ本体
 assert_inline 5 'int i; int j = 0; for (i = 0; i < 5; i = i + 1) j = j + 1; return j;'  # ネストなしのカウント
 
+# 入れ子のループのテスト
+assert_inline 100 'int sum = 0; int i; int j; for (i = 0; i < 10; i++) for (j = 0; j < 10; j++) sum++; return sum;'  # 二重for文
+assert_inline 15 'int sum = 0; int i; int j; for (i = 1; i <= 3; i++) for (j = 1; j <= 5; j++) sum = sum + 1; return sum;'  # 二重for文の合計
+assert_inline 20 'int sum = 0; int i = 0; int j; while (i < 4) { j = 0; while (j < 5) { sum++; j++; } i++; } return sum;'  # 二重while文
+assert_inline 30 'int sum = 0; int i = 0; int j; do { j = 0; do { sum++; j++; } while (j < 5); i++; } while (i < 6); return sum;'  # 二重do-while文
+assert_inline 25 'int sum = 0; int i; int j; for (i = 0; i < 5; i++) { j = 0; while (j < 5) { sum++; j++; } } return sum;'  # for-while入れ子
+assert_inline 16 'int sum = 0; int i = 0; int j; while (i < 4) { for (j = 0; j < 4; j++) sum++; i++; } return sum;'  # while-for入れ子
+assert_inline 18 'int sum = 0; int i = 0; int j; do { for (j = 0; j < 3; j++) sum++; i++; } while (i < 6); return sum;'  # do-while-for入れ子
+assert_inline 21 'int sum = 0; int i; int j; for (i = 1; i <= 3; i++) { j = 1; do { sum++; j++; } while (j <= 7); } return sum;'  # for-do-while入れ子
+
+# 入れ子のループでのbreak/continueのテスト
+assert_inline 50 'int sum = 0; int i; int j; for (i = 0; i < 10; i++) { for (j = 0; j < 10; j++) { if (j == 5) break; sum++; } } return sum;'  # 内側のforでbreak
+assert_inline 50 'int sum = 0; int i; int j; for (i = 0; i < 10; i++) { for (j = 0; j < 10; j++) { if (j % 2 == 0) continue; sum++; } } return sum;'  # 内側のforでcontinue
+assert_inline 18 'int sum = 0; int i = 0; int j; while (i < 10) { j = 0; while (j < 10) { if (j == 3) break; sum++; j++; } if (i == 5) break; i++; } return sum;'  # 両方のwhileでbreak
+assert_inline 15 'int sum = 0; int i; int j; for (i = 0; i < 5; i++) { j = 0; while (j < 5) { j++; if (j <= 2) continue; sum++; } } return sum;'  # 内側のwhileでcontinue
+assert_inline 30 'int sum = 0; int i; int j; for (i = 0; i < 10; i++) { if (i >= 3) break; for (j = 0; j < 10; j++) sum++; } return sum;'  # 外側のforでbreakして内側は完全実行
+
+# 三重ループのテスト
+assert_inline 24 'int sum = 0; int i; int j; int k; for (i = 0; i < 2; i++) for (j = 0; j < 3; j++) for (k = 0; k < 4; k++) sum++; return sum;'  # 三重for文(小さい値)
+assert_inline 60 'int sum = 0; int i = 0; int j; int k; while (i < 3) { j = 0; while (j < 4) { k = 0; while (k < 5) { sum++; k++; } j++; } i++; } return sum;'  # 三重while文
+assert_inline 36 'int sum = 0; int i; int j; int k; for (i = 0; i < 3; i++) { j = 0; while (j < 4) { k = 0; do { sum++; k++; } while (k < 3); j++; } } return sum;'  # 三重混合ループ
+
 # 三項演算子のテスト
 assert_inline 2 'return 1 ? 2 : 3;'  # 条件が真
 assert_inline 3 'return 0 ? 2 : 3;'  # 条件が偽

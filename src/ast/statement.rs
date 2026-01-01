@@ -103,7 +103,7 @@ impl Ast<'_> {
                 msg: "while文のthen文がありません".to_string(),
                 span,
             })?;
-            self.pop_loop();
+            self.pop_loop()?;
             return Ok(Some(Box::new(Node::new(
                 NodeKind::While { cond, then, label },
                 span,
@@ -126,7 +126,7 @@ impl Ast<'_> {
             })?;
             self.expect_punct(")")?;
             self.expect_punct(";")?;
-            self.pop_loop();
+            self.pop_loop()?;
             return Ok(Some(Box::new(Node::new(
                 NodeKind::Do { then, cond, label },
                 span,
@@ -166,7 +166,7 @@ impl Ast<'_> {
                 msg: "for文のthen文がありません".to_string(),
                 span,
             })?;
-            self.pop_loop();
+            self.pop_loop()?;
             return Ok(Some(Box::new(Node::new(
                 NodeKind::For {
                     init,

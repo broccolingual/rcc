@@ -125,8 +125,13 @@ impl<'a> Ast<'a> {
         self.loop_stack.push(label_seq);
     }
 
-    fn pop_loop(&mut self) {
-        self.loop_stack.pop();
+    fn pop_loop(&mut self) -> Result<(), CompileError> {
+        self.loop_stack
+            .pop()
+            .ok_or_else(|| CompileError::InternalError {
+                msg: "ループスタックが空です".to_string(),
+            })?;
+        Ok(())
     }
 
     fn current_loop_label(&self) -> Option<usize> {
