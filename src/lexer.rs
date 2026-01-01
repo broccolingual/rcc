@@ -3,7 +3,7 @@ use crate::token::{KEYWORDS, PUNCTUATORS};
 use crate::token::{Token, TokenKind};
 
 pub(crate) struct Lexer<'a> {
-    source: &'a str
+    source: &'a str,
 }
 
 impl<'a> Lexer<'a> {
