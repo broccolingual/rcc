@@ -13,9 +13,6 @@ use crate::types::{Type, TypeKind};
 
 pub(crate) struct Generator<'a> {
     ast: &'a Ast<'a>,
-    label_seq: usize,
-    break_seq: usize,
-    continue_seq: usize,
     current_func_name: &'a str,
     pub(crate) builder: AsmBuilder,
 }
@@ -24,9 +21,6 @@ impl<'a> Generator<'a> {
     pub(crate) fn new(ast: &'a Ast<'a>) -> Self {
         Generator {
             ast,
-            label_seq: 1,
-            break_seq: 0,
-            continue_seq: 0,
             current_func_name: "",
             builder: AsmBuilder::new(),
         }

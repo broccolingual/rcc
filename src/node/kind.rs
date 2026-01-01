@@ -20,34 +20,41 @@ pub(crate) enum NodeKind {
     LogicalAnd {
         lhs: Box<Node>,
         rhs: Box<Node>,
+        label: usize,
     }, // &&
     LogicalOr {
         lhs: Box<Node>,
         rhs: Box<Node>,
+        label: usize,
     }, // ||
     If {
         cond: Box<Node>,
         then: Box<Node>,
         els: Option<Box<Node>>,
+        label: usize,
     }, // if
     Ternary {
         cond: Box<Node>,
         then: Box<Node>,
         els: Box<Node>,
+        label: usize,
     }, // cond ? then : else
     While {
         cond: Box<Node>,
         then: Box<Node>,
+        label: usize,
     }, // while
     For {
         init: Option<Box<Node>>,
         cond: Option<Box<Node>>,
         inc: Option<Box<Node>>,
         then: Box<Node>,
+        label: usize,
     }, // for
     Do {
         cond: Box<Node>,
         then: Box<Node>,
+        label: usize,
     }, // do
     Block {
         body: Vec<Node>,
@@ -63,8 +70,12 @@ pub(crate) enum NodeKind {
     Goto {
         name: String,
     }, // goto
-    Break,    // break
-    Continue, // continue
+    Break {
+        label: usize,
+    }, // break
+    Continue {
+        label: usize,
+    }, // continue
     Var {
         name: String,
         offset: usize,
@@ -88,5 +99,5 @@ pub(crate) enum NodeKind {
         val: String,
         index: usize,
     }, // 文字列リテラル
-    Nop,      // 空命令
+    Nop, // 空命令
 }

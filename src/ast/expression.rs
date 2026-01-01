@@ -63,6 +63,7 @@ impl Ast<'_> {
         let node = self.logical_or_expr()?;
         if let Some(token) = self.consume_punct("?") {
             let span = token.span;
+            let label = self.next_label();
             let cond = node.ok_or_else(|| CompileError::InvalidExpr {
                 msg: "三項演算子 '?' の前に条件式がありません".to_string(),
                 span,
@@ -76,7 +77,9 @@ impl Ast<'_> {
                 msg: "三項演算子の ':' の後に式がありません (false の場合の値)".to_string(),
                 span,
             })?;
-            return Ok(Some(Box::new(Node::new_ternary(cond, then, els, span)?)));
+            return Ok(Some(Box::new(Node::new_ternary(
+                cond, then, els, label, span,
+            )?)));
         }
         Ok(node)
     }
@@ -89,6 +92,7 @@ impl Ast<'_> {
         loop {
             if let Some(token) = self.consume_punct("||") {
                 let span = token.span;
+                let label = self.next_label();
                 // logical or
                 let lhs = node.ok_or_else(|| CompileError::InvalidExpr {
                     msg: "'||'演算子の左辺値がありません".to_string(),
@@ -100,7 +104,7 @@ impl Ast<'_> {
                         msg: "'||'演算子の右辺値がありません".to_string(),
                         span,
                     })?;
-                node = Some(Box::new(Node::new_logical_or(lhs, rhs, span)?));
+                node = Some(Box::new(Node::new_logical_or(lhs, rhs, label, span)?));
             } else {
                 return Ok(node);
             }
@@ -115,6 +119,7 @@ impl Ast<'_> {
         loop {
             if let Some(token) = self.consume_punct("&&") {
                 let span = token.span;
+                let label = self.next_label();
                 // logical and
                 let lhs = node.ok_or_else(|| CompileError::InvalidExpr {
                     msg: "'&&'演算子の左辺値がありません".to_string(),
@@ -126,7 +131,7 @@ impl Ast<'_> {
                         msg: "'&&'演算子の右辺値がありません".to_string(),
                         span,
                     })?;
-                node = Some(Box::new(Node::new_logical_and(lhs, rhs, span)?));
+                node = Some(Box::new(Node::new_logical_and(lhs, rhs, label, span)?));
             } else {
                 return Ok(node);
             }

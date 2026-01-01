@@ -315,6 +315,7 @@ impl Node {
     pub(crate) fn new_logical_and(
         lhs: Box<Node>,
         rhs: Box<Node>,
+        label: usize,
         span: (usize, usize),
     ) -> Result<Self, CompileError> {
         let lhs_ty = &lhs.ty;
@@ -336,7 +337,7 @@ impl Node {
         };
 
         Ok(Node {
-            kind: NodeKind::LogicalAnd { lhs, rhs },
+            kind: NodeKind::LogicalAnd { lhs, rhs, label },
             ty,
             span,
         })
@@ -345,6 +346,7 @@ impl Node {
     pub(crate) fn new_logical_or(
         lhs: Box<Node>,
         rhs: Box<Node>,
+        label: usize,
         span: (usize, usize),
     ) -> Result<Self, CompileError> {
         let lhs_ty = &lhs.ty;
@@ -366,7 +368,7 @@ impl Node {
         };
 
         Ok(Node {
-            kind: NodeKind::LogicalOr { lhs, rhs },
+            kind: NodeKind::LogicalOr { lhs, rhs, label },
             ty,
             span,
         })
@@ -376,6 +378,7 @@ impl Node {
         cond: Box<Node>,
         then: Box<Node>,
         els: Box<Node>,
+        label: usize,
         span: (usize, usize),
     ) -> Result<Self, CompileError> {
         let cond_ty = &cond.ty;
@@ -413,7 +416,12 @@ impl Node {
         };
 
         Ok(Node {
-            kind: NodeKind::Ternary { cond, then, els },
+            kind: NodeKind::Ternary {
+                cond,
+                then,
+                els,
+                label,
+            },
             ty,
             span,
         })
@@ -536,7 +544,9 @@ impl Node {
                     }),
                 }
             }
-            NodeKind::Ternary { cond, then, els } => {
+            NodeKind::Ternary {
+                cond, then, els, ..
+            } => {
                 let cond_val = cond.eval_const_expr()?;
                 if cond_val != 0 {
                     then.eval_const_expr()
@@ -544,7 +554,7 @@ impl Node {
                     els.eval_const_expr()
                 }
             }
-            NodeKind::LogicalAnd { lhs, rhs } => {
+            NodeKind::LogicalAnd { lhs, rhs, .. } => {
                 let lval = lhs.eval_const_expr()?;
                 if lval == 0 {
                     Ok(0)
@@ -553,7 +563,7 @@ impl Node {
                     Ok(if rval != 0 { 1 } else { 0 })
                 }
             }
-            NodeKind::LogicalOr { lhs, rhs } => {
+            NodeKind::LogicalOr { lhs, rhs, .. } => {
                 let lval = lhs.eval_const_expr()?;
                 if lval != 0 {
                     Ok(1)
@@ -588,8 +598,8 @@ impl Node {
             | NodeKind::For { .. }
             | NodeKind::Do { .. }
             | NodeKind::Block { .. }
-            | NodeKind::Break
-            | NodeKind::Continue
+            | NodeKind::Break { .. }
+            | NodeKind::Continue { .. }
             | NodeKind::Goto { .. }
             | NodeKind::Label { .. }
             | NodeKind::Return { .. }

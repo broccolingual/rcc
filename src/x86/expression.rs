@@ -35,47 +35,50 @@ impl Generator<'_> {
             NodeKind::Assign { op, lhs, rhs } => {
                 self.gen_assign(op, lhs, rhs)?;
             }
-            NodeKind::LogicalAnd { lhs, rhs } => {
-                let seq = self.label_seq;
-                self.label_seq += 1;
+            NodeKind::LogicalAnd { lhs, rhs, label } => {
                 self.gen_expr(lhs)?;
                 self.test_zero();
-                self.builder.add_row(&format!("je .L.false.{}", seq), true);
+                self.builder
+                    .add_row(&format!("je .L.false.{}", label), true);
                 self.gen_expr(rhs)?;
                 self.test_zero();
-                self.builder.add_row(&format!("je .L.false.{}", seq), true);
+                self.builder
+                    .add_row(&format!("je .L.false.{}", label), true);
                 self.builder.add_row("push 1", true); // true
-                self.builder.add_row(&format!("jmp .L.end.{}", seq), true);
-                self.builder.add_row(&format!(".L.false.{}:", seq), false);
+                self.builder.add_row(&format!("jmp .L.end.{}", label), true);
+                self.builder.add_row(&format!(".L.false.{}:", label), false);
                 self.builder.add_row("push 0", true); // false
-                self.builder.add_row(&format!(".L.end.{}:", seq), false);
+                self.builder.add_row(&format!(".L.end.{}:", label), false);
             }
-            NodeKind::LogicalOr { lhs, rhs } => {
-                let seq = self.label_seq;
-                self.label_seq += 1;
+            NodeKind::LogicalOr { lhs, rhs, label } => {
                 self.gen_expr(lhs)?;
                 self.test_zero();
-                self.builder.add_row(&format!("jne .L.true.{}", seq), true);
+                self.builder
+                    .add_row(&format!("jne .L.true.{}", label), true);
                 self.gen_expr(rhs)?;
                 self.test_zero();
-                self.builder.add_row(&format!("jne .L.true.{}", seq), true);
+                self.builder
+                    .add_row(&format!("jne .L.true.{}", label), true);
                 self.builder.add_row("push 0", true); // false
-                self.builder.add_row(&format!("jmp .L.end.{}", seq), true);
-                self.builder.add_row(&format!(".L.true.{}:", seq), false);
+                self.builder.add_row(&format!("jmp .L.end.{}", label), true);
+                self.builder.add_row(&format!(".L.true.{}:", label), false);
                 self.builder.add_row("push 1", true); // true
-                self.builder.add_row(&format!(".L.end.{}:", seq), false);
+                self.builder.add_row(&format!(".L.end.{}:", label), false);
             }
-            NodeKind::Ternary { cond, then, els } => {
-                let seq = self.label_seq;
-                self.label_seq += 1;
+            NodeKind::Ternary {
+                cond,
+                then,
+                els,
+                label,
+            } => {
                 self.gen_expr(cond)?;
                 self.test_zero();
-                self.builder.add_row(&format!("je .L.else.{}", seq), true);
+                self.builder.add_row(&format!("je .L.else.{}", label), true);
                 self.gen_expr(then)?;
-                self.builder.add_row(&format!("jmp .L.end.{}", seq), true);
-                self.builder.add_row(&format!(".L.else.{}:", seq), false);
+                self.builder.add_row(&format!("jmp .L.end.{}", label), true);
+                self.builder.add_row(&format!(".L.else.{}:", label), false);
                 self.gen_expr(els)?;
-                self.builder.add_row(&format!(".L.end.{}:", seq), false);
+                self.builder.add_row(&format!(".L.end.{}:", label), false);
             }
             NodeKind::Call { name, args } => {
                 let arg_count = args.len();
