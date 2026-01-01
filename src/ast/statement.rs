@@ -56,6 +56,7 @@ impl Ast<'_> {
     fn selection_stmt(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         if let Some(token) = self.consume_keyword("if") {
             let span = token.span;
+            let label = self.next_label();
             self.expect_punct("(")?;
             let cond = self.expr()?.ok_or_else(|| CompileError::InvalidStmt {
                 msg: "if文の条件式がありません".to_string(),
@@ -72,7 +73,12 @@ impl Ast<'_> {
                 None
             };
             return Ok(Some(Box::new(Node::new(
-                NodeKind::If { cond, then, els },
+                NodeKind::If {
+                    cond,
+                    then,
+                    els,
+                    label,
+                },
                 span,
             ))));
         }
@@ -85,6 +91,8 @@ impl Ast<'_> {
     fn iteration_stmt(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         if let Some(token) = self.consume_keyword("while") {
             let span = token.span;
+            let label = self.next_label();
+            self.push_loop(label);
             self.expect_punct("(")?;
             let cond = self.expr()?.ok_or_else(|| CompileError::InvalidStmt {
                 msg: "while文の条件式がありません".to_string(),
@@ -95,14 +103,17 @@ impl Ast<'_> {
                 msg: "while文のthen文がありません".to_string(),
                 span,
             })?;
+            self.pop_loop();
             return Ok(Some(Box::new(Node::new(
-                NodeKind::While { cond, then },
+                NodeKind::While { cond, then, label },
                 span,
             ))));
         }
 
         if let Some(token) = self.consume_keyword("do") {
             let span = token.span;
+            let label = self.next_label();
+            self.push_loop(label);
             let then = self.stmt()?.ok_or_else(|| CompileError::InvalidStmt {
                 msg: "do-while文のthen文がありません".to_string(),
                 span,
@@ -115,11 +126,17 @@ impl Ast<'_> {
             })?;
             self.expect_punct(")")?;
             self.expect_punct(";")?;
-            return Ok(Some(Box::new(Node::new(NodeKind::Do { then, cond }, span))));
+            self.pop_loop();
+            return Ok(Some(Box::new(Node::new(
+                NodeKind::Do { then, cond, label },
+                span,
+            ))));
         }
 
         if let Some(token) = self.consume_keyword("for") {
             let span = token.span;
+            let label = self.next_label();
+            self.push_loop(label);
             self.expect_punct("(")?;
             // 初期化式
             let init = if self.consume_punct(";").is_none() {
@@ -149,12 +166,14 @@ impl Ast<'_> {
                 msg: "for文のthen文がありません".to_string(),
                 span,
             })?;
+            self.pop_loop();
             return Ok(Some(Box::new(Node::new(
                 NodeKind::For {
                     init,
                     cond,
                     inc,
                     then,
+                    label,
                 },
                 span,
             ))));
@@ -179,14 +198,25 @@ impl Ast<'_> {
 
         if let Some(token) = self.consume_keyword("continue") {
             let span = token.span;
+            let label = self.current_loop_label().ok_or(CompileError::InvalidStmt {
+                msg: "continue文がループの外で使われています".to_string(),
+                span,
+            })?;
             self.expect_punct(";")?;
-            return Ok(Some(Box::new(Node::new(NodeKind::Continue, span))));
+            return Ok(Some(Box::new(Node::new(
+                NodeKind::Continue { label },
+                span,
+            ))));
         }
 
         if let Some(token) = self.consume_keyword("break") {
             let span = token.span;
+            let label = self.current_loop_label().ok_or(CompileError::InvalidStmt {
+                msg: "break文がループの外で使われています".to_string(),
+                span,
+            })?;
             self.expect_punct(";")?;
-            return Ok(Some(Box::new(Node::new(NodeKind::Break, span))));
+            return Ok(Some(Box::new(Node::new(NodeKind::Break { label }, span))));
         }
 
         if let Some(token) = self.consume_keyword("return") {

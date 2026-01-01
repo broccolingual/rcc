@@ -18,6 +18,8 @@ pub(crate) struct Ast<'a> {
     pub(crate) funcs: Vec<Func>,
     current_func: Option<Func>,
     pub(crate) string_literals: HashMap<String, usize>,
+    label_seq: usize,
+    loop_stack: Vec<usize>,
 }
 
 impl<'a> Ast<'a> {
@@ -31,6 +33,8 @@ impl<'a> Ast<'a> {
             funcs: Vec::new(),
             current_func: None,
             string_literals: HashMap::new(),
+            label_seq: 0,
+            loop_stack: Vec::new(),
         }
     }
 
@@ -109,6 +113,24 @@ impl<'a> Ast<'a> {
             }
         }
         None
+    }
+
+    fn next_label(&mut self) -> usize {
+        let seq = self.label_seq;
+        self.label_seq += 1;
+        seq
+    }
+
+    fn push_loop(&mut self, label_seq: usize) {
+        self.loop_stack.push(label_seq);
+    }
+
+    fn pop_loop(&mut self) {
+        self.loop_stack.pop();
+    }
+
+    fn current_loop_label(&self) -> Option<usize> {
+        self.loop_stack.last().copied()
     }
 
     // 現在のトークンを取得

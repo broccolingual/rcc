@@ -13,8 +13,6 @@ use crate::types::{Type, TypeKind};
 
 pub(crate) struct Generator<'a> {
     ast: &'a Ast<'a>,
-    label_seq: usize,
-    loop_stack: Vec<usize>,
     current_func_name: &'a str,
     pub(crate) builder: AsmBuilder,
 }
@@ -23,29 +21,9 @@ impl<'a> Generator<'a> {
     pub(crate) fn new(ast: &'a Ast<'a>) -> Self {
         Generator {
             ast,
-            label_seq: 0,
-            loop_stack: Vec::new(),
             current_func_name: "",
             builder: AsmBuilder::new(),
         }
-    }
-
-    fn next_label(&mut self) -> usize {
-        let seq = self.label_seq;
-        self.label_seq += 1;
-        seq
-    }
-
-    fn push_loop(&mut self, label_seq: usize) {
-        self.loop_stack.push(label_seq);
-    }
-
-    fn pop_loop(&mut self) {
-        self.loop_stack.pop();
-    }
-
-    fn current_loop_label(&self) -> Option<usize> {
-        self.loop_stack.last().copied()
     }
 
     fn test_zero(&mut self) {
