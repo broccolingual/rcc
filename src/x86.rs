@@ -44,13 +44,8 @@ impl<'a> Generator<'a> {
         self.loop_stack.pop();
     }
 
-    fn current_loop_label(&self) -> Result<usize, CompileError> {
-        self.loop_stack
-            .last()
-            .copied()
-            .ok_or_else(|| CompileError::InternalError {
-                msg: "break / continueがループの外で使われています".to_string(),
-            })
+    fn current_loop_label(&self) -> Option<usize> {
+        self.loop_stack.last().copied()
     }
 
     fn test_zero(&mut self) {

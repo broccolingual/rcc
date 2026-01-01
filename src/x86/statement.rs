@@ -107,11 +107,21 @@ impl Generator<'_> {
                 }
             }
             NodeKind::Break => {
-                let seq = self.current_loop_label()?;
+                let seq = self
+                    .current_loop_label()
+                    .ok_or_else(|| CompileError::InvalidStmt {
+                        msg: "break文がループの外で使われています".to_string(),
+                        span: node.span,
+                    })?;
                 self.builder.add_row(&format!("jmp .L.break.{}", seq), true);
             }
             NodeKind::Continue => {
-                let seq = self.current_loop_label()?;
+                let seq = self
+                    .current_loop_label()
+                    .ok_or_else(|| CompileError::InvalidStmt {
+                        msg: "continue文がループの外で使われています".to_string(),
+                        span: node.span,
+                    })?;
                 self.builder
                     .add_row(&format!("jmp .L.continue.{}", seq), true);
             }
