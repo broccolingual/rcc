@@ -130,8 +130,8 @@ impl<'a> Ast<'a> {
             .pop()
             .ok_or_else(|| CompileError::InternalError {
                 msg: "ループスタックが空です".to_string(),
-            })?;
-        Ok(())
+            })
+            .map(|_| ())
     }
 
     fn current_loop_label(&self) -> Option<usize> {
