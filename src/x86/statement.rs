@@ -7,8 +7,7 @@ impl Generator<'_> {
     pub(super) fn gen_stmt(&mut self, node: &Node) -> Result<(), CompileError> {
         match &node.kind {
             NodeKind::If { cond, then, els } => {
-                let seq = self.label_seq;
-                self.label_seq += 1;
+                let seq = self.next_label();
 
                 self.gen_expr(cond)?;
                 self.test_zero();
@@ -28,12 +27,8 @@ impl Generator<'_> {
                 }
             }
             NodeKind::While { cond, then } => {
-                let seq = self.label_seq;
-                self.label_seq += 1;
-                let current_break_seq = self.break_seq;
-                let current_continue_seq = self.continue_seq;
-                self.break_seq = seq;
-                self.continue_seq = seq;
+                let seq = self.next_label();
+                self.push_loop(seq);
 
                 self.builder
                     .add_row(&format!(".L.continue.{}:", seq), false);
@@ -45,8 +40,7 @@ impl Generator<'_> {
                     .add_row(&format!("jmp .L.continue.{}", seq), true);
                 self.builder.add_row(&format!(".L.break.{}:", seq), false);
 
-                self.break_seq = current_break_seq;
-                self.continue_seq = current_continue_seq;
+                self.pop_loop();
             }
             NodeKind::For {
                 init,
@@ -54,12 +48,9 @@ impl Generator<'_> {
                 inc,
                 then,
             } => {
-                let seq = self.label_seq;
-                self.label_seq += 1;
-                let current_break_seq = self.break_seq;
-                let current_continue_seq = self.continue_seq;
-                self.break_seq = seq;
-                self.continue_seq = seq;
+                let seq = self.next_label();
+                self.push_loop(seq);
+
                 if let Some(init) = init.as_ref() {
                     if init.is_expr() {
                         self.gen_expr(init)?;
@@ -88,16 +79,11 @@ impl Generator<'_> {
                 self.builder.add_row(&format!("jmp .L.begin.{}", seq), true);
                 self.builder.add_row(&format!(".L.break.{}:", seq), false);
 
-                self.break_seq = current_break_seq;
-                self.continue_seq = current_continue_seq;
+                self.pop_loop();
             }
             NodeKind::Do { cond, then } => {
-                let seq = self.label_seq;
-                self.label_seq += 1;
-                let current_break_seq = self.break_seq;
-                let current_continue_seq = self.continue_seq;
-                self.break_seq = seq;
-                self.continue_seq = seq;
+                let seq = self.next_label();
+                self.push_loop(seq);
 
                 self.builder.add_row(&format!(".L.begin.{}:", seq), false);
                 self.gen_stmt(then)?;
@@ -108,8 +94,7 @@ impl Generator<'_> {
                 self.builder.add_row(&format!("jne .L.begin.{}", seq), true);
                 self.builder.add_row(&format!(".L.break.{}:", seq), false);
 
-                self.break_seq = current_break_seq;
-                self.continue_seq = current_continue_seq;
+                self.pop_loop();
             }
             NodeKind::Block { body } => {
                 for node in body.iter() {
@@ -122,12 +107,13 @@ impl Generator<'_> {
                 }
             }
             NodeKind::Break => {
-                self.builder
-                    .add_row(&format!("jmp .L.break.{}", self.break_seq), true);
+                let seq = self.current_loop_label()?;
+                self.builder.add_row(&format!("jmp .L.break.{}", seq), true);
             }
             NodeKind::Continue => {
+                let seq = self.current_loop_label()?;
                 self.builder
-                    .add_row(&format!("jmp .L.continue.{}", self.continue_seq), true);
+                    .add_row(&format!("jmp .L.continue.{}", seq), true);
             }
             NodeKind::Goto { name } => {
                 self.builder.add_row(
