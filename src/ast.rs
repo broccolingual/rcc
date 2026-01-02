@@ -67,14 +67,19 @@ impl<'a> Ast<'a> {
     }
 
     // 現在の関数のオフセットを計算
-    fn calc_current_func_offset(&mut self) {
+    fn calc_current_func_offset(&mut self) -> Result<(), CompileError> {
         if let Some(func_idx) = self.current_func
             && let Some(func) = self.funcs.get_mut(func_idx)
         {
             let mut offset = 0;
             // 引数のオフセットを計算
             for param in &mut func.params {
-                let symbol = self.symbol_table.get_symbol(param.symbol_idx).unwrap();
+                let symbol = self
+                    .symbol_table
+                    .get_symbol(param.symbol_idx)
+                    .ok_or_else(|| CompileError::InternalError {
+                        msg: "シンボルが見つかりません".to_string(),
+                    })?;
                 offset = offset.align_up(symbol.ty.align_of());
                 offset += symbol.ty.size_of();
                 param.offset = offset;
@@ -82,12 +87,22 @@ impl<'a> Ast<'a> {
 
             // ローカル変数のオフセットを計算
             for local in &mut func.locals {
-                let symbol = self.symbol_table.get_symbol(local.symbol_idx).unwrap();
+                let symbol = self
+                    .symbol_table
+                    .get_symbol(local.symbol_idx)
+                    .ok_or_else(|| CompileError::InternalError {
+                        msg: "シンボルが見つかりません".to_string(),
+                    })?;
                 offset = offset.align_up(symbol.ty.align_of());
                 offset += symbol.ty.size_of();
                 local.offset = offset;
             }
             func.stack_size = offset.align_up(16);
+            Ok(())
+        } else {
+            Err(CompileError::InternalError {
+                msg: "現在の関数が設定されていません".to_string(),
+            })
         }
     }
 

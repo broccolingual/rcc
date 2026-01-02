@@ -7,6 +7,7 @@ use register::ARG_REGS;
 use crate::asm_builder::AsmBuilder;
 use crate::ast::Ast;
 use crate::errors::CompileError;
+use crate::function::LocalVar;
 use crate::node::{Node, NodeKind, UnaryOp};
 use crate::symbol::Symbol;
 use crate::types::{Type, TypeKind};
@@ -94,17 +95,17 @@ impl<'a> Generator<'a> {
                 true,
             );
             self.builder.add_row(&format!("{}:", symbol.name), false);
-            if !symbol.init.is_empty() {
-                self.emit_global_init(symbol)?;
-            } else {
-                self.builder
-                    .add_row(&format!(".zero {}", symbol.ty.size_of()), true);
-            }
+            self.emit_global_init(symbol)?;
         }
         Ok(())
     }
 
     fn emit_global_init(&mut self, symbol: &Symbol) -> Result<(), CompileError> {
+        if symbol.init.is_empty() {
+            self.builder
+                .add_row(&format!(".zero {}", symbol.ty.size_of()), true);
+            return Ok(());
+        }
         if let TypeKind::Array { base, size } = &symbol.ty.kind {
             // TODO: 多次元配列の初期化、文字列リテラルによる初期化
             let init_len = symbol.init.len().min(*size);
@@ -274,15 +275,8 @@ impl<'a> Generator<'a> {
             }
 
             // ローカル変数の初期化
-            for var in func.locals.iter() {
-                let symbol = self.ast.get_symbol_by_id(var.symbol_idx).ok_or_else(|| {
-                    CompileError::InternalError {
-                        msg: "ローカル変数のシンボルが見つかりません".to_string(),
-                    }
-                })?;
-                if !symbol.init.is_empty() {
-                    self.gen_local_init(var.offset, symbol, var.symbol_idx)?;
-                }
+            for local_var in func.locals.iter() {
+                self.gen_local_init(local_var)?;
             }
 
             // 関数本体のコード生成
@@ -305,18 +299,23 @@ impl<'a> Generator<'a> {
         Ok(())
     }
 
-    fn gen_local_init(
-        &mut self,
-        offset: usize,
-        symbol: &Symbol,
-        symbol_idx: usize,
-    ) -> Result<(), CompileError> {
+    fn gen_local_init(&mut self, local_var: &LocalVar) -> Result<(), CompileError> {
+        let symbol = self
+            .ast
+            .get_symbol_by_id(local_var.symbol_idx)
+            .ok_or_else(|| CompileError::InternalError {
+                msg: "シンボルが見つかりません".to_string(),
+            })?;
+        // 初期化式がなければ何もしない
+        if symbol.init.is_empty() {
+            return Ok(());
+        }
         if let TypeKind::Array { base, size } = &symbol.ty.kind {
             // 配列の初期化式
             // TODO: 多次元配列の初期化、文字列リテラルによる初期化
             let init_len = symbol.init.len().min(*size);
             for (i, init) in symbol.init.iter().enumerate().take(init_len) {
-                let elem_offset = offset - i * base.size_of();
+                let elem_offset = local_var.offset - i * base.size_of();
                 self.builder
                     .add_row(&format!("lea rax, [rbp-{}]", elem_offset), true);
                 self.builder.add_row("push rax", true); // 配列要素のアドレスをスタックに積む
@@ -325,7 +324,7 @@ impl<'a> Generator<'a> {
             }
             // 初期化式の数が配列サイズに満たない場合、残りを0で埋める
             if symbol.init.len() < *size {
-                let zero_fill_offset = offset - init_len * base.size_of();
+                let zero_fill_offset = local_var.offset - init_len * base.size_of();
                 let zero_fill_size = (*size - init_len) * base.size_of();
                 self.builder
                     .add_row(&format!("lea rdi, [rbp-{}]", zero_fill_offset), true); // 初期化開始アドレス
@@ -339,7 +338,9 @@ impl<'a> Generator<'a> {
             unimplemented!("構造体のローカル変数初期化には未対応です");
         } else if symbol.init.len() == 1 {
             self.gen_addr(&Node {
-                kind: NodeKind::Var { symbol_idx },
+                kind: NodeKind::Var {
+                    symbol_idx: local_var.symbol_idx,
+                },
                 ..Default::default()
             })?; // 変数のアドレスをスタックに積む
             self.gen_expr(&symbol.init[0])?; // 初期化式のコードを生成し、スタックに値を積む

@@ -38,7 +38,12 @@ impl Ast<'_> {
                 // プロトタイプ宣言を確認
                 if let Some(symbol_idx) = self.symbol_table.find_symbol(&first_decl.name) {
                     // 関数シンボルが既に存在する場合
-                    let symbol = self.symbol_table.get_symbol_mut(symbol_idx).unwrap();
+                    let symbol = self
+                        .symbol_table
+                        .get_symbol_mut(symbol_idx)
+                        .ok_or_else(|| CompileError::InternalError {
+                            msg: "シンボルが見つかりません".to_string(),
+                        })?;
                     if symbol.is_func() {
                         if symbol.is_defined {
                             // 既に定義済みの場合エラー
@@ -105,7 +110,7 @@ impl Ast<'_> {
                     });
                 }
                 self.pop_scope(); // 引数スコープを出る
-                self.calc_current_func_offset(); // 現在の関数のオフセットとスタックサイズを計算
+                self.calc_current_func_offset()?; // 現在の関数のオフセットとスタックサイズを計算
                 self.current_func = None; // 現在の関数をクリア
                 return Ok(());
             } else if self.consume_punct(";").is_some() {
