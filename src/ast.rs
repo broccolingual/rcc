@@ -149,11 +149,11 @@ impl<'a> Ast<'a> {
 
     fn find_var(&self, name: &str) -> Option<usize> {
         let symbol_idx = self.symbol_table.find_symbol(name);
-        if let Some(idx) = symbol_idx {
-            let symbol = self.symbol_table.get_symbol(idx).unwrap();
-            if symbol.is_var() {
-                return Some(idx);
-            }
+        if let Some(idx) = symbol_idx
+            && let Some(symbol) = self.symbol_table.get_symbol(idx)
+            && symbol.is_var()
+        {
+            return Some(idx);
         }
         None
     }
@@ -176,16 +176,6 @@ impl<'a> Ast<'a> {
 
     fn find_tag(&self, name: &str) -> Option<&Type> {
         self.symbol_table.find_tag(name)
-    }
-
-    // 関数名から関数を検索し、戻り値の型を取得
-    fn get_func_return_type(&self, name: &str) -> Option<&Type> {
-        for func in &self.funcs {
-            if func.name == name {
-                return Some(&func.return_ty);
-            }
-        }
-        None
     }
 
     fn next_label(&mut self) -> usize {

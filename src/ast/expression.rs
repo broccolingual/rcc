@@ -1,7 +1,9 @@
 use crate::ast::Ast;
 use crate::errors::CompileError;
 use crate::node::{BinaryOp, Node, NodeKind, UnaryOp};
+use crate::types::TypeKind;
 use core::str::FromStr;
+use std::ops::Deref;
 
 impl Ast<'_> {
     // const_expr ::= cond_expr
@@ -791,11 +793,30 @@ impl Ast<'_> {
                         msg: "関数呼び出しの関数名のパースに失敗しました".to_string(),
                     });
                 };
-                let return_ty = self
-                    .get_func_return_type(func_name)
-                    .cloned()
-                    .unwrap_or_default();
-                node = Some(Box::new(Node::new_call(func_name, args, return_ty, span)));
+                if let Some(symbol_idx) = self.symbol_table.find_symbol(func_name)
+                    && let Some(symbol) = self.get_symbol_by_id(symbol_idx)
+                {
+                    if symbol.is_func()
+                        && let TypeKind::Func { return_ty, .. } = &symbol.ty.kind
+                    {
+                        node = Some(Box::new(Node::new_call(
+                            func_name,
+                            args,
+                            return_ty.deref().clone(),
+                            span,
+                        )));
+                    } else {
+                        return Err(CompileError::InvalidExpr {
+                            msg: format!("'{}' は関数ではありません", func_name),
+                            span,
+                        });
+                    }
+                } else {
+                    return Err(CompileError::UndefinedFunc {
+                        name: func_name.clone(),
+                        span,
+                    });
+                }
             } else if let Some(token) = self.consume_punct(".") {
                 let span = token.span;
                 // 構造体のメンバアクセス

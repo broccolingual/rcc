@@ -18,6 +18,10 @@ pub(crate) enum CompileError {
         name: String,
         span: (usize, usize),
     },
+    UndefinedFunc {
+        name: String,
+        span: (usize, usize),
+    },
     // ReadOnlyLvalue {
     //     name: String,
     //     span: (usize, usize),
@@ -68,6 +72,13 @@ impl fmt::Display for CompileError {
                     name
                 )
             }
+            CompileError::UndefinedFunc { name, .. } => {
+                write!(
+                    f,
+                    "Undefined Function: '{}'\n  ヒント: 関数が宣言されていない可能性があります",
+                    name
+                )
+            }
             // CompileError::ReadOnlyLvalue { name, .. } => {
             //     write!(
             //         f,
@@ -114,6 +125,7 @@ impl CompileError {
             CompileError::UnexpectedToken { span, .. }
             | CompileError::MissingToken { span, .. }
             | CompileError::UndefinedIdent { span, .. }
+            | CompileError::UndefinedFunc { span, .. }
             // | CompileError::ReadOnlyLvalue { span, .. }
             | CompileError::Redecl { span, .. }
             | CompileError::InvalidExpr { span, .. }

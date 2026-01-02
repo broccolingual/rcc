@@ -12,6 +12,8 @@ setup_test
 cc -c $SCRIPT_DIR/bin/func.c -o $SCRIPT_DIR/bin/func.o
 
 assert_func 3 '
+int foo();
+
 int main() {
     return foo();
 }'
@@ -35,7 +37,6 @@ assert_func 3 '
 int add(int x, int y) {
     return x + y;
 }
-
 int main() {
     int a;
     int b;
@@ -52,6 +53,8 @@ int main() {
     return x;
 }'
 assert_func 8 '
+void alloc4(int **p, int a, int b, int c, int d);
+
 int main() {
     int *p;
     alloc4(&p, 1, 2, 4, 8);
@@ -129,12 +132,16 @@ int main() {
 }'
 # GCCがlibcをリンクしてくれるおかげでprintfが使える
 assert_func 0 '
+void printf(char *fmt, int a);
+
 int main() {
     char *a = "Hello, World! %d\n";
     printf(a, 3);
     return 0;
 }'
 assert_func 5 '
+void printf(char *fmt);
+
 int a = 5;
 short b = 3;
 long c = 8;

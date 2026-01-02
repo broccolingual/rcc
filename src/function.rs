@@ -60,4 +60,18 @@ impl Func {
             return_ty: Type::default(),
         }
     }
+
+    pub(crate) fn find_local_var(&self, symbol_idx: usize) -> Option<&LocalVar> {
+        for param in &self.params {
+            if param.symbol_idx == symbol_idx {
+                return Some(param);
+            }
+        }
+        for local in &self.locals {
+            if local.symbol_idx == symbol_idx {
+                return Some(local);
+            }
+        }
+        None
+    }
 }

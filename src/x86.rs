@@ -381,14 +381,11 @@ impl<'a> Generator<'a> {
                             })?;
                     let func = &self.ast.funcs[func_idx];
                     // 引数またはローカル変数としてのオフセットを取得
-                    let local_var = func
-                        .params
-                        .iter()
-                        .chain(func.locals.iter())
-                        .find(|var| var.symbol_idx == *symbol_idx)
-                        .ok_or_else(|| CompileError::InternalError {
+                    let local_var = func.find_local_var(*symbol_idx).ok_or_else(|| {
+                        CompileError::InternalError {
                             msg: "関数内の変数が見つかりません".to_string(),
-                        })?;
+                        }
+                    })?;
                     self.builder
                         .add_row(&format!("lea rax, [rbp-{}]", local_var.offset), true); // ローカル変数のアドレスを計算して取得
                 }
