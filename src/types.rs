@@ -7,21 +7,11 @@ pub(crate) use specifier::*;
 use crate::node::Node;
 use core::fmt;
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Default)]
 pub(crate) struct TypeAttr {
     pub(crate) is_const: bool,
     pub(crate) is_volatile: bool,
     pub(crate) is_restrict: bool,
-}
-
-impl Default for TypeAttr {
-    fn default() -> Self {
-        TypeAttr {
-            is_const: false,
-            is_volatile: false,
-            is_restrict: false,
-        }
-    }
 }
 
 impl fmt::Debug for TypeAttr {
@@ -105,13 +95,13 @@ impl Type {
                 align: 8,
                 attr,
             },
-            TypeKind::Ptr { ref to } => Type {
+            TypeKind::Ptr { to } => Type {
                 kind: TypeKind::Ptr { to: to.clone() },
                 size: 8,
                 align: 8,
                 attr,
             },
-            TypeKind::Array { ref base, size } => Type {
+            TypeKind::Array { base, size } => Type {
                 kind: TypeKind::Array {
                     base: base.clone(),
                     size,
@@ -120,10 +110,7 @@ impl Type {
                 align: base.align,
                 attr,
             },
-            TypeKind::Struct {
-                ref name,
-                ref members,
-            } => {
+            TypeKind::Struct { name, members } => {
                 let mut offset = 0;
                 let mut max_align = 1;
                 let mut members = members.clone();
@@ -147,10 +134,7 @@ impl Type {
                     attr,
                 }
             }
-            TypeKind::Func {
-                ref return_ty,
-                ref params,
-            } => Type {
+            TypeKind::Func { return_ty, params } => Type {
                 kind: TypeKind::Func {
                     return_ty: return_ty.clone(),
                     params: params.clone(),

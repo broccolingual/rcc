@@ -1,7 +1,9 @@
 use crate::ast::Ast;
 use crate::errors::CompileError;
 use crate::node::{BinaryOp, Node, NodeKind, UnaryOp};
+use crate::types::TypeKind;
 use core::str::FromStr;
+use std::ops::Deref;
 
 impl Ast<'_> {
     // const_expr ::= cond_expr
@@ -12,7 +14,118 @@ impl Ast<'_> {
             .ok_or_else(|| CompileError::InternalError {
                 msg: "定数式がありません".to_string(),
             })?;
-        node.eval_const_expr() // 定数式を評価
+        Self::eval_const_expr(&node) // 定数式を評価
+    }
+
+    // 定数式を評価して、その値を返す
+    pub(crate) fn eval_const_expr(expr: &Node) -> Result<i64, CompileError> {
+        match &expr.kind {
+            NodeKind::Number { val } => Ok(*val),
+            NodeKind::UnaryOp { op, expr } => {
+                let val = Self::eval_const_expr(expr)?;
+                match op {
+                    UnaryOp::BitNot => Ok(!val),
+                    UnaryOp::LogicalNot => Ok(if val == 0 { 1 } else { 0 }),
+                    _ => Err(CompileError::InvalidExpr {
+                        msg: format!("定数式に不正な単項演算子が含まれています: {:?}", op),
+                        span: expr.span,
+                    }),
+                }
+            }
+            NodeKind::BinaryOp { op, lhs, rhs } => {
+                let lval = Self::eval_const_expr(lhs)?;
+                let rval = Self::eval_const_expr(rhs)?;
+                match op {
+                    BinaryOp::Add => Ok(lval + rval),
+                    BinaryOp::Sub => Ok(lval - rval),
+                    BinaryOp::Mul => Ok(lval * rval),
+                    BinaryOp::Div => {
+                        if rval == 0 {
+                            return Err(CompileError::InvalidExpr {
+                                msg: "定数式の除算でゼロ除算が発生しました".to_string(),
+                                span: rhs.span,
+                            });
+                        }
+                        Ok(lval / rval)
+                    }
+                    BinaryOp::Rem => {
+                        if rval == 0 {
+                            return Err(CompileError::InvalidExpr {
+                                msg: "定数式の剰余演算でゼロ除算が発生しました".to_string(),
+                                span: rhs.span,
+                            });
+                        }
+                        Ok(lval % rval)
+                    }
+                    BinaryOp::Shl => {
+                        if !(0..64).contains(&rval) {
+                            return Err(CompileError::InvalidExpr {
+                                msg: "定数式の左シフト演算で不正なシフト量が指定されました"
+                                    .to_string(),
+                                span: rhs.span,
+                            });
+                        }
+                        Ok(lval << rval)
+                    }
+                    BinaryOp::Shr => {
+                        if !(0..64).contains(&rval) {
+                            return Err(CompileError::InvalidExpr {
+                                msg: "定数式の右シフト演算で不正なシフト量が指定されました"
+                                    .to_string(),
+                                span: rhs.span,
+                            });
+                        }
+                        Ok(lval >> rval)
+                    }
+                    BinaryOp::BitAnd => Ok(lval & rval),
+                    BinaryOp::BitOr => Ok(lval | rval),
+                    BinaryOp::BitXor => Ok(lval ^ rval),
+                    BinaryOp::Eq => Ok(if lval == rval { 1 } else { 0 }),
+                    BinaryOp::Ne => Ok(if lval != rval { 1 } else { 0 }),
+                    BinaryOp::Lt => Ok(if lval < rval { 1 } else { 0 }),
+                    BinaryOp::Le => Ok(if lval <= rval { 1 } else { 0 }),
+                    _ => Err(CompileError::InvalidExpr {
+                        msg: format!("定数式に不正な二項演算子が含まれています: {:?}", op),
+                        span: expr.span,
+                    }),
+                }
+            }
+            NodeKind::Ternary {
+                cond, then, els, ..
+            } => {
+                let cond_val = Self::eval_const_expr(cond)?;
+                if cond_val != 0 {
+                    Self::eval_const_expr(then)
+                } else {
+                    Self::eval_const_expr(els)
+                }
+            }
+            NodeKind::LogicalAnd { lhs, rhs, .. } => {
+                let lval = Self::eval_const_expr(lhs)?;
+                if lval == 0 {
+                    Ok(0)
+                } else {
+                    let rval = Self::eval_const_expr(rhs)?;
+                    Ok(if rval != 0 { 1 } else { 0 })
+                }
+            }
+            NodeKind::LogicalOr { lhs, rhs, .. } => {
+                let lval = Self::eval_const_expr(lhs)?;
+                if lval != 0 {
+                    Ok(1)
+                } else {
+                    let rval = Self::eval_const_expr(rhs)?;
+                    Ok(if rval != 0 { 1 } else { 0 })
+                }
+            }
+            NodeKind::Var { .. } => {
+                unimplemented!("定数式内の変数参照の評価は未実装です")
+            }
+            _ => Err(CompileError::InvalidExpr {
+                msg: "定数式に不正なノードが含まれています".to_string(),
+                span: expr.span,
+            }),
+        }
     }
 
     // expr ::= assign_expr
@@ -36,11 +149,9 @@ impl Ast<'_> {
                     msg: format!("代入演算子 '{}' の左辺に式がありません", assign_op_str),
                     span,
                 })?;
-                if let NodeKind::Var { name, .. } = &lhs.kind
-                    && lhs.ty.attr.is_const
-                {
+                if lhs.ty.attr.is_const {
                     return Err(CompileError::ReadOnlyLvalue {
-                        name: name.clone(),
+                        name: format!("代入演算子 '{}' の左辺値", assign_op_str),
                         span: lhs.span,
                     });
                 }
@@ -585,20 +696,14 @@ impl Ast<'_> {
             && let NodeKind::Ident { name } = &n.kind
         {
             // 変数参照
-            if let Ok(current_func) = self.get_current_func() {
-                if let Some(symbol) = current_func.find_local_var(name) {
-                    // ローカル変数ノードを作成
-                    let node = Node::new_var(name, symbol.offset, &symbol.ty, true, n.span);
-                    return Ok(Some(Box::new(node)));
-                } else if let Some(symbol) = current_func.find_param(name) {
-                    // 引数変数ノードを作成
-                    let node = Node::new_var(name, symbol.offset, &symbol.ty, true, n.span);
-                    return Ok(Some(Box::new(node)));
-                }
-            }
-            if let Some(symbol) = self.find_global_var(name) {
-                // グローバル変数ノードを作成
-                let node = Node::new_var(name, 0, &symbol.ty, false, n.span);
+            if let Some(symbol_idx) = self.find_var(name) {
+                // 変数ノードを作成
+                let symbol = self.get_symbol_by_id(symbol_idx).ok_or_else(|| {
+                    CompileError::InternalError {
+                        msg: format!("変数シンボルが見つかりません: {}", name),
+                    }
+                })?;
+                let node = Node::new_var(symbol_idx, symbol.ty.clone(), n.span);
                 return Ok(Some(Box::new(node)));
             }
             Err(CompileError::UndefinedIdent {
@@ -694,11 +799,30 @@ impl Ast<'_> {
                         msg: "関数呼び出しの関数名のパースに失敗しました".to_string(),
                     });
                 };
-                let return_ty = self
-                    .get_func_return_type(func_name)
-                    .cloned()
-                    .unwrap_or_default();
-                node = Some(Box::new(Node::new_call(func_name, args, return_ty, span)));
+                if let Some(symbol_idx) = self.symbol_table.find_symbol(func_name)
+                    && let Some(symbol) = self.get_symbol_by_id(symbol_idx)
+                {
+                    if symbol.is_func()
+                        && let TypeKind::Func { return_ty, .. } = &symbol.ty.kind
+                    {
+                        node = Some(Box::new(Node::new_call(
+                            func_name,
+                            args,
+                            return_ty.deref().clone(),
+                            span,
+                        )));
+                    } else {
+                        return Err(CompileError::InvalidExpr {
+                            msg: format!("'{}' は関数ではありません", func_name),
+                            span,
+                        });
+                    }
+                } else {
+                    return Err(CompileError::UndefinedFunc {
+                        name: func_name.clone(),
+                        span,
+                    });
+                }
             } else if let Some(token) = self.consume_punct(".") {
                 let span = token.span;
                 // 構造体のメンバアクセス

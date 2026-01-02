@@ -1,6 +1,6 @@
 use crate::ast::Ast;
 use crate::errors::CompileError;
-use crate::function::Func;
+use crate::function::{Func, LocalVar};
 use crate::node::{Node, NodeKind};
 use crate::types::{
     Decl, DeclSpec, FuncKind, MemberDecl, StorageClassKind, Type, TypeAttr, TypeKind, TypeQualKind,
@@ -32,16 +32,66 @@ impl Ast<'_> {
         let token_pos = self.token_pos; // 関数定義でなかった場合にバックトラックするために保存
         let first_decl = self.declarator(&base_ty)?;
 
-        if self.peek_punct("{") {
-            // 関数定義の場合: compound_stmt
-            if let TypeKind::Func { params, return_ty } = &first_decl.ty.kind {
-                let mut func = Func::new(&first_decl.name);
-                for param_decl in params.clone() {
-                    func.register_param(param_decl)?;
+        // 関数定義の場合: compound_stmt
+        if let TypeKind::Func { params, return_ty } = &first_decl.ty.kind {
+            if self.peek_punct("{") {
+                // プロトタイプ宣言を確認
+                if let Some(symbol_idx) = self.symbol_table.find_symbol(&first_decl.name) {
+                    // 関数シンボルが既に存在する場合
+                    let symbol = self
+                        .symbol_table
+                        .get_symbol_mut(symbol_idx)
+                        .ok_or_else(|| CompileError::InternalError {
+                            msg: "シンボルが見つかりません".to_string(),
+                        })?;
+                    if symbol.is_func() {
+                        if symbol.is_defined {
+                            // 既に定義済みの場合エラー
+                            let span = first_decl.span;
+                            return Err(CompileError::InvalidDecl {
+                                msg: format!("関数 '{}' が既に定義されています", first_decl.name),
+                                span,
+                            });
+                        } else {
+                            // プロトタイプ宣言と定義の型が一致するか確認
+                            if symbol.ty != first_decl.ty {
+                                let span = first_decl.span;
+                                return Err(CompileError::InvalidDecl {
+                                    msg: format!(
+                                        "関数 '{}' の定義がプロトタイプ宣言と一致しません",
+                                        first_decl.name
+                                    ),
+                                    span,
+                                });
+                            }
+                            // 既存のプロトタイプ宣言を定義済みに更新
+                            symbol.is_defined = true;
+                        }
+                    } else {
+                        // シンボルが関数でない場合エラー
+                        let span = first_decl.span;
+                        return Err(CompileError::InvalidDecl {
+                            msg: format!("'{}' は関数ではありません", first_decl.name),
+                            span,
+                        });
+                    }
+                } else {
+                    // 関数をシンボルが存在しない場合，新規に関数シンボルを登録
+                    self.register_func_symbol(&first_decl.name, first_decl.ty.clone(), true);
                 }
-                func.return_ty = *return_ty.clone();
-
-                self.current_func = Some(func);
+                let func_idx = self.register_func_def(Func::new(&first_decl.name)); // 関数を登録
+                self.current_func = Some(func_idx); // 現在の関数を設定
+                self.push_scope(); // 引数スコープに入る
+                // 引数を登録
+                for param_decl in params.clone() {
+                    let symbol_idx = self.register_var(param_decl, Some(func_idx))?;
+                    self.get_current_func()?
+                        .params
+                        .push(LocalVar::new(symbol_idx));
+                }
+                // 関数の戻り値の型を設定
+                self.get_current_func()?.return_ty = *return_ty.clone();
+                // 関数本体をパース
                 let func_body = self.compound_stmt()?.ok_or_else(|| {
                     let span = self.get_prev_token_span().unwrap_or((0, 0));
                     CompileError::InvalidDecl {
@@ -49,26 +99,23 @@ impl Ast<'_> {
                         span,
                     }
                 })?;
-
-                func = self
-                    .current_func
-                    .take()
-                    .ok_or_else(|| CompileError::InternalError {
-                        msg: "現在の関数が設定されていません".to_string(),
-                    })?;
-
                 if let NodeKind::Block { body } = func_body.kind {
-                    func.body = body;
+                    self.get_current_func()?.body = body;
                 } else {
                     let span = func_body.span;
                     return Err(CompileError::InvalidDecl {
-                        msg: "関数本体がブロックではありません。'{' と '}' で囲まれた複合文が必要です".to_string(),
+                        msg: "関数本体がブロックではありません。'{' と '}' で囲まれた複合文が必要です"
+                            .to_string(),
                         span,
                     });
                 }
-
-                self.current_func = None;
-                self.funcs.push(func);
+                self.pop_scope(); // 引数スコープを出る
+                self.calc_current_func_offset()?; // 現在の関数のオフセットとスタックサイズを計算
+                self.current_func = None; // 現在の関数をクリア
+                return Ok(());
+            } else if self.consume_punct(";").is_some() {
+                // 関数プロトタイプ宣言
+                self.register_func_symbol(&first_decl.name, first_decl.ty.clone(), false);
                 return Ok(());
             } else {
                 let span = first_decl.span;
@@ -86,7 +133,7 @@ impl Ast<'_> {
 
         // グローバル変数として登録
         for decl in decls {
-            self.register_global_var(decl)?;
+            self.register_var(decl, None)?;
         }
         Ok(())
     }
@@ -156,18 +203,15 @@ impl Ast<'_> {
             if self.consume_punct("=").is_some() {
                 // TODO: 代入時の型チェック
                 decl.init = self.initializer()?; // initializerを設定
-                match decl.ty.kind {
+                if let TypeKind::Array { base, size: 0 } = decl.ty.kind {
                     // サイズ不明な配列型の場合、初期化子の要素数でサイズを決定
-                    TypeKind::Array { ref base, ref size } if *size == 0 => {
-                        decl.ty = Type::from(
-                            TypeKind::Array {
-                                base: base.clone(),
-                                size: decl.init.len(),
-                            },
-                            decl.ty.attr,
-                        );
-                    }
-                    _ => {}
+                    decl.ty = Type::from(
+                        TypeKind::Array {
+                            base: base.clone(),
+                            size: decl.init.len(),
+                        },
+                        decl.ty.attr,
+                    );
                 }
             }
             return Ok(Some(decl));
@@ -215,22 +259,12 @@ impl Ast<'_> {
                 );
                 // 構造体タグを登録
                 if !struct_name.is_empty() {
-                    if let Some(func) = self.current_func.as_mut() {
-                        func.register_struct_tag(struct_name, struct_ty.clone(), span)?;
-                    } else {
-                        self.register_struct_tag(struct_name, struct_ty.clone(), span)?;
-                    }
+                    self.register_tag(&struct_name, struct_ty.clone(), span)?;
                 }
                 return Ok(Some(struct_ty.kind));
             } else if !struct_name.is_empty() {
                 // 既存の構造体タグを検索
-                // 現在の関数のスコープ内を優先して検索（無い場合はグローバルスコープを検索）
-                let struct_ty = self
-                    .current_func
-                    .as_ref()
-                    .and_then(|f| f.find_struct_tag(&struct_name))
-                    .or_else(|| self.find_struct_tag(&struct_name));
-                if let Some(ty) = struct_ty {
+                if let Some(ty) = self.find_tag(&struct_name) {
                     return Ok(Some(ty.kind.clone()));
                 } else {
                     let span = self.get_prev_token_span().unwrap_or((0, 0));
@@ -406,15 +440,14 @@ impl Ast<'_> {
             let array_size = if self.peek_punct("]") {
                 0
             } else {
-                self.assign_expr()?
-                    .ok_or_else(|| {
-                        let span = self.get_prev_token_span().unwrap_or((0, 0));
-                        CompileError::InvalidDecl {
-                            msg: "配列のサイズが必要です".to_string(),
-                            span,
-                        }
-                    })?
-                    .eval_const_expr()? as usize
+                let assign_expr = self.assign_expr()?.ok_or_else(|| {
+                    let span = self.get_prev_token_span().unwrap_or((0, 0));
+                    CompileError::InvalidDecl {
+                        msg: "配列のサイズが必要です".to_string(),
+                        span,
+                    }
+                })?;
+                Self::eval_const_expr(&assign_expr)? as usize
             };
             self.expect_punct("]")?;
             let inner_ty = self.parse_postfix_declarators(base_ty)?;
@@ -543,15 +576,14 @@ impl Ast<'_> {
             let array_size = if self.peek_punct("]") {
                 0
             } else {
-                self.assign_expr()?
-                    .ok_or_else(|| {
-                        let span = self.get_prev_token_span().unwrap_or((0, 0));
-                        CompileError::InvalidDecl {
-                            msg: "配列のサイズが必要です".to_string(),
-                            span,
-                        }
-                    })?
-                    .eval_const_expr()? as usize
+                let assign_expr = self.assign_expr()?.ok_or_else(|| {
+                    let span = self.get_prev_token_span().unwrap_or((0, 0));
+                    CompileError::InvalidDecl {
+                        msg: "配列のサイズが必要です".to_string(),
+                        span,
+                    }
+                })?;
+                Self::eval_const_expr(&assign_expr)? as usize
             };
             self.expect_punct("]")?;
             let inner_ty = self.parse_abst_postfix_declarators(base_ty)?;

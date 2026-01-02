@@ -69,10 +69,8 @@ fn main() {
     }
 
     if args.debug {
-        println!("=== Global Variables ===");
-        println!("{:#?}", ast.global_symbol_table.iter().collect::<Vec<_>>());
-        println!("=== Global Tags ===");
-        println!("{:#?}", ast.global_tag_table.iter().collect::<Vec<_>>());
+        println!("=== Symbols ===");
+        println!("{:#?}", ast.get_symbols());
         println!("=== Functions ===");
         println!("{:#?}", ast.funcs);
         println!("=== String Literals ===");

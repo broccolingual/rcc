@@ -1,5 +1,6 @@
 use crate::ast::Ast;
 use crate::errors::CompileError;
+use crate::function::LocalVar;
 use crate::node::{Node, NodeKind};
 
 impl Ast<'_> {
@@ -28,12 +29,15 @@ impl Ast<'_> {
     pub(super) fn compound_stmt(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         if let Some(token) = self.consume_punct("{") {
             let span = token.span;
-            self.get_current_func()?.enter_scope();
+            self.push_scope(); // 新しいスコープに入る
             let mut body = Vec::new();
             while self.consume_punct("}").is_none() {
                 if let Some(decls) = self.decl()? {
                     for decl in decls {
-                        self.get_current_func()?.register_local_var(decl)?;
+                        let symbol_idx = self.register_var(decl, self.current_func)?;
+                        self.get_current_func()?
+                            .locals
+                            .push(LocalVar::new(symbol_idx));
                     }
                     continue;
                 } else if let Some(stmt) = self.stmt()? {
@@ -45,7 +49,7 @@ impl Ast<'_> {
                     });
                 }
             }
-            self.get_current_func()?.leave_scope();
+            self.pop_scope(); // スコープを抜ける
             return Ok(Some(Box::new(Node::new(NodeKind::Block { body }, span))));
         }
         Ok(None)
