@@ -77,9 +77,7 @@ pub(crate) enum NodeKind {
         label: usize,
     }, // continue
     Var {
-        name: String,
-        offset: usize,
-        is_local: bool,
+        symbol_idx: usize,
     }, // 変数
     Member {
         obj: Box<Node>,

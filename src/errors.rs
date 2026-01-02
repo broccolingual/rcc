@@ -18,10 +18,10 @@ pub(crate) enum CompileError {
         name: String,
         span: (usize, usize),
     },
-    ReadOnlyLvalue {
-        name: String,
-        span: (usize, usize),
-    },
+    // ReadOnlyLvalue {
+    //     name: String,
+    //     span: (usize, usize),
+    // },
     Redecl {
         name: String,
         span: (usize, usize),
@@ -68,13 +68,13 @@ impl fmt::Display for CompileError {
                     name
                 )
             }
-            CompileError::ReadOnlyLvalue { name, .. } => {
-                write!(
-                    f,
-                    "Read-Only Lvalue: '{}'\n  ヒント: const修飾された変数には代入できません",
-                    name
-                )
-            }
+            // CompileError::ReadOnlyLvalue { name, .. } => {
+            //     write!(
+            //         f,
+            //         "Read-Only Lvalue: '{}'\n  ヒント: const修飾された変数には代入できません",
+            //         name
+            //     )
+            // }
             CompileError::Redecl { name, .. } => {
                 write!(
                     f,
@@ -114,7 +114,7 @@ impl CompileError {
             CompileError::UnexpectedToken { span, .. }
             | CompileError::MissingToken { span, .. }
             | CompileError::UndefinedIdent { span, .. }
-            | CompileError::ReadOnlyLvalue { span, .. }
+            // | CompileError::ReadOnlyLvalue { span, .. }
             | CompileError::Redecl { span, .. }
             | CompileError::InvalidExpr { span, .. }
             | CompileError::InvalidStmt { span, .. }

@@ -1,125 +1,103 @@
-use core::fmt;
+use crate::symbol::Symbol;
+use crate::types::Type;
 use std::collections::HashMap;
 
-pub(crate) struct Scope {
-    table: HashMap<String, usize>, // シンボル名からシンボルのインデックスへのマッピング
+#[derive(Debug)]
+struct Scope {
+    names: HashMap<String, usize>, // name -> symbol_id
+    tags: HashMap<String, Type>,   // name -> type
 }
 
-pub(crate) struct ScopedTable<T: fmt::Debug> {
-    pub(crate) items: Vec<T>, // 全てのシンボルのリスト（永続）
-    scopes: Vec<Scope>,       // スコープのスタック（AST構成時のみ）
+#[derive(Debug)]
+pub(crate) struct ScopedTable {
+    symbols: Vec<Symbol>,
+    scopes: Vec<Scope>,
 }
 
-impl<T: fmt::Debug> Default for ScopedTable<T> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<T: fmt::Debug> fmt::Debug for ScopedTable<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for (i, item) in self.items.iter().enumerate() {
-            if i > 0 {
-                write!(f, ", ")?;
-            }
-            write!(f, "{:?}", item)?;
-        }
-        Ok(())
-    }
-}
-
-impl<T: fmt::Debug> ScopedTable<T> {
+impl ScopedTable {
     pub(crate) fn new() -> Self {
         Self {
-            items: Vec::new(),
-            scopes: Vec::new(),
+            symbols: Vec::new(),
+            scopes: vec![Scope {
+                names: HashMap::new(),
+                tags: HashMap::new(),
+            }],
         }
     }
 
-    pub(crate) fn enter_scope(&mut self) {
+    pub(crate) fn push_scope(&mut self) {
         self.scopes.push(Scope {
-            table: HashMap::new(),
+            names: HashMap::new(),
+            tags: HashMap::new(),
         });
     }
 
-    pub(crate) fn leave_scope(&mut self) {
+    pub(crate) fn pop_scope(&mut self) {
         self.scopes.pop();
     }
 
-    pub(crate) fn insert(&mut self, name: String, item: T) -> usize {
-        let index = self.items.len();
-        self.items.push(item);
-        if let Some(scope) = self.scopes.last_mut() {
-            scope.table.insert(name, index);
-        }
-        index
+    pub(crate) fn get_symbols(&self) -> &Vec<Symbol> {
+        &self.symbols
     }
 
-    pub(crate) fn find_in_current_scope(&self, name: &str) -> Option<&T> {
-        if let Some(scope) = self.scopes.last()
-            && let Some(&index) = scope.table.get(name)
-        {
-            return self.items.get(index);
-        }
-        None
+    pub(crate) fn get_symbol(&self, symbol_id: usize) -> Option<&Symbol> {
+        self.symbols.get(symbol_id)
     }
 
-    pub(crate) fn find(&self, name: &str) -> Option<&T> {
+    pub(crate) fn get_symbol_mut(&mut self, symbol_id: usize) -> Option<&mut Symbol> {
+        self.symbols.get_mut(symbol_id)
+    }
+
+    pub(crate) fn find_symbol(&self, name: &str) -> Option<usize> {
         for scope in self.scopes.iter().rev() {
-            if let Some(index) = scope.table.get(name) {
-                return self.items.get(*index);
+            if let Some(&symbol_id) = scope.names.get(name) {
+                return Some(symbol_id);
             }
         }
         None
     }
-}
 
-pub(crate) struct FlatTable<T: fmt::Debug> {
-    pub(crate) items: Vec<T>,      // 全てのシンボルのリスト
-    table: HashMap<String, usize>, // パラメータ名からインデックスへのマッピング
-}
-
-impl<T: fmt::Debug> Default for FlatTable<T> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<T: fmt::Debug> fmt::Debug for FlatTable<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for (i, item) in self.items.iter().enumerate() {
-            if i > 0 {
-                write!(f, ", ")?;
+    pub(crate) fn find_tag(&self, name: &str) -> Option<&Type> {
+        for scope in self.scopes.iter().rev() {
+            if let Some(ty) = scope.tags.get(name) {
+                return Some(ty);
             }
-            write!(f, "{:?}", item)?;
-        }
-        Ok(())
-    }
-}
-
-impl<T: fmt::Debug> FlatTable<T> {
-    pub(crate) fn new() -> Self {
-        Self {
-            items: Vec::new(),
-            table: HashMap::new(),
-        }
-    }
-
-    pub(crate) fn insert(&mut self, name: String, item: T) -> usize {
-        let index = self.items.len();
-        self.items.push(item);
-        self.table.insert(name, index);
-        index
-    }
-
-    pub(crate) fn find(&self, name: &str) -> Option<&T> {
-        if let Some(&index) = self.table.get(name) {
-            return self.items.get(index);
         }
         None
     }
 
-    pub(crate) fn iter(&self) -> impl Iterator<Item = &T> {
-        self.items.iter()
+    pub(crate) fn find_symbol_in_current_scope(&self, name: &str) -> Option<&Symbol> {
+        if let Some(scope) = self.scopes.last()
+            && let Some(&symbol_id) = scope.names.get(name)
+        {
+            return self.symbols.get(symbol_id);
+        }
+
+        None
+    }
+
+    pub(crate) fn find_tag_in_current_scope(&self, name: &str) -> Option<&Type> {
+        if let Some(scope) = self.scopes.last()
+            && let Some(ty) = scope.tags.get(name)
+        {
+            return Some(ty);
+        }
+
+        None
+    }
+
+    pub(crate) fn insert_symbol(&mut self, name: &str, symbol: Symbol) -> usize {
+        let symbol_id = self.symbols.len();
+        self.symbols.push(symbol);
+        if let Some(scope) = self.scopes.last_mut() {
+            scope.names.insert(name.to_string(), symbol_id);
+        }
+        symbol_id
+    }
+
+    pub(crate) fn insert_tag(&mut self, name: &str, ty: Type) {
+        if let Some(scope) = self.scopes.last_mut() {
+            scope.tags.insert(name.to_string(), ty);
+        }
     }
 }
