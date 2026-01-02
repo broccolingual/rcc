@@ -70,7 +70,7 @@ fn main() {
 
     if args.debug {
         println!("=== Global Variables ===");
-        println!("{:#?}", ast.globals);
+        println!("{:#?}", ast.global_symbol_table.iter().collect::<Vec<_>>());
         println!("=== Functions ===");
         println!("{:#?}", ast.funcs);
         println!("=== String Literals ===");

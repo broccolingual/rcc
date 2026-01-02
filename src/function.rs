@@ -3,7 +3,7 @@ use core::fmt;
 use crate::errors::CompileError;
 use crate::node::Node;
 use crate::symbol::{FlatTable, ScopedTable, Symbol, Variable};
-use crate::types::{AlignUp, Decl, Type, TypeKind};
+use crate::types::{AlignUp, Decl, Type};
 
 struct StackFrame {
     next_offset: usize,
@@ -56,7 +56,7 @@ impl Func {
             param_symbol_table: FlatTable::new(),
             local_tag_table: ScopedTable::new(),
             stack_frame: StackFrame::new(),
-            return_ty: Type::from(TypeKind::Void, false),
+            return_ty: Type::default(),
         }
     }
 }

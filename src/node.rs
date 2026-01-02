@@ -5,7 +5,7 @@ pub(crate) use kind::*;
 pub(crate) use operator::*;
 
 use crate::errors::CompileError;
-use crate::types::{Type, TypeKind};
+use crate::types::{Type, TypeAttr, TypeKind};
 use core::fmt;
 
 #[derive(Clone, PartialEq, Eq)]
@@ -182,7 +182,7 @@ impl Node {
 
                 if lhs_ty.is_integer() && rhs_ty.is_integer() {
                     // 両方とも整数型の場合、昇格後の型を結果型とする
-                    Type::from(TypeKind::Int, false)
+                    Type::from(TypeKind::Int, TypeAttr::default())
                 } else {
                     return Err(CompileError::InvalidExpr {
                         msg: format!(
@@ -202,7 +202,7 @@ impl Node {
                         && (rhs_ty.is_ptr() || rhs_ty.is_array())
                 {
                     // 両方ともスカラー型の場合、結果型はint型とする
-                    Type::from(TypeKind::Int, false)
+                    Type::from(TypeKind::Int, TypeAttr::default())
                 } else {
                     return Err(CompileError::InvalidExpr {
                         msg: format!(
@@ -233,7 +233,7 @@ impl Node {
                 let expr_ty = &expr.ty;
 
                 if expr_ty.is_integer() {
-                    Type::from(TypeKind::Int, false) // 整数拡張
+                    Type::from(TypeKind::Int, TypeAttr::default()) // 整数拡張
                 } else {
                     return Err(CompileError::InvalidExpr {
                         msg: format!("ビット否定演算子は整数型にのみ適用可能です: {:?}", expr_ty),
@@ -245,7 +245,7 @@ impl Node {
                 let expr_ty = &expr.ty;
 
                 if expr_ty.is_scalar() || expr_ty.is_ptr() || expr_ty.is_array() {
-                    Type::from(TypeKind::Int, false) // 結果型はint型
+                    Type::from(TypeKind::Int, TypeAttr::default()) // 結果型はint型
                 } else {
                     return Err(CompileError::InvalidExpr {
                         msg: format!(
@@ -264,7 +264,7 @@ impl Node {
                     TypeKind::Ptr {
                         to: Box::new(expr_ty.clone()),
                     },
-                    false,
+                    TypeAttr::default(),
                 )
             }
             UnaryOp::Deref => {
@@ -325,7 +325,7 @@ impl Node {
             || (lhs_ty.is_ptr() || lhs_ty.is_array()) && (rhs_ty.is_ptr() || rhs_ty.is_array())
         {
             // 両方ともスカラー型の場合、結果型はint型とする
-            Type::from(TypeKind::Int, false)
+            Type::from(TypeKind::Int, TypeAttr::default())
         } else {
             return Err(CompileError::InvalidExpr {
                 msg: format!(
@@ -356,7 +356,7 @@ impl Node {
             || (lhs_ty.is_ptr() || lhs_ty.is_array()) && (rhs_ty.is_ptr() || rhs_ty.is_array())
         {
             // 両方ともスカラー型の場合、結果型はint型とする
-            Type::from(TypeKind::Int, false)
+            Type::from(TypeKind::Int, TypeAttr::default())
         } else {
             return Err(CompileError::InvalidExpr {
                 msg: format!(
@@ -430,7 +430,7 @@ impl Node {
     pub(crate) fn new_num(val: i64, span: (usize, usize)) -> Self {
         Node {
             kind: NodeKind::Number { val },
-            ty: Type::from(TypeKind::Int, false),
+            ty: Type::from(TypeKind::Int, TypeAttr::default()),
             span,
         }
     }

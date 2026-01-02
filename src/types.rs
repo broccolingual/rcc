@@ -8,79 +8,108 @@ use crate::node::Node;
 use core::fmt;
 
 #[derive(Clone, PartialEq, Eq)]
+pub(crate) struct TypeAttr {
+    pub(crate) is_const: bool,
+    pub(crate) is_volatile: bool,
+    pub(crate) is_restrict: bool,
+}
+
+impl Default for TypeAttr {
+    fn default() -> Self {
+        TypeAttr {
+            is_const: false,
+            is_volatile: false,
+            is_restrict: false,
+        }
+    }
+}
+
+impl fmt::Debug for TypeAttr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut attrs = Vec::new();
+        if self.is_const {
+            attrs.push("const ");
+        }
+        if self.is_volatile {
+            attrs.push("volatile ");
+        }
+        if self.is_restrict {
+            attrs.push("restrict ");
+        }
+        write!(f, "{}", attrs.concat())
+    }
+}
+
+#[derive(Clone, PartialEq, Eq)]
 pub(crate) struct Type {
     pub(crate) kind: TypeKind,
     size: usize,
     align: usize,
-    pub(crate) is_const: bool,
+    pub(crate) attr: TypeAttr,
 }
 
 impl fmt::Debug for Type {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.is_const {
-            write!(f, "const {:?}", self.kind)
-        } else {
-            write!(f, "{:?}", self.kind)
-        }
+        write!(f, "{:?}{:?}", self.attr, self.kind)
     }
 }
 
 impl Default for Type {
     fn default() -> Self {
-        Type::from(TypeKind::Void, false)
+        Type::from(TypeKind::Void, TypeAttr::default())
     }
 }
 
 impl Type {
-    pub(crate) fn from(kind: TypeKind, is_const: bool) -> Self {
+    pub(crate) fn from(kind: TypeKind, attr: TypeAttr) -> Self {
         match kind {
             TypeKind::Void => Type {
                 kind: TypeKind::Void,
                 size: 0,
                 align: 0,
-                is_const,
+                attr,
             },
             TypeKind::Char => Type {
                 kind: TypeKind::Char,
                 size: 1,
                 align: 1,
-                is_const,
+                attr,
             },
             TypeKind::Short => Type {
                 kind: TypeKind::Short,
                 size: 2,
                 align: 2,
-                is_const,
+                attr,
             },
             TypeKind::Int => Type {
                 kind: TypeKind::Int,
                 size: 4,
                 align: 4,
-                is_const,
+                attr,
             },
             TypeKind::Long => Type {
                 kind: TypeKind::Long,
                 size: 8,
                 align: 8,
-                is_const,
+                attr,
             },
             TypeKind::Float => Type {
                 kind: TypeKind::Float,
                 size: 4,
                 align: 4,
-                is_const,
+                attr,
             },
             TypeKind::Double => Type {
                 kind: TypeKind::Double,
                 size: 8,
                 align: 8,
-                is_const,
+                attr,
             },
             TypeKind::Ptr { ref to } => Type {
                 kind: TypeKind::Ptr { to: to.clone() },
                 size: 8,
                 align: 8,
-                is_const,
+                attr,
             },
             TypeKind::Array { ref base, size } => Type {
                 kind: TypeKind::Array {
@@ -89,7 +118,7 @@ impl Type {
                 },
                 size: base.size * size,
                 align: base.align,
-                is_const,
+                attr,
             },
             TypeKind::Struct {
                 ref name,
@@ -115,7 +144,7 @@ impl Type {
                     },
                     size: offset.align_up(max_align), // 構造体全体のサイズをアラインメントに合わせて調整
                     align: max_align, // メンバーの最大アラインメントを構造体のアラインメントとする
-                    is_const,
+                    attr,
                 }
             }
             TypeKind::Func {
@@ -128,25 +157,27 @@ impl Type {
                 },
                 size: 8,
                 align: 8,
-                is_const,
+                attr,
             },
         }
     }
 
-    // TODO: constやvolatileの情報も扱う
     pub(crate) fn from_ds(decl_specs: Vec<DeclSpec>) -> Option<Self> {
         let mut ty = Type::default();
         let mut has_type_spec = false;
         for spec in decl_specs {
             match spec {
                 DeclSpec::TypeSpecQual(tsq) => match tsq {
-                    TypeSpecQual::TypeQual(tq) => {
-                        if tq == TypeQualKind::Const {
-                            ty.is_const = true;
-                        }
-                    }
+                    TypeSpecQual::TypeQual(tq) => match tq {
+                        TypeQualKind::Const => ty.attr.is_const = true,
+                        TypeQualKind::Volatile => ty.attr.is_volatile = true,
+                        TypeQualKind::Restrict => ty.attr.is_restrict = true,
+                    },
                     TypeSpecQual::TypeSpec(ty_kind) => {
-                        ty = Type::from(ty_kind, ty.is_const);
+                        if has_type_spec {
+                            return None; // すでに型指定子があった場合は無効
+                        }
+                        ty = Type::from(ty_kind, ty.attr);
                         has_type_spec = true;
                     }
                 },
@@ -162,13 +193,16 @@ impl Type {
         let mut has_type_spec = false;
         for spec in type_spec_quals {
             match spec {
-                TypeSpecQual::TypeQual(tq) => {
-                    if tq == TypeQualKind::Const {
-                        ty.is_const = true;
-                    }
-                }
+                TypeSpecQual::TypeQual(tq) => match tq {
+                    TypeQualKind::Const => ty.attr.is_const = true,
+                    TypeQualKind::Volatile => ty.attr.is_volatile = true,
+                    TypeQualKind::Restrict => ty.attr.is_restrict = true,
+                },
                 TypeSpecQual::TypeSpec(ty_kind) => {
-                    ty = Type::from(ty_kind, ty.is_const);
+                    if has_type_spec {
+                        return None; // すでに型指定子があった場合は無効
+                    }
+                    ty = Type::from(ty_kind, ty.attr);
                     has_type_spec = true;
                 }
             }

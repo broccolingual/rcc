@@ -3,7 +3,7 @@ use crate::errors::CompileError;
 use crate::function::Func;
 use crate::node::{Node, NodeKind};
 use crate::types::{
-    Decl, DeclSpec, FuncKind, MemberDecl, StorageClassKind, Type, TypeKind, TypeQualKind,
+    Decl, DeclSpec, FuncKind, MemberDecl, StorageClassKind, Type, TypeAttr, TypeKind, TypeQualKind,
     TypeSpecQual,
 };
 
@@ -32,10 +32,9 @@ impl Ast<'_> {
         let token_pos = self.token_pos; // 関数定義でなかった場合にバックトラックするために保存
         let first_decl = self.declarator(&base_ty)?;
 
-        // 関数型の場合の分岐
-        if let TypeKind::Func { params, return_ty } = &first_decl.ty.kind {
-            if self.peek_punct("{") {
-                // 関数定義: declarator compound_stmt
+        if self.peek_punct("{") {
+            // 関数定義の場合: compound_stmt
+            if let TypeKind::Func { params, return_ty } = &first_decl.ty.kind {
                 let mut func = Func::new(&first_decl.name);
                 for param_decl in params.clone() {
                     func.register_param(param_decl)?;
@@ -71,14 +70,10 @@ impl Ast<'_> {
                 self.current_func = None;
                 self.funcs.push(func);
                 return Ok(());
-            } else if self.consume_punct(";").is_some() {
-                // 関数プロトタイプ宣言: declarator ";"
-                // TODO: 現状では何もせず無視（将来的には関数テーブルに登録するなど）
-                return Ok(());
             } else {
-                let span = self.get_prev_token_span().unwrap_or((0, 0));
+                let span = first_decl.span;
                 return Err(CompileError::InvalidDecl {
-                    msg: "関数宣言には ';' または '{' が必要です".to_string(),
+                    msg: "関数の本体が必要です".to_string(),
                     span,
                 });
             }
@@ -93,7 +88,6 @@ impl Ast<'_> {
         for decl in decls {
             self.register_global_var(decl)?;
         }
-
         Ok(())
     }
 
@@ -170,7 +164,7 @@ impl Ast<'_> {
                                 base: base.clone(),
                                 size: decl.init.len(),
                             },
-                            decl.ty.is_const,
+                            decl.ty.attr,
                         );
                     }
                     _ => {}
@@ -217,7 +211,7 @@ impl Ast<'_> {
                         name: struct_name.clone(),
                         members,
                     },
-                    false,
+                    TypeAttr::default(),
                 );
                 // 構造体タグを登録
                 if !struct_name.is_empty() {
@@ -359,7 +353,7 @@ impl Ast<'_> {
                 TypeKind::Ptr {
                     to: Box::new(base_ty.clone()),
                 },
-                false,
+                TypeAttr::default(),
             );
             return self.ptr(&ptr_type);
         }
@@ -429,7 +423,7 @@ impl Ast<'_> {
                     base: Box::new(inner_ty),
                     size: array_size,
                 },
-                false,
+                TypeAttr::default(),
             ))
         }
         // "(" param_type_list ")"
@@ -450,7 +444,7 @@ impl Ast<'_> {
                     return_ty: Box::new(inner_ty),
                     params,
                 },
-                false,
+                TypeAttr::default(),
             ))
         } else {
             Ok(base_ty.clone())
@@ -566,7 +560,7 @@ impl Ast<'_> {
                     base: Box::new(inner_ty),
                     size: array_size,
                 },
-                false,
+                TypeAttr::default(),
             ))
         }
         // "(" param_type_list ")"
@@ -587,7 +581,7 @@ impl Ast<'_> {
                     return_ty: Box::new(inner_ty),
                     params,
                 },
-                false,
+                TypeAttr::default(),
             ))
         } else {
             Ok(base_ty.clone())

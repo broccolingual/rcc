@@ -37,7 +37,7 @@ impl Ast<'_> {
                     span,
                 })?;
                 if let NodeKind::Var { name, .. } = &lhs.kind
-                    && lhs.ty.is_const
+                    && lhs.ty.attr.is_const
                 {
                     return Err(CompileError::ReadOnlyLvalue {
                         name: name.clone(),
