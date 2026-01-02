@@ -67,11 +67,9 @@ impl Func {
                 return Some(param);
             }
         }
-        for local in &self.locals {
-            if local.symbol_idx == symbol_idx {
-                return Some(local);
-            }
-        }
-        None
+        self.locals
+            .iter()
+            .find(|&local| local.symbol_idx == symbol_idx)
+            .map(|v| v as _)
     }
 }
