@@ -59,9 +59,7 @@ impl Ast<'_> {
                                     span,
                                 });
                             }
-                            // 既存のプロトタイプ宣言を定義済みに更新
                         }
-                        // borrowを終了させてからborrow_mutを呼ぶ
                     } else {
                         // シンボルが関数でない場合エラー
                         let span = first_decl.span;
@@ -70,8 +68,7 @@ impl Ast<'_> {
                             span,
                         });
                     }
-                    // スコープ外でborrow_mutを呼ぶ
-                    symbol.borrow_mut().is_defined = true;
+                    symbol.borrow_mut().is_defined = true; // 既存のプロトタイプ宣言を定義済みに更新
                 } else {
                     // 関数をシンボルが存在しない場合，新規に関数シンボルを登録
                     self.register_func_symbol(&first_decl.name, first_decl.ty.clone(), true);
