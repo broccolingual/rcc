@@ -1,8 +1,11 @@
 mod table;
 
+use crate::function::Func;
 use crate::node::Node;
 use crate::types::Type;
 use core::fmt;
+use std::cell::RefCell;
+use std::rc::Rc;
 pub(crate) use table::*;
 
 #[derive(Clone, PartialEq, Eq)]
@@ -12,11 +15,12 @@ pub(crate) enum SymbolKind {
     // Tag, // struct, union, enum
 }
 
+#[derive(PartialEq, Eq)]
 pub(crate) struct Symbol {
     pub(crate) name: String,
     kind: SymbolKind,
     pub(crate) ty: Type,
-    owner: Option<usize>, // Funcのインデックス
+    owner: Option<Rc<RefCell<Func>>>, // 所有する関数のインデックス
     pub(crate) init: Vec<Node>,
     pub(crate) is_defined: bool, // 定義されているかどうか
 }
@@ -32,7 +36,7 @@ impl Symbol {
         name: &str,
         kind: SymbolKind,
         ty: Type,
-        owner: Option<usize>,
+        owner: Option<Rc<RefCell<Func>>>,
         init: Vec<Node>,
     ) -> Self {
         Self {
@@ -56,8 +60,8 @@ impl Symbol {
         }
     }
 
-    pub(crate) fn get_owner_func_id(&self) -> Option<usize> {
-        self.owner
+    pub(crate) fn get_owner(&self) -> Option<Rc<RefCell<Func>>> {
+        self.owner.clone()
     }
 
     pub(crate) fn is_var(&self) -> bool {

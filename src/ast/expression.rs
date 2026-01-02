@@ -696,14 +696,9 @@ impl Ast<'_> {
             && let NodeKind::Ident { name } = &n.kind
         {
             // 変数参照
-            if let Some(symbol_idx) = self.find_var(name) {
+            if let Some(symbol) = self.find_var(name) {
                 // 変数ノードを作成
-                let symbol = self.get_symbol_by_id(symbol_idx).ok_or_else(|| {
-                    CompileError::InternalError {
-                        msg: format!("変数シンボルが見つかりません: {}", name),
-                    }
-                })?;
-                let node = Node::new_var(symbol_idx, symbol.ty.clone(), n.span);
+                let node = Node::new_var(symbol, n.span);
                 return Ok(Some(Box::new(node)));
             }
             Err(CompileError::UndefinedIdent {
@@ -799,11 +794,10 @@ impl Ast<'_> {
                         msg: "関数呼び出しの関数名のパースに失敗しました".to_string(),
                     });
                 };
-                if let Some(symbol_idx) = self.symbol_table.find_symbol(func_name)
-                    && let Some(symbol) = self.get_symbol_by_id(symbol_idx)
-                {
-                    if symbol.is_func()
-                        && let TypeKind::Func { return_ty, .. } = &symbol.ty.kind
+                if let Some(symbol) = self.symbol_table.find_symbol(func_name) {
+                    let sym = symbol.borrow();
+                    if sym.is_func()
+                        && let TypeKind::Func { return_ty, .. } = &sym.ty.kind
                     {
                         node = Some(Box::new(Node::new_call(
                             func_name,

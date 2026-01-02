@@ -7,13 +7,15 @@ use crate::function::Func;
 use crate::symbol::{ScopedTable, Symbol, SymbolKind};
 use crate::token::{Token, TokenKind};
 use crate::types::{AlignUp, Decl, Type};
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 pub(crate) struct Ast<'a> {
     tokens: &'a [Token],
     token_pos: usize,
-    pub(crate) funcs: Vec<Func>,
-    current_func: Option<usize>, // funcsのインデックス
+    pub(crate) funcs: Vec<Rc<RefCell<Func>>>,
+    current_func: Option<Rc<RefCell<Func>>>, // funcsの参照
     symbol_table: ScopedTable,
     pub(crate) string_literals: HashMap<String, usize>,
     label_seq: usize,
@@ -34,32 +36,31 @@ impl<'a> Ast<'a> {
         }
     }
 
-    pub(crate) fn get_symbols(&self) -> &Vec<Symbol> {
+    pub(crate) fn get_symbols(&self) -> &Vec<Rc<RefCell<Symbol>>> {
         self.symbol_table.get_symbols()
     }
 
-    pub(crate) fn get_symbol_by_id(&self, symbol_id: usize) -> Option<&Symbol> {
-        self.symbol_table.get_symbol(symbol_id)
-    }
-
     // 関数シンボルを登録
-    fn register_func_symbol(&mut self, name: &str, ty: Type, is_defined: bool) -> usize {
+    fn register_func_symbol(
+        &mut self,
+        name: &str,
+        ty: Type,
+        is_defined: bool,
+    ) -> Rc<RefCell<Symbol>> {
         let symbol = Symbol::new_func(name, ty, is_defined);
         self.symbol_table.insert_symbol(name, symbol)
     }
 
     // 関数定義を登録
-    fn register_func_def(&mut self, func: Func) -> usize {
-        let index = self.funcs.len();
-        self.funcs.push(func);
-        index
+    fn register_func_def(&mut self, func: Func) -> Rc<RefCell<Func>> {
+        let func_rc = Rc::new(RefCell::new(func));
+        self.funcs.push(Rc::clone(&func_rc));
+        func_rc
     }
 
-    fn get_current_func(&mut self) -> Result<&mut Func, CompileError> {
-        if let Some(func_idx) = self.current_func
-            && let Some(func) = self.funcs.get_mut(func_idx)
-        {
-            return Ok(func);
+    fn get_current_func(&mut self) -> Result<Rc<RefCell<Func>>, CompileError> {
+        if let Some(ref func) = self.current_func {
+            return Ok(Rc::clone(func));
         }
         Err(CompileError::InternalError {
             msg: "現在の関数が設定されていません".to_string(),
@@ -68,36 +69,24 @@ impl<'a> Ast<'a> {
 
     // 現在の関数のオフセットを計算
     fn calc_current_func_offset(&mut self) -> Result<(), CompileError> {
-        if let Some(func_idx) = self.current_func
-            && let Some(func) = self.funcs.get_mut(func_idx)
-        {
+        if let Some(func) = &self.current_func {
             let mut offset = 0;
             // 引数のオフセットを計算
-            for param in &mut func.params {
-                let symbol = self
-                    .symbol_table
-                    .get_symbol(param.symbol_idx)
-                    .ok_or_else(|| CompileError::InternalError {
-                        msg: "シンボルが見つかりません".to_string(),
-                    })?;
-                offset = offset.align_up(symbol.ty.align_of());
-                offset += symbol.ty.size_of();
+            for param in &mut func.borrow_mut().params {
+                let sym = param.symbol.borrow();
+                offset = offset.align_up(sym.ty.align_of());
+                offset += sym.ty.size_of();
                 param.offset = offset;
             }
 
             // ローカル変数のオフセットを計算
-            for local in &mut func.locals {
-                let symbol = self
-                    .symbol_table
-                    .get_symbol(local.symbol_idx)
-                    .ok_or_else(|| CompileError::InternalError {
-                        msg: "シンボルが見つかりません".to_string(),
-                    })?;
-                offset = offset.align_up(symbol.ty.align_of());
-                offset += symbol.ty.size_of();
+            for local in &mut func.borrow_mut().locals {
+                let sym = local.symbol.borrow();
+                offset = offset.align_up(sym.ty.align_of());
+                offset += sym.ty.size_of();
                 local.offset = offset;
             }
-            func.stack_size = offset.align_up(16);
+            func.borrow_mut().stack_size = offset.align_up(16);
             Ok(())
         } else {
             Err(CompileError::InternalError {
@@ -132,7 +121,11 @@ impl<'a> Ast<'a> {
         index
     }
 
-    fn register_var(&mut self, decl: Decl, owner: Option<usize>) -> Result<usize, CompileError> {
+    fn register_var(
+        &mut self,
+        decl: Decl,
+        owner: Option<Rc<RefCell<Func>>>,
+    ) -> Result<Rc<RefCell<Symbol>>, CompileError> {
         if self
             .symbol_table
             .find_symbol_in_current_scope(&decl.name)
@@ -147,15 +140,8 @@ impl<'a> Ast<'a> {
         Ok(self.symbol_table.insert_symbol(&decl.name, symbol))
     }
 
-    fn find_var(&self, name: &str) -> Option<usize> {
-        let symbol_idx = self.symbol_table.find_symbol(name);
-        if let Some(idx) = symbol_idx
-            && let Some(symbol) = self.symbol_table.get_symbol(idx)
-            && symbol.is_var()
-        {
-            return Some(idx);
-        }
-        None
+    fn find_var(&self, name: &str) -> Option<Rc<RefCell<Symbol>>> {
+        self.symbol_table.find_symbol(name)
     }
 
     fn register_tag(

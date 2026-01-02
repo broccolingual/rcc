@@ -34,10 +34,11 @@ impl Ast<'_> {
             while self.consume_punct("}").is_none() {
                 if let Some(decls) = self.decl()? {
                     for decl in decls {
-                        let symbol_idx = self.register_var(decl, self.current_func)?;
+                        let symbol = self.register_var(decl, self.current_func.clone())?;
                         self.get_current_func()?
+                            .borrow_mut()
                             .locals
-                            .push(LocalVar::new(symbol_idx));
+                            .push(LocalVar::new(symbol));
                     }
                     continue;
                 } else if let Some(stmt) = self.stmt()? {

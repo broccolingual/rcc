@@ -1,5 +1,8 @@
 use crate::node::Node;
 use crate::node::operator::{BinaryOp, UnaryOp};
+use crate::symbol::Symbol;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub(crate) enum NodeKind {
@@ -77,7 +80,7 @@ pub(crate) enum NodeKind {
         label: usize,
     }, // continue
     Var {
-        symbol_idx: usize,
+        symbol: Rc<RefCell<Symbol>>,
     }, // 変数
     Member {
         obj: Box<Node>,

@@ -1,16 +1,18 @@
 use crate::symbol::Symbol;
 use crate::types::Type;
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 #[derive(Debug)]
 struct Scope {
-    names: HashMap<String, usize>, // name -> symbol_id
-    tags: HashMap<String, Type>,   // name -> type
+    names: HashMap<String, Rc<RefCell<Symbol>>>, // name -> symbol_id
+    tags: HashMap<String, Type>,                 // name -> type
 }
 
 #[derive(Debug)]
 pub(crate) struct ScopedTable {
-    symbols: Vec<Symbol>,
+    symbols: Vec<Rc<RefCell<Symbol>>>,
     scopes: Vec<Scope>,
 }
 
@@ -36,22 +38,14 @@ impl ScopedTable {
         self.scopes.pop();
     }
 
-    pub(crate) fn get_symbols(&self) -> &Vec<Symbol> {
+    pub(crate) fn get_symbols(&self) -> &Vec<Rc<RefCell<Symbol>>> {
         &self.symbols
     }
 
-    pub(crate) fn get_symbol(&self, symbol_id: usize) -> Option<&Symbol> {
-        self.symbols.get(symbol_id)
-    }
-
-    pub(crate) fn get_symbol_mut(&mut self, symbol_id: usize) -> Option<&mut Symbol> {
-        self.symbols.get_mut(symbol_id)
-    }
-
-    pub(crate) fn find_symbol(&self, name: &str) -> Option<usize> {
+    pub(crate) fn find_symbol(&self, name: &str) -> Option<Rc<RefCell<Symbol>>> {
         for scope in self.scopes.iter().rev() {
-            if let Some(&symbol_id) = scope.names.get(name) {
-                return Some(symbol_id);
+            if let Some(symbol) = scope.names.get(name) {
+                return Some(Rc::clone(symbol));
             }
         }
         None
@@ -66,11 +60,11 @@ impl ScopedTable {
         None
     }
 
-    pub(crate) fn find_symbol_in_current_scope(&self, name: &str) -> Option<&Symbol> {
+    pub(crate) fn find_symbol_in_current_scope(&self, name: &str) -> Option<Rc<RefCell<Symbol>>> {
         if let Some(scope) = self.scopes.last()
-            && let Some(&symbol_id) = scope.names.get(name)
+            && let Some(symbol) = scope.names.get(name)
         {
-            return self.symbols.get(symbol_id);
+            return Some(Rc::clone(symbol));
         }
 
         None
@@ -86,13 +80,13 @@ impl ScopedTable {
         None
     }
 
-    pub(crate) fn insert_symbol(&mut self, name: &str, symbol: Symbol) -> usize {
-        let symbol_id = self.symbols.len();
-        self.symbols.push(symbol);
+    pub(crate) fn insert_symbol(&mut self, name: &str, symbol: Symbol) -> Rc<RefCell<Symbol>> {
+        let symbol = Rc::new(RefCell::new(symbol));
+        self.symbols.push(Rc::clone(&symbol));
         if let Some(scope) = self.scopes.last_mut() {
-            scope.names.insert(name.to_string(), symbol_id);
+            scope.names.insert(name.to_string(), Rc::clone(&symbol));
         }
-        symbol_id
+        symbol
     }
 
     pub(crate) fn insert_tag(&mut self, name: &str, ty: Type) {
