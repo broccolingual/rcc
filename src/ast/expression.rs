@@ -149,6 +149,12 @@ impl Ast<'_> {
                     msg: format!("代入演算子 '{}' の左辺に式がありません", assign_op_str),
                     span,
                 })?;
+                if lhs.ty.attr.is_const {
+                    return Err(CompileError::ReadOnlyLvalue {
+                        name: format!("代入演算子 '{}' の左辺値", assign_op_str),
+                        span: lhs.span,
+                    });
+                }
                 let rhs = self
                     .assign_expr()?
                     .ok_or_else(|| CompileError::InvalidExpr {
