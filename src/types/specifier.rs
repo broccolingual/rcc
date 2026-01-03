@@ -14,7 +14,7 @@ pub(crate) enum TypeSpecQual {
     TypeQual(TypeQualKind),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum FuncKind {
     Inline,
 }
@@ -33,7 +33,7 @@ impl FuncKind {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum StorageClassKind {
     Auto,
     Extern,
@@ -66,7 +66,7 @@ impl StorageClassKind {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum TypeQualKind {
     Const,
     Volatile,

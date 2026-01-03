@@ -7,7 +7,7 @@ pub(crate) use specifier::*;
 use crate::node::Node;
 use core::fmt;
 
-#[derive(Clone, PartialEq, Eq, Default)]
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
 pub(crate) struct TypeAttr {
     pub(crate) is_const: bool,
     pub(crate) is_volatile: bool,

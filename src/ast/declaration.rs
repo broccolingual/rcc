@@ -379,10 +379,10 @@ impl Ast<'_> {
         while self.consume_punct("*").is_some() {
             let ptr_type = Type::from(
                 TypeKind::Ptr {
-                    to: Box::new(Type::from(base_ty.kind.clone(), base_ty.attr.clone(), None)),
+                    to: Box::new(Type::from(base_ty.kind.clone(), base_ty.attr, None)),
                 },
                 TypeAttr::default(),
-                base_ty.storage_class.clone(),
+                base_ty.storage_class,
             );
             return self.ptr(&ptr_type);
         }

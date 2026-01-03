@@ -8,7 +8,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 pub(crate) use table::*;
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SymbolKind {
     Var,
     Func,
