@@ -1,5 +1,6 @@
 use crate::node::Node;
 use crate::node::operator::{BinaryOp, UnaryOp};
+use crate::symbol::SymbolId;
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub(crate) enum NodeKind {
@@ -77,7 +78,7 @@ pub(crate) enum NodeKind {
         label: usize,
     }, // continue
     Var {
-        symbol_id: usize,
+        symbol_id: SymbolId,
     }, // 変数
     Member {
         obj: Box<Node>,

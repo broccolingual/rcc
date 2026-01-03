@@ -3,8 +3,8 @@ mod expression;
 mod statement;
 
 use crate::errors::CompileError;
-use crate::function::Func;
-use crate::symbol::{ScopedTable, Symbol, SymbolKind};
+use crate::function::{Func, FuncId};
+use crate::symbol::{ScopedTable, Symbol, SymbolId, SymbolKind};
 use crate::token::{Token, TokenKind};
 use crate::types::{AlignUp, Decl, Type};
 use std::collections::HashMap;
@@ -13,7 +13,7 @@ pub(crate) struct Ast<'a> {
     tokens: &'a [Token],
     token_pos: usize,
     pub(crate) funcs: Vec<Func>,
-    current_func: Option<usize>,
+    current_func: Option<FuncId>,
     symbol_table: ScopedTable,
     pub(crate) string_literals: HashMap<String, usize>,
     label_seq: usize,
@@ -38,29 +38,29 @@ impl<'a> Ast<'a> {
         self.symbol_table.get_symbols()
     }
 
-    pub(crate) fn get_symbol(&self, symbol_id: usize) -> &Symbol {
+    pub(crate) fn get_symbol(&self, symbol_id: SymbolId) -> &Symbol {
         self.symbol_table.get_symbol(symbol_id)
     }
 
-    pub(crate) fn get_func(&self, func_id: usize) -> &Func {
-        &self.funcs[func_id]
+    pub(crate) fn get_func(&self, func_id: FuncId) -> &Func {
+        &self.funcs[func_id.0]
     }
 
     // 関数シンボルを登録
-    fn register_func_symbol(&mut self, name: &str, ty: Type, is_defined: bool) -> usize {
+    fn register_func_symbol(&mut self, name: &str, ty: Type, is_defined: bool) -> SymbolId {
         let symbol = Symbol::new_func(name, ty, is_defined);
         self.symbol_table.insert_symbol(name, symbol)
     }
 
     // 関数定義を登録
-    fn register_func_def(&mut self, func: Func) -> usize {
+    fn register_func_def(&mut self, func: Func) -> FuncId {
         self.funcs.push(func);
-        self.funcs.len() - 1
+        FuncId(self.funcs.len() - 1)
     }
 
     fn get_current_func(&mut self) -> Result<&mut Func, CompileError> {
         if let Some(func_id) = self.current_func
-            && let Some(f) = self.funcs.get_mut(func_id)
+            && let Some(f) = self.funcs.get_mut(func_id.0)
         {
             return Ok(f);
         }
@@ -72,7 +72,7 @@ impl<'a> Ast<'a> {
     // 現在の関数のオフセットを計算
     fn calc_current_func_offset(&mut self) -> Result<(), CompileError> {
         if let Some(func_id) = self.current_func
-            && let Some(func) = self.funcs.get_mut(func_id)
+            && let Some(func) = self.funcs.get_mut(func_id.0)
         {
             let mut offset = 0;
             // 引数のオフセットを計算
@@ -125,7 +125,11 @@ impl<'a> Ast<'a> {
         index
     }
 
-    fn register_var(&mut self, decl: Decl, owner: Option<usize>) -> Result<usize, CompileError> {
+    fn register_var(
+        &mut self,
+        decl: Decl,
+        owner: Option<FuncId>,
+    ) -> Result<SymbolId, CompileError> {
         if self
             .symbol_table
             .find_symbol_in_current_scope(&decl.name)
@@ -148,7 +152,7 @@ impl<'a> Ast<'a> {
         Ok(self.symbol_table.insert_symbol(&decl.name, symbol))
     }
 
-    fn find_var(&mut self, name: &str) -> Option<usize> {
+    fn find_var(&mut self, name: &str) -> Option<SymbolId> {
         if let Some(symbol_id) = self.symbol_table.find_symbol_id(name) {
             let symbol = self.symbol_table.get_symbol(symbol_id);
             if symbol.is_var() {

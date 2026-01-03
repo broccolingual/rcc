@@ -1,11 +1,15 @@
 use crate::node::Node;
+use crate::symbol::SymbolId;
 use crate::types::Type;
 use core::fmt;
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub(crate) struct FuncId(pub usize);
+
 #[derive(PartialEq, Eq)]
 pub(crate) struct LocalVar {
-    pub(crate) symbol_id: usize, // symbolのインデックス
-    pub(crate) offset: usize,    // スタック上のオフセット
+    pub(crate) symbol_id: SymbolId, // symbolのインデックス
+    pub(crate) offset: usize,       // スタック上のオフセット
 }
 
 impl fmt::Debug for LocalVar {
@@ -15,7 +19,7 @@ impl fmt::Debug for LocalVar {
 }
 
 impl LocalVar {
-    pub(crate) fn new(symbol_id: usize) -> Self {
+    pub(crate) fn new(symbol_id: SymbolId) -> Self {
         Self {
             symbol_id,
             offset: 0,
@@ -63,7 +67,7 @@ impl Func {
         }
     }
 
-    pub(crate) fn find_local_var(&self, symbol_id: usize) -> Option<&LocalVar> {
+    pub(crate) fn find_local_var(&self, symbol_id: SymbolId) -> Option<&LocalVar> {
         for param in &self.params {
             if param.symbol_id == symbol_id {
                 return Some(param);

@@ -5,6 +5,7 @@ pub(crate) use kind::*;
 pub(crate) use operator::*;
 
 use crate::errors::CompileError;
+use crate::symbol::SymbolId;
 use crate::types::{Type, TypeAttr, TypeKind};
 use core::fmt;
 
@@ -22,7 +23,7 @@ impl fmt::Debug for Node {
                 write!(f, ", val: {}", val)?;
             }
             NodeKind::Var { symbol_id } => {
-                write!(f, ", symbol_id: {}", symbol_id)?;
+                write!(f, ", symbol_id: {:?}", symbol_id)?;
             }
             NodeKind::Ident { name } => {
                 write!(f, ", ident: {}", name)?;
@@ -420,7 +421,7 @@ impl Node {
         }
     }
 
-    pub(crate) fn new_var(symbol_id: usize, ty: Type, span: (usize, usize)) -> Self {
+    pub(crate) fn new_var(symbol_id: SymbolId, ty: Type, span: (usize, usize)) -> Self {
         Node {
             kind: NodeKind::Var { symbol_id },
             ty,

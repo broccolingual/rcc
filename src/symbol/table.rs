@@ -1,11 +1,11 @@
-use crate::symbol::Symbol;
+use crate::symbol::{Symbol, SymbolId};
 use crate::types::Type;
 use std::collections::HashMap;
 
 #[derive(Debug)]
 struct Scope {
-    names: HashMap<String, usize>, // name -> symbol_id
-    tags: HashMap<String, Type>,   // name -> type
+    names: HashMap<String, SymbolId>, // name -> symbol_id
+    tags: HashMap<String, Type>,      // name -> type
 }
 
 #[derive(Debug)]
@@ -40,15 +40,15 @@ impl ScopedTable {
         &self.symbols
     }
 
-    pub(crate) fn get_symbol(&self, symbol_id: usize) -> &Symbol {
-        &self.symbols[symbol_id]
+    pub(crate) fn get_symbol(&self, symbol_id: SymbolId) -> &Symbol {
+        &self.symbols[symbol_id.0]
     }
 
-    pub(crate) fn get_symbol_mut(&mut self, symbol_id: usize) -> &mut Symbol {
-        &mut self.symbols[symbol_id]
+    pub(crate) fn get_symbol_mut(&mut self, symbol_id: SymbolId) -> &mut Symbol {
+        &mut self.symbols[symbol_id.0]
     }
 
-    pub(crate) fn find_symbol_id(&mut self, name: &str) -> Option<usize> {
+    pub(crate) fn find_symbol_id(&self, name: &str) -> Option<SymbolId> {
         for scope in self.scopes.iter().rev() {
             if let Some(&symbol_id) = scope.names.get(name) {
                 return Some(symbol_id);
@@ -70,7 +70,7 @@ impl ScopedTable {
         if let Some(scope) = self.scopes.last()
             && let Some(&symbol_id) = scope.names.get(name)
         {
-            return self.symbols.get(symbol_id);
+            return Some(self.get_symbol(symbol_id));
         }
 
         None
@@ -86,9 +86,9 @@ impl ScopedTable {
         None
     }
 
-    pub(crate) fn insert_symbol(&mut self, name: &str, symbol: Symbol) -> usize {
+    pub(crate) fn insert_symbol(&mut self, name: &str, symbol: Symbol) -> SymbolId {
         self.symbols.push(symbol);
-        let symbol_id = self.symbols.len() - 1;
+        let symbol_id = SymbolId(self.symbols.len() - 1);
         if let Some(scope) = self.scopes.last_mut() {
             scope.names.insert(name.to_string(), symbol_id);
         }
