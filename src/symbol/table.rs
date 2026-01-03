@@ -49,41 +49,30 @@ impl ScopedTable {
     }
 
     pub(crate) fn find_symbol_id(&self, name: &str) -> Option<SymbolId> {
-        for scope in self.scopes.iter().rev() {
-            if let Some(&symbol_id) = scope.names.get(name) {
-                return Some(symbol_id);
-            }
-        }
-        None
+        self.scopes
+            .iter()
+            .rev()
+            .find_map(|scope| scope.names.get(name).copied())
     }
 
     pub(crate) fn find_tag(&self, name: &str) -> Option<&Type> {
-        for scope in self.scopes.iter().rev() {
-            if let Some(ty) = scope.tags.get(name) {
-                return Some(ty);
-            }
-        }
-        None
+        self.scopes
+            .iter()
+            .rev()
+            .find_map(|scope| scope.tags.get(name))
     }
 
     pub(crate) fn find_symbol_in_current_scope(&self, name: &str) -> Option<&Symbol> {
-        if let Some(scope) = self.scopes.last()
-            && let Some(&symbol_id) = scope.names.get(name)
-        {
-            return Some(self.get_symbol(symbol_id));
-        }
-
-        None
+        self.scopes.last().and_then(|scope| {
+            scope
+                .names
+                .get(name)
+                .map(|&symbol_id| self.get_symbol(symbol_id))
+        })
     }
 
     pub(crate) fn find_tag_in_current_scope(&self, name: &str) -> Option<&Type> {
-        if let Some(scope) = self.scopes.last()
-            && let Some(ty) = scope.tags.get(name)
-        {
-            return Some(ty);
-        }
-
-        None
+        self.scopes.last().and_then(|scope| scope.tags.get(name))
     }
 
     pub(crate) fn insert_symbol(&mut self, name: &str, symbol: Symbol) -> SymbolId {

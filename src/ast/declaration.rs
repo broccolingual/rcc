@@ -79,14 +79,14 @@ impl Ast<'_> {
                     self.current_func = Some(func_id); // 現在の関数を設定
                     self.push_scope(); // 引数スコープに入る
                     // 引数を登録
-                    for param_decl in params.clone() {
+                    for param_decl in params {
                         let symbol_id = self.register_var(param_decl, Some(func_id))?;
-                        self.get_current_func()?
+                        self.get_current_func_mut()?
                             .params
                             .push(LocalVar::new(symbol_id));
                     }
                     // 関数の戻り値の型を設定
-                    self.get_current_func()?.return_ty = *return_ty.clone();
+                    self.get_current_func_mut()?.return_ty = *return_ty.clone();
                     // 関数本体をパース
                     let func_body = self.compound_stmt()?.ok_or_else(|| {
                         let span = self.get_prev_token_span().unwrap_or((0, 0));
@@ -96,7 +96,7 @@ impl Ast<'_> {
                         }
                     })?;
                     if let NodeKind::Block { body } = func_body.kind {
-                        self.get_current_func()?.body = body;
+                        self.get_current_func_mut()?.body = body;
                     } else {
                         let span = func_body.span;
                         return Err(CompileError::InvalidDecl {
@@ -130,7 +130,7 @@ impl Ast<'_> {
 
         // グローバル変数として登録
         for decl in decls {
-            self.register_var(decl, None)?;
+            self.register_var(&decl, None)?;
         }
         Ok(())
     }

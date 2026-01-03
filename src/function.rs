@@ -68,14 +68,9 @@ impl Func {
     }
 
     pub(crate) fn find_local_var(&self, symbol_id: SymbolId) -> Option<&LocalVar> {
-        for param in &self.params {
-            if param.symbol_id == symbol_id {
-                return Some(param);
-            }
-        }
-        self.locals
+        self.params
             .iter()
-            .find(|&local| local.symbol_id == symbol_id)
-            .map(|v| v as _)
+            .chain(self.locals.iter())
+            .find(|v| v.symbol_id == symbol_id)
     }
 }

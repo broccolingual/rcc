@@ -36,8 +36,8 @@ impl Ast<'_> {
             while self.consume_punct("}").is_none() {
                 if let Some(decls) = self.decl()? {
                     for decl in decls {
-                        let symbol_id = self.register_var(decl, self.current_func)?;
-                        self.get_current_func()?
+                        let symbol_id = self.register_var(&decl, self.current_func)?;
+                        self.get_current_func_mut()?
                             .locals
                             .push(LocalVar::new(symbol_id));
                     }

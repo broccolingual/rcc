@@ -350,27 +350,23 @@ impl<'a> Generator<'a> {
             NodeKind::Var { symbol_id } => {
                 let symbol = self.ast.get_symbol(*symbol_id);
                 if symbol.is_global_var() {
-                    let name = symbol.name.clone();
                     self.builder
-                        .add_row(&format!("lea rax, {}[rip]", name), true);
+                        .add_row(&format!("lea rax, {}[rip]", symbol.name), true);
                 } else {
-                    let offset = {
-                        let func_id =
-                            symbol
-                                .get_owner()
-                                .ok_or_else(|| CompileError::InternalError {
-                                    msg: "ローカル変数の所有関数が見つかりません".to_string(),
-                                })?;
-                        let func = self.ast.get_func(func_id);
-                        let local_var = func.find_local_var(*symbol_id).ok_or_else(|| {
-                            CompileError::InternalError {
-                                msg: "関数内の変数が見つかりません".to_string(),
-                            }
-                        })?;
-                        Ok::<usize, CompileError>(local_var.offset)
-                    }?;
+                    let func_id =
+                        symbol
+                            .get_owner()
+                            .ok_or_else(|| CompileError::InternalError {
+                                msg: "ローカル変数の所有関数が見つかりません".to_string(),
+                            })?;
+                    let func = self.ast.get_func(func_id);
+                    let local_var = func.find_local_var(*symbol_id).ok_or_else(|| {
+                        CompileError::InternalError {
+                            msg: "関数内の変数が見つかりません".to_string(),
+                        }
+                    })?;
                     self.builder
-                        .add_row(&format!("lea rax, [rbp-{}]", offset), true);
+                        .add_row(&format!("lea rax, [rbp-{}]", local_var.offset), true);
                 }
                 self.builder.add_row("push rax", true);
             }
