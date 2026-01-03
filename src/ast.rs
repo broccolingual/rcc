@@ -136,7 +136,15 @@ impl<'a> Ast<'a> {
                 span: decl.span,
             });
         }
-        let symbol = Symbol::new(&decl.name, SymbolKind::Var, decl.ty, owner, decl.init);
+        let is_defined = !decl.ty.is_extern();
+        let symbol = Symbol::new(
+            &decl.name,
+            SymbolKind::Var,
+            decl.ty,
+            owner,
+            decl.init,
+            is_defined,
+        );
         Ok(self.symbol_table.insert_symbol(&decl.name, symbol))
     }
 

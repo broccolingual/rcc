@@ -77,7 +77,7 @@ impl<'a> Generator<'a> {
             .ast
             .get_symbols()
             .iter()
-            .filter(|sym| sym.borrow().is_global_var())
+            .filter(|sym| sym.borrow().is_global_var() && sym.borrow().is_defined)
             .collect::<Vec<_>>();
         if global_symbols.is_empty() {
             return Ok(());

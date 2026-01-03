@@ -38,6 +38,7 @@ impl Symbol {
         ty: Type,
         owner: Option<Rc<RefCell<Func>>>,
         init: Vec<Node>,
+        is_defined: bool,
     ) -> Self {
         Self {
             name: name.to_string(),
@@ -45,7 +46,7 @@ impl Symbol {
             ty,
             owner,
             init,
-            is_defined: true,
+            is_defined,
         }
     }
 

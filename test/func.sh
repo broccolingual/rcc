@@ -12,7 +12,7 @@ setup_test
 cc -c $SCRIPT_DIR/bin/func.c -o $SCRIPT_DIR/bin/func.o
 
 assert_func 3 '
-int foo();
+extern int foo();
 
 int main() {
     return foo();
@@ -53,7 +53,7 @@ int main() {
     return x;
 }'
 assert_func 8 '
-void alloc4(int **p, int a, int b, int c, int d);
+extern void alloc4(int **p, int a, int b, int c, int d);
 
 int main() {
     int *p;
@@ -132,7 +132,7 @@ int main() {
 }'
 # GCCがlibcをリンクしてくれるおかげでprintfが使える
 assert_func 0 '
-void printf(char *fmt, int a);
+extern void printf(char *fmt, int a);
 
 int main() {
     char *a = "Hello, World! %d\n";
@@ -140,7 +140,7 @@ int main() {
     return 0;
 }'
 assert_func 5 '
-void printf(char *fmt);
+extern void printf(char *fmt);
 
 int a = 5;
 short b = 3;

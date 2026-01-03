@@ -206,6 +206,7 @@ impl Ast<'_> {
                             size: decl.init.len(),
                         },
                         decl.ty.attr,
+                        decl.ty.storage_class,
                     );
                 }
             }
@@ -251,6 +252,7 @@ impl Ast<'_> {
                         members,
                     },
                     TypeAttr::default(),
+                    None,
                 );
                 // 構造体タグを登録
                 if !struct_name.is_empty() {
@@ -377,9 +379,10 @@ impl Ast<'_> {
         while self.consume_punct("*").is_some() {
             let ptr_type = Type::from(
                 TypeKind::Ptr {
-                    to: Box::new(base_ty.clone()),
+                    to: Box::new(Type::from(base_ty.kind.clone(), base_ty.attr.clone(), None)),
                 },
                 TypeAttr::default(),
+                base_ty.storage_class.clone(),
             );
             return self.ptr(&ptr_type);
         }
@@ -443,12 +446,14 @@ impl Ast<'_> {
             };
             self.expect_punct("]")?;
             let inner_ty = self.parse_postfix_declarators(base_ty)?;
+            let elem_ty = Type::from(inner_ty.kind, inner_ty.attr, None); // 要素型のストレージクラスはなし
             Ok(Type::from(
                 TypeKind::Array {
-                    base: Box::new(inner_ty),
+                    base: Box::new(elem_ty),
                     size: array_size,
                 },
                 TypeAttr::default(),
+                inner_ty.storage_class,
             ))
         }
         // "(" param_type_list ")"
@@ -464,12 +469,14 @@ impl Ast<'_> {
                 params
             };
             let inner_ty = self.parse_postfix_declarators(base_ty)?;
+            let return_ty = Type::from(inner_ty.kind, inner_ty.attr, None); // 戻り値型のストレージクラスはなし
             Ok(Type::from(
                 TypeKind::Func {
-                    return_ty: Box::new(inner_ty),
+                    return_ty: Box::new(return_ty),
                     params,
                 },
                 TypeAttr::default(),
+                inner_ty.storage_class,
             ))
         } else {
             Ok(base_ty.clone())
@@ -587,6 +594,7 @@ impl Ast<'_> {
                     size: array_size,
                 },
                 TypeAttr::default(),
+                None,
             ))
         }
         // "(" param_type_list ")"
@@ -608,6 +616,7 @@ impl Ast<'_> {
                     params,
                 },
                 TypeAttr::default(),
+                None,
             ))
         } else {
             Ok(base_ty.clone())
