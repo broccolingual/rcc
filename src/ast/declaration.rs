@@ -373,10 +373,11 @@ impl Ast<'_> {
         quals
     }
 
-    // ptr ::= "*" type_qual_list* ptr?
+    // ptr ::= "*" type_qual_list? ptr?
     #[allow(clippy::never_loop)]
     fn ptr(&mut self, base_ty: &Type) -> Type {
-        while self.consume_punct("*").is_some() {
+        if self.consume_punct("*").is_some() {
+            self.type_qual_list(); // 現状は型修飾子を無視
             let ptr_type = Type::from(
                 TypeKind::Ptr {
                     to: Box::new(Type::from(base_ty.kind.clone(), base_ty.attr, None)),
@@ -386,7 +387,6 @@ impl Ast<'_> {
             );
             return self.ptr(&ptr_type);
         }
-        self.type_qual_list(); // 現状は型修飾子を無視
         base_ty.clone()
     }
 
