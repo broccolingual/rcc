@@ -128,13 +128,20 @@ impl Ast<'_> {
         }
     }
 
+    // Original BNF:
     // expr ::= assign_expr
+    //        | expr "," assign_expr // TODO: 未実装
+    // Fixed BNF (left recursion removed):
+    // expr ::= assign_expr ("," assign_expr)*
     pub(super) fn expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         self.assign_expr()
     }
 
+    // Original BNF:
     // assign_expr ::= cond_expr
-    //               | ("=" | "*=" | "/=" | "%=" | "+=" | "-=" | "<<=" | ">>=" | "&=" | "^=" | "|=") assign_expr
+    //               | unary_expr ("=" | "*=" | "/=" | "%=" | "+=" | "-=" | "<<=" | ">>=" | "&=" | "^=" | "|=") assign_expr
+    // Fixed BNF: cond_exprとunary_exprの判定は別で行う
+    // assign_expr ::= cond_expr ( ("=" | "*=" | "/=" | "%=" | "+=" | "-=" | "<<=" | ">>=" | "&=" | "^=" | "|=") assign_expr )?
     pub(super) fn assign_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         let mut node = self.cond_expr()?;
         let assign_op_str_list = [
@@ -195,8 +202,11 @@ impl Ast<'_> {
         Ok(node)
     }
 
+    // Original BNF:
     // logical_or_expr ::= logical_and_expr
     //                   | logical_or_expr "||" logical_and_expr
+    // Fixed BNF (left recursion removed):
+    // logical_or_expr ::= logical_and_expr ("||" logical_and_expr)*
     fn logical_or_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         let mut node = self.logical_and_expr()?;
 
@@ -222,8 +232,11 @@ impl Ast<'_> {
         }
     }
 
+    // Original BNF:
     // logical_and_expr ::= inclusive_or_expr
     //                    | logical_and_expr "&&" inclusive_or_expr
+    // Fixed BNF (left recursion removed):
+    // logical_and_expr ::= inclusive_or_expr ("&&" inclusive_or_expr)*
     fn logical_and_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         let mut node = self.inclusive_or_expr()?;
 
@@ -249,8 +262,11 @@ impl Ast<'_> {
         }
     }
 
+    // Original BNF:
     // inclusive_or_expr ::= exclusive_or_expr
     //                     | inclusive_or_expr "|" exclusive_or_expr
+    // Fixed BNF (left recursion removed):
+    // inclusive_or_expr ::= exclusive_or_expr ("|" exclusive_or_expr)*
     fn inclusive_or_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         let mut node = self.exclusive_or_expr()?;
 
@@ -275,8 +291,11 @@ impl Ast<'_> {
         }
     }
 
+    // Original BNF:
     // exclusive_or_expr ::= and_expr
     //                     | exclusive_or_expr "^" and_expr
+    // Fixed BNF (left recursion removed):
+    // exclusive_or_expr ::= and_expr ("^" and_expr)*
     fn exclusive_or_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         let mut node = self.and_expr()?;
 
@@ -304,8 +323,11 @@ impl Ast<'_> {
         }
     }
 
+    // Original BNF:
     // and_expr ::= equality_expr
     //            | and_expr "&" equality_expr
+    // Fixed BNF (left recursion removed):
+    // and_expr ::= equality_expr ("&" equality_expr)*
     fn and_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         let mut node = self.equality_expr()?;
 
@@ -335,8 +357,11 @@ impl Ast<'_> {
         }
     }
 
+    // Original BNF:
     // equality_expr ::= relational_expr
     //                 | equality_expr ("==" | "!=") relational_expr
+    // Fixed BNF (left recursion removed):
+    // equality_expr ::= relational_expr (("==" | "!=") relational_expr)*
     fn equality_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         let mut node = self.relational_expr()?;
 
@@ -375,8 +400,11 @@ impl Ast<'_> {
         }
     }
 
+    // Original BNF:
     // relational_expr ::= shift_expr
     //                   | relational_expr ("<" | "<=" | ">" | ">=") shift_expr
+    // Fixed BNF (left recursion removed):
+    // relational_expr ::= shift_expr (("<" | "<=" | ">" | ">=") shift_expr)*
     fn relational_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         let mut node = self.shift_expr()?;
 
@@ -443,8 +471,11 @@ impl Ast<'_> {
         }
     }
 
+    // Original BNF:
     // shift_expr ::= add_expr
     //              | shift_expr ("<<" | ">>") add_expr
+    // Fixed BNF (left recursion removed):
+    // shift_expr ::= add_expr (("<<" | ">>") add_expr)*
     fn shift_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         let mut node = self.add_expr()?;
 
@@ -479,8 +510,11 @@ impl Ast<'_> {
         }
     }
 
+    // Original BNF:
     // add_expr ::= mul_expr
     //            | add_expr ("+" | "-") mul_expr
+    // Fixed BNF (left recursion removed):
+    // add_expr ::= mul_expr (("+" | "-") mul_expr)*
     fn add_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         let mut node = self.mul_expr()?;
 
@@ -511,8 +545,11 @@ impl Ast<'_> {
         }
     }
 
+    // Original BNF:
     // mul_expr ::= cast_expr
     //            | mul_expr ("*" | "/" | "%") cast_expr
+    // Fixed BNF (left recursion removed):
+    // mul_expr ::= cast_expr (("*" | "/" | "%") cast_expr)*
     fn mul_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         let mut node = self.cast_expr()?;
 
@@ -756,12 +793,19 @@ impl Ast<'_> {
         )))
     }
 
+    // Original BNF:
     // postfix_expr ::= primary_expr
     //                | postfix_expr "[" expr "]"
     //                | postfix_expr "(" argument_expr_list? ")"
     //                | postfix_expr "." ident
     //                | postfix_expr "->" ident
     //                | postfix_expr ("++" | "--")
+    // Fixed BNF (left recursion removed):
+    // postfix_expr ::= primary_expr ( "[" expr "]"
+    //                                 | "(" argument_expr_list? ")"
+    //                                 | "." ident
+    //                                 | "->" ident
+    //                                 | ("++" | "--") )*
     fn postfix_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         let mut node = self.primary_expr()?;
 
@@ -886,7 +930,6 @@ impl Ast<'_> {
     }
 
     // argument_expr_list ::= assign_expr ("," assign_expr)*
-    #[allow(clippy::vec_box)]
     fn argument_expr_list(&mut self) -> Result<Vec<Node>, CompileError> {
         let mut args = Vec::new();
         if let Some(arg) = self.assign_expr()? {
@@ -914,7 +957,6 @@ impl Ast<'_> {
     //                | string
     //                | number
     fn primary_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
-        // "(" expr ")"
         if self.consume_punct("(").is_some()
             && let Some(node) = self.expr()?
         {

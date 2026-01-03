@@ -10,7 +10,7 @@ use crate::types::{
 impl Ast<'_> {
     // external_decl ::= func_def | decl
     // func_def      ::= decl_specs declarator compound_stmt
-    // decl          ::= decl_specs init_declarator_list ";"
+    // decl          ::= decl_specs init_declarator_list? ";"
     pub(super) fn external_decl(&mut self) -> Result<(), CompileError> {
         let specs = self.decl_specs()?;
         if specs.is_empty() {
@@ -30,99 +30,102 @@ impl Ast<'_> {
         })?;
 
         let token_pos = self.token_pos; // 関数定義でなかった場合にバックトラックするために保存
-        let first_decl = self.declarator(&base_ty)?;
-
-        // 関数定義の場合: compound_stmt
-        if let TypeKind::Func { params, return_ty } = &first_decl.ty.kind {
-            if self.peek_punct("{") {
-                // プロトタイプ宣言を確認
-                if let Some(symbol) = self.symbol_table.find_symbol(&first_decl.name) {
-                    // 関数シンボルが既に存在する場合
-                    let sym = symbol.borrow();
-                    if sym.is_func() {
-                        if sym.is_defined {
-                            // 既に定義済みの場合エラー
-                            let span = first_decl.span;
-                            return Err(CompileError::InvalidDecl {
-                                msg: format!("関数 '{}' が既に定義されています", first_decl.name),
-                                span,
-                            });
-                        } else {
-                            // プロトタイプ宣言と定義の型が一致するか確認
-                            if sym.ty != first_decl.ty {
+        if let Ok(first_decl) = self.declarator(&base_ty) {
+            // 関数定義の場合: compound_stmt
+            if let TypeKind::Func { params, return_ty } = &first_decl.ty.kind {
+                if self.peek_punct("{") {
+                    // プロトタイプ宣言を確認
+                    if let Some(symbol) = self.symbol_table.find_symbol(&first_decl.name) {
+                        // 関数シンボルが既に存在する場合
+                        let sym = symbol.borrow();
+                        if sym.is_func() {
+                            if sym.is_defined {
+                                // 既に定義済みの場合エラー
                                 let span = first_decl.span;
                                 return Err(CompileError::InvalidDecl {
                                     msg: format!(
-                                        "関数 '{}' の定義がプロトタイプ宣言と一致しません",
+                                        "関数 '{}' が既に定義されています",
                                         first_decl.name
                                     ),
                                     span,
                                 });
+                            } else {
+                                // プロトタイプ宣言と定義の型が一致するか確認
+                                if sym.ty != first_decl.ty {
+                                    let span = first_decl.span;
+                                    return Err(CompileError::InvalidDecl {
+                                        msg: format!(
+                                            "関数 '{}' の定義がプロトタイプ宣言と一致しません",
+                                            first_decl.name
+                                        ),
+                                        span,
+                                    });
+                                }
                             }
+                        } else {
+                            // シンボルが関数でない場合エラー
+                            let span = first_decl.span;
+                            return Err(CompileError::InvalidDecl {
+                                msg: format!("'{}' は関数ではありません", first_decl.name),
+                                span,
+                            });
                         }
+                        symbol.borrow_mut().is_defined = true; // 既存のプロトタイプ宣言を定義済みに更新
                     } else {
-                        // シンボルが関数でない場合エラー
-                        let span = first_decl.span;
-                        return Err(CompileError::InvalidDecl {
-                            msg: format!("'{}' は関数ではありません", first_decl.name),
+                        // 関数をシンボルが存在しない場合，新規に関数シンボルを登録
+                        self.register_func_symbol(&first_decl.name, first_decl.ty.clone(), true);
+                    }
+                    let func = self.register_func_def(Func::new(&first_decl.name)); // 関数を登録
+                    self.current_func = Some(func.clone()); // 現在の関数を設定
+                    self.push_scope(); // 引数スコープに入る
+                    // 引数を登録
+                    for param_decl in params.clone() {
+                        let symbol_idx = self.register_var(param_decl, Some(func.clone()))?;
+                        self.get_current_func()?
+                            .borrow_mut()
+                            .params
+                            .push(LocalVar::new(symbol_idx));
+                    }
+                    // 関数の戻り値の型を設定
+                    self.get_current_func()?.borrow_mut().return_ty = *return_ty.clone();
+                    // 関数本体をパース
+                    let func_body = self.compound_stmt()?.ok_or_else(|| {
+                        let span = self.get_prev_token_span().unwrap_or((0, 0));
+                        CompileError::InvalidDecl {
+                            msg: "関数本体が必要です".to_string(),
                             span,
-                        });
-                    }
-                    symbol.borrow_mut().is_defined = true; // 既存のプロトタイプ宣言を定義済みに更新
-                } else {
-                    // 関数をシンボルが存在しない場合，新規に関数シンボルを登録
-                    self.register_func_symbol(&first_decl.name, first_decl.ty.clone(), true);
-                }
-                let func = self.register_func_def(Func::new(&first_decl.name)); // 関数を登録
-                self.current_func = Some(func.clone()); // 現在の関数を設定
-                self.push_scope(); // 引数スコープに入る
-                // 引数を登録
-                for param_decl in params.clone() {
-                    let symbol_idx = self.register_var(param_decl, Some(func.clone()))?;
-                    self.get_current_func()?
-                        .borrow_mut()
-                        .params
-                        .push(LocalVar::new(symbol_idx));
-                }
-                // 関数の戻り値の型を設定
-                self.get_current_func()?.borrow_mut().return_ty = *return_ty.clone();
-                // 関数本体をパース
-                let func_body = self.compound_stmt()?.ok_or_else(|| {
-                    let span = self.get_prev_token_span().unwrap_or((0, 0));
-                    CompileError::InvalidDecl {
-                        msg: "関数本体が必要です".to_string(),
-                        span,
-                    }
-                })?;
-                if let NodeKind::Block { body } = func_body.kind {
-                    self.get_current_func()?.borrow_mut().body = body;
-                } else {
-                    let span = func_body.span;
-                    return Err(CompileError::InvalidDecl {
+                        }
+                    })?;
+                    if let NodeKind::Block { body } = func_body.kind {
+                        self.get_current_func()?.borrow_mut().body = body;
+                    } else {
+                        let span = func_body.span;
+                        return Err(CompileError::InvalidDecl {
                         msg: "関数本体がブロックではありません。'{' と '}' で囲まれた複合文が必要です"
                             .to_string(),
                         span,
                     });
+                    }
+                    self.pop_scope(); // 引数スコープを出る
+                    self.calc_current_func_offset()?; // 現在の関数のオフセットとスタックサイズを計算
+                    self.current_func = None; // 現在の関数をクリア
+                    return Ok(());
+                } else if self.consume_punct(";").is_some() {
+                    // 関数プロトタイプ宣言
+                    self.register_func_symbol(&first_decl.name, first_decl.ty.clone(), false);
+                    return Ok(());
+                } else {
+                    let span = first_decl.span;
+                    return Err(CompileError::InvalidDecl {
+                        msg: "関数の本体が必要です".to_string(),
+                        span,
+                    });
                 }
-                self.pop_scope(); // 引数スコープを出る
-                self.calc_current_func_offset()?; // 現在の関数のオフセットとスタックサイズを計算
-                self.current_func = None; // 現在の関数をクリア
-                return Ok(());
-            } else if self.consume_punct(";").is_some() {
-                // 関数プロトタイプ宣言
-                self.register_func_symbol(&first_decl.name, first_decl.ty.clone(), false);
-                return Ok(());
-            } else {
-                let span = first_decl.span;
-                return Err(CompileError::InvalidDecl {
-                    msg: "関数の本体が必要です".to_string(),
-                    span,
-                });
             }
+            self.token_pos = token_pos; // バックトラックして再度パース
         }
 
-        // グローバル変数宣言の場合: init_declarator_list ";"
-        self.token_pos = token_pos; // バックトラックして再度パース
+        // グローバル変数宣言の場合: init_declarator_list? ";"
         let decls = self.init_declarator_list(&base_ty)?;
         self.expect_punct(";")?;
 
@@ -133,7 +136,7 @@ impl Ast<'_> {
         Ok(())
     }
 
-    // decl ::= decl_specs init_declarator_list ";"
+    // decl ::= decl_specs init_declarator_list? ";"
     pub(super) fn decl(&mut self) -> Result<Option<Vec<Decl>>, CompileError> {
         let specs = self.decl_specs()?;
         if specs.is_empty() {
@@ -146,12 +149,9 @@ impl Ast<'_> {
                 span,
             }
         })?;
-        let vars = self.init_declarator_list(&base_ty)?;
-        if vars.is_empty() {
-            return Ok(None);
-        }
+        let decls = self.init_declarator_list(&base_ty)?;
         self.expect_punct(";")?;
-        Ok(Some(vars))
+        Ok(Some(decls))
     }
 
     // decl_specs ::= decl_spec+
@@ -303,9 +303,6 @@ impl Ast<'_> {
         })?;
         let members = self.struct_declarator_list(&base_ty)?;
         self.expect_punct(";")?;
-        if members.is_empty() {
-            return Ok(None);
-        }
         Ok(Some(members))
     }
 
@@ -480,6 +477,7 @@ impl Ast<'_> {
     }
 
     // param_type_list ::= param_list
+    //                   | param_list "," "..." // TODO: 未実装
     fn param_type_list(&mut self) -> Result<Vec<Decl>, CompileError> {
         self.param_list()
     }
@@ -497,6 +495,7 @@ impl Ast<'_> {
     }
 
     // param_decl ::= decl_specs declarator
+    //              | decl_specs abstract_declarator? // TODO: 未実装
     fn param_decl(&mut self) -> Result<Decl, CompileError> {
         let specs = self.decl_specs()?;
         if !specs.is_empty() {

@@ -4,7 +4,9 @@ use crate::function::LocalVar;
 use crate::node::{Node, NodeKind};
 
 impl Ast<'_> {
-    // TODO: case文, default文の実装
+    // labeled_stmt ::= ident ":" stmt
+    //                | "case" const_expr ":" stmt // TODO: 未実装
+    //                | "default" ":" stmt // TODO: 未実装
     fn labeled_stmt(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         if let Some((name, token)) = self.consume_ident() {
             let span = token.span;
@@ -56,8 +58,8 @@ impl Ast<'_> {
         Ok(None)
     }
 
-    // TODO: switch文の実装
     // selection_stmt ::= "if" "(" expr ")" stmt ("else" stmt)?
+    //                  | "switch" "(" expr ")" stmt // TODO: 未実装
     fn selection_stmt(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         if let Some(token) = self.consume_keyword("if") {
             let span = token.span;
@@ -93,6 +95,7 @@ impl Ast<'_> {
     // iteration_stmt ::= "while" "(" expr ")" stmt
     //                  | "do" stmt "while" "(" expr ")" ";"
     //                  | "for" "(" expr? ";" expr? ";" expr? ")" stmt
+    //                  | "for" "(" decl expr? ";" expr? ")" stmt // TODO: 未実装
     fn iteration_stmt(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         if let Some(token) = self.consume_keyword("while") {
             let span = token.span;
@@ -260,11 +263,11 @@ impl Ast<'_> {
     }
 
     // stmt ::= labeled_stmt
-    //        | expr_stmt
     //        | compound_stmt
     //        | selection_stmt
     //        | iteration_stmt
     //        | jump_stmt
+    //        | expr_stmt
     fn stmt(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         // labeled stmt
         if let Some(node) = self.labeled_stmt()? {
