@@ -374,7 +374,6 @@ impl Ast<'_> {
     }
 
     // ptr ::= "*" type_qual_list? ptr?
-    #[allow(clippy::never_loop)]
     fn ptr(&mut self, base_ty: &Type) -> Type {
         if self.consume_punct("*").is_some() {
             self.type_qual_list(); // 現状は型修飾子を無視
@@ -446,7 +445,7 @@ impl Ast<'_> {
             };
             self.expect_punct("]")?;
             let inner_ty = self.parse_postfix_declarators(base_ty)?;
-            let elem_ty = Type::from(inner_ty.kind, inner_ty.attr, None); // 要素型のストレージクラスはなし
+            let elem_ty = Type::from(inner_ty.kind.clone(), inner_ty.attr, None); // 要素型のストレージクラスはなし
             Ok(Type::from(
                 TypeKind::Array {
                     base: Box::new(elem_ty),
@@ -469,7 +468,7 @@ impl Ast<'_> {
                 params
             };
             let inner_ty = self.parse_postfix_declarators(base_ty)?;
-            let return_ty = Type::from(inner_ty.kind, inner_ty.attr, None); // 戻り値型のストレージクラスはなし
+            let return_ty = Type::from(inner_ty.kind.clone(), inner_ty.attr, None); // 戻り値型のストレージクラスはなし
             Ok(Type::from(
                 TypeKind::Func {
                     return_ty: Box::new(return_ty),
