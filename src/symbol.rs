@@ -8,7 +8,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 pub(crate) use table::*;
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SymbolKind {
     Var,
     Func,
@@ -38,6 +38,7 @@ impl Symbol {
         ty: Type,
         owner: Option<Rc<RefCell<Func>>>,
         init: Vec<Node>,
+        is_defined: bool,
     ) -> Self {
         Self {
             name: name.to_string(),
@@ -45,7 +46,7 @@ impl Symbol {
             ty,
             owner,
             init,
-            is_defined: true,
+            is_defined,
         }
     }
 

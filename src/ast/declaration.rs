@@ -163,13 +163,16 @@ impl Ast<'_> {
         Ok(specs)
     }
 
-    // decl_spec ::= storage_class_spec | type_spec_qual | func_spec
+    // decl_spec ::= storage_class_spec | type_spec | type_qual | func_spec
     pub(super) fn decl_spec(&mut self) -> Result<Option<DeclSpec>, CompileError> {
         if let Some(storage_class_spec) = self.storage_class_spec() {
             return Ok(Some(DeclSpec::StorageClassSpec(storage_class_spec)));
         }
-        if let Some(type_spec_qual) = self.type_spec_qual()? {
-            return Ok(Some(DeclSpec::TypeSpecQual(type_spec_qual)));
+        if let Some(type_spec) = self.type_spec()? {
+            return Ok(Some(DeclSpec::TypeSpec(type_spec)));
+        }
+        if let Some(type_qual) = self.type_qual() {
+            return Ok(Some(DeclSpec::TypeQual(type_qual)));
         }
         if let Some(func_spec) = self.func_spec() {
             return Ok(Some(DeclSpec::FuncSpec(func_spec)));
@@ -206,6 +209,7 @@ impl Ast<'_> {
                             size: decl.init.len(),
                         },
                         decl.ty.attr,
+                        decl.ty.storage_class,
                     );
                 }
             }
@@ -251,6 +255,7 @@ impl Ast<'_> {
                         members,
                     },
                     TypeAttr::default(),
+                    None,
                 );
                 // 構造体タグを登録
                 if !struct_name.is_empty() {
@@ -371,19 +376,19 @@ impl Ast<'_> {
         quals
     }
 
-    // ptr ::= "*" type_qual_list* ptr?
-    #[allow(clippy::never_loop)]
+    // ptr ::= "*" type_qual_list? ptr?
     fn ptr(&mut self, base_ty: &Type) -> Type {
-        while self.consume_punct("*").is_some() {
+        if self.consume_punct("*").is_some() {
+            self.type_qual_list(); // 現状は型修飾子を無視
             let ptr_type = Type::from(
                 TypeKind::Ptr {
-                    to: Box::new(base_ty.clone()),
+                    to: Box::new(Type::from(base_ty.kind.clone(), base_ty.attr, None)),
                 },
                 TypeAttr::default(),
+                base_ty.storage_class,
             );
             return self.ptr(&ptr_type);
         }
-        self.type_qual_list(); // 現状は型修飾子を無視
         base_ty.clone()
     }
 
@@ -443,12 +448,14 @@ impl Ast<'_> {
             };
             self.expect_punct("]")?;
             let inner_ty = self.parse_postfix_declarators(base_ty)?;
+            let elem_ty = Type::from(inner_ty.kind.clone(), inner_ty.attr, None); // 要素型のストレージクラスはなし
             Ok(Type::from(
                 TypeKind::Array {
-                    base: Box::new(inner_ty),
+                    base: Box::new(elem_ty),
                     size: array_size,
                 },
                 TypeAttr::default(),
+                inner_ty.storage_class,
             ))
         }
         // "(" param_type_list ")"
@@ -464,12 +471,14 @@ impl Ast<'_> {
                 params
             };
             let inner_ty = self.parse_postfix_declarators(base_ty)?;
+            let return_ty = Type::from(inner_ty.kind.clone(), inner_ty.attr, None); // 戻り値型のストレージクラスはなし
             Ok(Type::from(
                 TypeKind::Func {
-                    return_ty: Box::new(inner_ty),
+                    return_ty: Box::new(return_ty),
                     params,
                 },
                 TypeAttr::default(),
+                inner_ty.storage_class,
             ))
         } else {
             Ok(base_ty.clone())
@@ -587,6 +596,7 @@ impl Ast<'_> {
                     size: array_size,
                 },
                 TypeAttr::default(),
+                None,
             ))
         }
         // "(" param_type_list ")"
@@ -608,6 +618,7 @@ impl Ast<'_> {
                     params,
                 },
                 TypeAttr::default(),
+                None,
             ))
         } else {
             Ok(base_ty.clone())

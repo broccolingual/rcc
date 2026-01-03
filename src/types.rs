@@ -7,7 +7,7 @@ pub(crate) use specifier::*;
 use crate::node::Node;
 use core::fmt;
 
-#[derive(Clone, PartialEq, Eq, Default)]
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
 pub(crate) struct TypeAttr {
     pub(crate) is_const: bool,
     pub(crate) is_volatile: bool,
@@ -36,70 +36,86 @@ pub(crate) struct Type {
     size: usize,
     align: usize,
     pub(crate) attr: TypeAttr,
+    pub(crate) storage_class: Option<StorageClassKind>,
 }
 
 impl fmt::Debug for Type {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(sc) = &self.storage_class {
+            write!(f, "{} ", sc)?;
+        }
         write!(f, "{:?}{:?}", self.attr, self.kind)
     }
 }
 
 impl Default for Type {
     fn default() -> Self {
-        Type::from(TypeKind::Void, TypeAttr::default())
+        Type::from(TypeKind::Void, TypeAttr::default(), None)
     }
 }
 
 impl Type {
-    pub(crate) fn from(kind: TypeKind, attr: TypeAttr) -> Self {
+    pub(crate) fn from(
+        kind: TypeKind,
+        attr: TypeAttr,
+        storage_class: Option<StorageClassKind>,
+    ) -> Self {
         match kind {
             TypeKind::Void => Type {
                 kind: TypeKind::Void,
                 size: 0,
                 align: 0,
                 attr,
+                storage_class,
             },
             TypeKind::Char => Type {
                 kind: TypeKind::Char,
                 size: 1,
                 align: 1,
                 attr,
+                storage_class,
             },
             TypeKind::Short => Type {
                 kind: TypeKind::Short,
                 size: 2,
                 align: 2,
                 attr,
+                storage_class,
             },
             TypeKind::Int => Type {
                 kind: TypeKind::Int,
                 size: 4,
                 align: 4,
                 attr,
+                storage_class,
             },
             TypeKind::Long => Type {
                 kind: TypeKind::Long,
                 size: 8,
                 align: 8,
                 attr,
+                storage_class,
             },
             TypeKind::Float => Type {
                 kind: TypeKind::Float,
                 size: 4,
                 align: 4,
                 attr,
+                storage_class,
             },
             TypeKind::Double => Type {
                 kind: TypeKind::Double,
                 size: 8,
                 align: 8,
                 attr,
+                storage_class,
             },
             TypeKind::Ptr { to } => Type {
                 kind: TypeKind::Ptr { to: to.clone() },
                 size: 8,
                 align: 8,
                 attr,
+                storage_class,
             },
             TypeKind::Array { base, size } => Type {
                 kind: TypeKind::Array {
@@ -109,6 +125,7 @@ impl Type {
                 size: base.size * size,
                 align: base.align,
                 attr,
+                storage_class,
             },
             TypeKind::Struct { name, members } => {
                 let mut offset = 0;
@@ -132,6 +149,7 @@ impl Type {
                     size: offset.align_up(max_align), // 構造体全体のサイズをアラインメントに合わせて調整
                     align: max_align, // メンバーの最大アラインメントを構造体のアラインメントとする
                     attr,
+                    storage_class,
                 }
             }
             TypeKind::Func { return_ty, params } => Type {
@@ -142,6 +160,7 @@ impl Type {
                 size: 8,
                 align: 8,
                 attr,
+                storage_class,
             },
         }
     }
@@ -149,27 +168,36 @@ impl Type {
     pub(crate) fn from_ds(decl_specs: Vec<DeclSpec>) -> Option<Self> {
         let mut ty = Type::default();
         let mut has_type_spec = false;
+        let mut storage_class = None;
         for spec in decl_specs {
             match spec {
-                DeclSpec::TypeSpecQual(tsq) => match tsq {
-                    TypeSpecQual::TypeQual(tq) => match tq {
-                        TypeQualKind::Const => ty.attr.is_const = true,
-                        TypeQualKind::Volatile => ty.attr.is_volatile = true,
-                        TypeQualKind::Restrict => ty.attr.is_restrict = true,
-                    },
-                    TypeSpecQual::TypeSpec(ty_kind) => {
-                        if has_type_spec {
-                            return None; // すでに型指定子があった場合は無効
-                        }
-                        ty = Type::from(ty_kind, ty.attr);
-                        has_type_spec = true;
-                    }
+                DeclSpec::TypeQual(tq_kind) => match tq_kind {
+                    TypeQualKind::Const => ty.attr.is_const = true,
+                    TypeQualKind::Volatile => ty.attr.is_volatile = true,
+                    TypeQualKind::Restrict => ty.attr.is_restrict = true,
                 },
-                DeclSpec::StorageClassSpec(_) => {}
+                DeclSpec::TypeSpec(ty_kind) => {
+                    if has_type_spec {
+                        return None; // すでに型指定子があった場合は無効
+                    }
+                    ty = Type::from(ty_kind, ty.attr, None);
+                    has_type_spec = true;
+                }
+                DeclSpec::StorageClassSpec(sc_kind) => {
+                    if storage_class.is_some() {
+                        return None; // すでに記憶クラス指定子があった場合は無効
+                    }
+                    storage_class = Some(sc_kind);
+                }
                 DeclSpec::FuncSpec(_) => {}
             }
         }
-        if has_type_spec { Some(ty) } else { None }
+        if has_type_spec {
+            ty.storage_class = storage_class;
+            Some(ty)
+        } else {
+            None
+        }
     }
 
     pub(crate) fn from_tsq(type_spec_quals: Vec<TypeSpecQual>) -> Option<Self> {
@@ -177,7 +205,7 @@ impl Type {
         let mut has_type_spec = false;
         for spec in type_spec_quals {
             match spec {
-                TypeSpecQual::TypeQual(tq) => match tq {
+                TypeSpecQual::TypeQual(tq_kind) => match tq_kind {
                     TypeQualKind::Const => ty.attr.is_const = true,
                     TypeQualKind::Volatile => ty.attr.is_volatile = true,
                     TypeQualKind::Restrict => ty.attr.is_restrict = true,
@@ -186,7 +214,7 @@ impl Type {
                     if has_type_spec {
                         return None; // すでに型指定子があった場合は無効
                     }
-                    ty = Type::from(ty_kind, ty.attr);
+                    ty = Type::from(ty_kind, ty.attr, None);
                     has_type_spec = true;
                 }
             }
@@ -201,6 +229,11 @@ impl Type {
             TypeKind::Array { base, .. } => base,
             _ => self,
         }
+    }
+
+    // 型がexternかどうか
+    pub(crate) fn is_extern(&self) -> bool {
+        matches!(self.storage_class, Some(StorageClassKind::Extern))
     }
 
     // 型がポインタかどうか
