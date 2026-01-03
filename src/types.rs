@@ -171,22 +171,23 @@ impl Type {
         let mut storage_class = None;
         for spec in decl_specs {
             match spec {
-                DeclSpec::TypeSpecQual(tsq) => match tsq {
-                    TypeSpecQual::TypeQual(tq) => match tq {
-                        TypeQualKind::Const => ty.attr.is_const = true,
-                        TypeQualKind::Volatile => ty.attr.is_volatile = true,
-                        TypeQualKind::Restrict => ty.attr.is_restrict = true,
-                    },
-                    TypeSpecQual::TypeSpec(ty_kind) => {
-                        if has_type_spec {
-                            return None; // すでに型指定子があった場合は無効
-                        }
-                        ty = Type::from(ty_kind, ty.attr, None);
-                        has_type_spec = true;
-                    }
+                DeclSpec::TypeQual(tq_kind) => match tq_kind {
+                    TypeQualKind::Const => ty.attr.is_const = true,
+                    TypeQualKind::Volatile => ty.attr.is_volatile = true,
+                    TypeQualKind::Restrict => ty.attr.is_restrict = true,
                 },
-                DeclSpec::StorageClassSpec(scs) => {
-                    storage_class = Some(scs);
+                DeclSpec::TypeSpec(ty_kind) => {
+                    if has_type_spec {
+                        return None; // すでに型指定子があった場合は無効
+                    }
+                    ty = Type::from(ty_kind, ty.attr, None);
+                    has_type_spec = true;
+                }
+                DeclSpec::StorageClassSpec(sc_kind) => {
+                    if storage_class.is_some() {
+                        return None; // すでに記憶クラス指定子があった場合は無効
+                    }
+                    storage_class = Some(sc_kind);
                 }
                 DeclSpec::FuncSpec(_) => {}
             }
@@ -204,7 +205,7 @@ impl Type {
         let mut has_type_spec = false;
         for spec in type_spec_quals {
             match spec {
-                TypeSpecQual::TypeQual(tq) => match tq {
+                TypeSpecQual::TypeQual(tq_kind) => match tq_kind {
                     TypeQualKind::Const => ty.attr.is_const = true,
                     TypeQualKind::Volatile => ty.attr.is_volatile = true,
                     TypeQualKind::Restrict => ty.attr.is_restrict = true,

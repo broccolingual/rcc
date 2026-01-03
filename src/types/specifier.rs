@@ -4,7 +4,8 @@ use core::fmt;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum DeclSpec {
     StorageClassSpec(StorageClassKind),
-    TypeSpecQual(TypeSpecQual),
+    TypeSpec(TypeKind),
+    TypeQual(TypeQualKind),
     FuncSpec(FuncKind),
 }
 

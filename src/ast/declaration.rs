@@ -163,13 +163,16 @@ impl Ast<'_> {
         Ok(specs)
     }
 
-    // decl_spec ::= storage_class_spec | type_spec_qual | func_spec
+    // decl_spec ::= storage_class_spec | type_spec | type_qual | func_spec
     pub(super) fn decl_spec(&mut self) -> Result<Option<DeclSpec>, CompileError> {
         if let Some(storage_class_spec) = self.storage_class_spec() {
             return Ok(Some(DeclSpec::StorageClassSpec(storage_class_spec)));
         }
-        if let Some(type_spec_qual) = self.type_spec_qual()? {
-            return Ok(Some(DeclSpec::TypeSpecQual(type_spec_qual)));
+        if let Some(type_spec) = self.type_spec()? {
+            return Ok(Some(DeclSpec::TypeSpec(type_spec)));
+        }
+        if let Some(type_qual) = self.type_qual() {
+            return Ok(Some(DeclSpec::TypeQual(type_qual)));
         }
         if let Some(func_spec) = self.func_spec() {
             return Ok(Some(DeclSpec::FuncSpec(func_spec)));
