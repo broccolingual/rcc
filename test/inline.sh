@@ -277,5 +277,3 @@ assert_inline 20 'struct Point {int x; int y;}; struct Point p; struct Point *pt
 assert_inline 70 'struct Point {int x; int y;}; struct Point p; struct Point *ptr; p.x = 10; p.y = 20; ptr = &p; ptr->x = 30; ptr->y = 40; return ptr->x + ptr->y;'  # アロー演算子で書き込み
 assert_inline 30 'struct Point {int x; int y;}; struct Point p; struct Point *ptr; p.x = 10; p.y = 20; ptr = &p; ptr->x = 30; return p.x;'  # ポインタ経由での書き込みが元の変数に反映
 assert_inline 15 'struct Point {int x; int y;}; struct Point p; struct Point *ptr; p.x = 5; p.y = 10; ptr = &p; return (*ptr).x + (*ptr).y;'  # ドット演算子での参照外し
-
-echo OK

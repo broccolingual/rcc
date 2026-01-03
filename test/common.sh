@@ -68,3 +68,31 @@ $input => $expected expected, but got $actual"
     return 1
   fi
 }
+
+# ファイルテスト用のassert関数
+assert_file() {
+  expected="$1"
+  input_file="$2"
+
+  ./target/debug/rcc -f "$input_file" > $SCRIPT_DIR/bin/tmp.s || {
+    echo -e "\033[31m( ERROR )\033[0m Compilation failed: $input_file"
+    return 1
+  }
+
+  cc -g -o $SCRIPT_DIR/bin/tmp $SCRIPT_DIR/bin/tmp.s || {
+    echo -e "\033[31m( ERROR )\033[0m Linking failed: $input_file"
+    return 1
+  }
+
+  set +e
+  $SCRIPT_DIR/bin/tmp
+  actual="$?"
+  set -e
+
+  if [ "$actual" = "$expected" ]; then
+    echo -e "\033[32m( OK )\033[0m $input_file => $actual"
+  else
+    echo -e "\033[31m( NG )\033[0m $input_file => $expected expected, but got $actual"
+    return 1
+  fi
+}

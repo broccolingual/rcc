@@ -11,4 +11,8 @@ echo "=== Running function tests ==="
 ./test/func.sh
 
 echo ""
+echo "=== Running file tests ==="
+./test/file.sh
+
+echo ""
 echo "=== All tests passed! ==="
