@@ -10,11 +10,10 @@ use crate::node::{Node, NodeKind, UnaryOp};
 use crate::symbol::Symbol;
 use crate::types::{Type, TypeKind};
 use register::ARG_REGS;
-use std::rc::Rc;
 
 pub(crate) struct Generator<'a> {
     ast: &'a Ast<'a>,
-    current_func_name: String,
+    current_func_name: &'a str,
     pub(crate) builder: AsmBuilder,
 }
 
@@ -22,7 +21,7 @@ impl<'a> Generator<'a> {
     pub(crate) fn new(ast: &'a Ast<'a>) -> Self {
         Generator {
             ast,
-            current_func_name: String::new(),
+            current_func_name: "",
             builder: AsmBuilder::new(),
         }
     }
@@ -77,18 +76,16 @@ impl<'a> Generator<'a> {
             .ast
             .get_symbols()
             .iter()
-            .filter(|sym| sym.borrow().is_global_var() && sym.borrow().is_defined)
+            .filter(|symbol| symbol.is_global_var() && symbol.is_defined)
             .collect::<Vec<_>>();
         if global_symbols.is_empty() {
             return Ok(());
         }
         self.builder.add_row(".data", true);
         for symbol in global_symbols.iter() {
-            // 一度borrowして必要な情報を全て取得
-            let sym = symbol.borrow();
-            let name = &sym.name;
-            let align = sym.ty.align_of();
-            let size = sym.ty.size_of();
+            let name = &symbol.name;
+            let align = symbol.ty.align_of();
+            let size = symbol.ty.size_of();
 
             self.builder.add_row(&format!(".globl {}", name), true);
             self.builder.add_row(&format!(".align {}", align), true);
@@ -97,7 +94,7 @@ impl<'a> Generator<'a> {
             self.builder
                 .add_row(&format!(".size {}, {}", name, size), true);
             self.builder.add_row(&format!("{}:", name), false);
-            self.emit_global_init(&symbol.borrow())?;
+            self.emit_global_init(symbol)?;
         }
         Ok(())
     }
@@ -118,15 +115,16 @@ impl<'a> Generator<'a> {
                         op: UnaryOp::Addr,
                         expr,
                     } => match &expr.kind {
-                        NodeKind::Var { symbol } => {
-                            let sym = symbol.borrow();
-                            if sym.is_global_var() {
-                                self.builder.add_row(&format!(".quad {}", sym.name), true);
+                        NodeKind::Var { symbol_id } => {
+                            let symbol = self.ast.get_symbol(*symbol_id);
+                            if symbol.is_global_var() {
+                                self.builder
+                                    .add_row(&format!(".quad {}", symbol.name), true);
                             } else {
                                 return Err(CompileError::InvalidExpr {
                                     msg: format!(
                                         "グローバル変数の初期化式にローカル変数のアドレスは使用できません: {}",
-                                        sym.name
+                                        symbol.name
                                     ),
                                     span: expr.span,
                                 });
@@ -167,15 +165,16 @@ impl<'a> Generator<'a> {
                     op: UnaryOp::Addr,
                     expr,
                 } => match &expr.kind {
-                    NodeKind::Var { symbol } => {
-                        let sym = symbol.borrow();
-                        if sym.is_global_var() {
-                            self.builder.add_row(&format!(".quad {}", sym.name), true);
+                    NodeKind::Var { symbol_id } => {
+                        let symbol = self.ast.get_symbol(*symbol_id);
+                        if symbol.is_global_var() {
+                            self.builder
+                                .add_row(&format!(".quad {}", symbol.name), true);
                         } else {
                             return Err(CompileError::InvalidExpr {
                                 msg: format!(
                                     "グローバル変数の初期化式にローカル変数のアドレスは使用できません: {}",
-                                    sym.name
+                                    symbol.name
                                 ),
                                 span: expr.span,
                             });
@@ -223,8 +222,7 @@ impl<'a> Generator<'a> {
         // 関数の定義
         self.builder.add_row(".text", true);
         for func in self.ast.funcs.iter() {
-            let func_borrow = func.borrow();
-            self.current_func_name = func_borrow.name.clone();
+            self.current_func_name = &func.name;
 
             self.builder
                 .add_row(&format!(".globl {}", self.current_func_name), true);
@@ -240,18 +238,19 @@ impl<'a> Generator<'a> {
             self.builder.add_row("mov rbp, rsp", true);
 
             // 関数のローカル変数に対応するスタック領域を確保
-            let stack_size = func_borrow.stack_size;
+            let stack_size = func.stack_size;
             if stack_size > 0 {
                 self.builder
                     .add_row(&format!("sub rsp, {}", stack_size), true);
             }
 
             // 引数をレジスタからスタックへ読み出し
-            for (i, param) in func_borrow.params.iter().enumerate() {
+            for (i, param) in func.params.iter().enumerate() {
                 if i >= ARG_REGS.len() {
                     unimplemented!("6個を超える引数の関数には未対応です");
                 }
-                let param_ty_align = param.symbol.borrow().ty.align_of();
+                let symbol = self.ast.get_symbol(param.symbol_id);
+                let param_ty_align = symbol.ty.align_of();
                 self.builder.add_row(
                     &format!(
                         "mov [rbp-{}], {}",
@@ -263,12 +262,12 @@ impl<'a> Generator<'a> {
             }
 
             // ローカル変数の初期化
-            for local_var in func_borrow.locals.iter() {
+            for local_var in func.locals.iter() {
                 self.gen_local_init(local_var)?;
             }
 
             // 関数本体のコード生成
-            for node in func_borrow.body.iter() {
+            for node in func.body.iter() {
                 if node.is_expr() {
                     self.gen_expr(node)?;
                     self.builder.add_row("pop rax", true); // 式の結果を捨てる
@@ -289,7 +288,7 @@ impl<'a> Generator<'a> {
 
     fn gen_local_init(&mut self, local_var: &LocalVar) -> Result<(), CompileError> {
         // 初期化式がなければ何もしない
-        let symbol = local_var.symbol.borrow();
+        let symbol = self.ast.get_symbol(local_var.symbol_id);
         if symbol.init.is_empty() {
             return Ok(());
         }
@@ -324,18 +323,16 @@ impl<'a> Generator<'a> {
         } else if symbol.init.len() == 1 {
             self.gen_addr(&Node {
                 kind: NodeKind::Var {
-                    symbol: Rc::clone(&local_var.symbol),
+                    symbol_id: local_var.symbol_id,
                 },
                 ..Default::default()
             })?; // 変数のアドレスをスタックに積む
             self.gen_expr(&symbol.init[0])?; // 初期化式のコードを生成し、スタックに値を積む
             self.store(&symbol.ty)?; // スタックトップの値を変数に格納
         } else {
-            let name = symbol.name.clone();
-            let span = symbol.init[0].span;
             return Err(CompileError::InvalidExpr {
-                msg: format!("スカラー変数の初期化式が複数あります: {}", name),
-                span,
+                msg: format!("スカラー変数の初期化式が複数あります: {}", symbol.name),
+                span: symbol.init[0].span,
             });
         }
         Ok(())
@@ -350,24 +347,26 @@ impl<'a> Generator<'a> {
             } => {
                 self.gen_expr(expr)?; // ポインタの値を取得
             }
-            NodeKind::Var { symbol } => {
-                if symbol.borrow().is_global_var() {
-                    let name = symbol.borrow().name.clone();
+            NodeKind::Var { symbol_id } => {
+                let symbol = self.ast.get_symbol(*symbol_id);
+                if symbol.is_global_var() {
+                    let name = symbol.name.clone();
                     self.builder
                         .add_row(&format!("lea rax, {}[rip]", name), true);
                 } else {
                     let offset = {
-                        let sym = symbol.borrow();
-                        let func = sym.get_owner().ok_or_else(|| CompileError::InternalError {
-                            msg: "ローカル変数の所有関数が見つかりません".to_string(),
-                        })?;
-                        let func_borrow = func.borrow();
-                        let local_var =
-                            func_borrow
-                                .find_local_var(Rc::clone(symbol))
+                        let func_id =
+                            symbol
+                                .get_owner()
                                 .ok_or_else(|| CompileError::InternalError {
-                                    msg: "関数内の変数が見つかりません".to_string(),
+                                    msg: "ローカル変数の所有関数が見つかりません".to_string(),
                                 })?;
+                        let func = self.ast.get_func(func_id);
+                        let local_var = func.find_local_var(*symbol_id).ok_or_else(|| {
+                            CompileError::InternalError {
+                                msg: "関数内の変数が見つかりません".to_string(),
+                            }
+                        })?;
                         Ok::<usize, CompileError>(local_var.offset)
                     }?;
                     self.builder

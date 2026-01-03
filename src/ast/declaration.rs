@@ -35,11 +35,11 @@ impl Ast<'_> {
             if let TypeKind::Func { params, return_ty } = &first_decl.ty.kind {
                 if self.peek_punct("{") {
                     // プロトタイプ宣言を確認
-                    if let Some(symbol) = self.symbol_table.find_symbol(&first_decl.name) {
+                    if let Some(symbol_id) = self.symbol_table.find_symbol_id(&first_decl.name) {
+                        let symbol = self.symbol_table.get_symbol_mut(symbol_id);
                         // 関数シンボルが既に存在する場合
-                        let sym = symbol.borrow();
-                        if sym.is_func() {
-                            if sym.is_defined {
+                        if symbol.is_func() {
+                            if symbol.is_defined {
                                 // 既に定義済みの場合エラー
                                 let span = first_decl.span;
                                 return Err(CompileError::InvalidDecl {
@@ -51,7 +51,7 @@ impl Ast<'_> {
                                 });
                             } else {
                                 // プロトタイプ宣言と定義の型が一致するか確認
-                                if sym.ty != first_decl.ty {
+                                if symbol.ty != first_decl.ty {
                                     let span = first_decl.span;
                                     return Err(CompileError::InvalidDecl {
                                         msg: format!(
@@ -70,24 +70,23 @@ impl Ast<'_> {
                                 span,
                             });
                         }
-                        symbol.borrow_mut().is_defined = true; // 既存のプロトタイプ宣言を定義済みに更新
+                        symbol.is_defined = true; // 既存のプロトタイプ宣言を定義済みに更新
                     } else {
                         // 関数をシンボルが存在しない場合，新規に関数シンボルを登録
                         self.register_func_symbol(&first_decl.name, first_decl.ty.clone(), true);
                     }
-                    let func = self.register_func_def(Func::new(&first_decl.name)); // 関数を登録
-                    self.current_func = Some(func.clone()); // 現在の関数を設定
+                    let func_id = self.register_func_def(Func::new(&first_decl.name)); // 関数を登録
+                    self.current_func = Some(func_id); // 現在の関数を設定
                     self.push_scope(); // 引数スコープに入る
                     // 引数を登録
                     for param_decl in params.clone() {
-                        let symbol_idx = self.register_var(param_decl, Some(func.clone()))?;
+                        let symbol_id = self.register_var(param_decl, Some(func_id))?;
                         self.get_current_func()?
-                            .borrow_mut()
                             .params
-                            .push(LocalVar::new(symbol_idx));
+                            .push(LocalVar::new(symbol_id));
                     }
                     // 関数の戻り値の型を設定
-                    self.get_current_func()?.borrow_mut().return_ty = *return_ty.clone();
+                    self.get_current_func()?.return_ty = *return_ty.clone();
                     // 関数本体をパース
                     let func_body = self.compound_stmt()?.ok_or_else(|| {
                         let span = self.get_prev_token_span().unwrap_or((0, 0));
@@ -97,7 +96,7 @@ impl Ast<'_> {
                         }
                     })?;
                     if let NodeKind::Block { body } = func_body.kind {
-                        self.get_current_func()?.borrow_mut().body = body;
+                        self.get_current_func()?.body = body;
                     } else {
                         let span = func_body.span;
                         return Err(CompileError::InvalidDecl {
