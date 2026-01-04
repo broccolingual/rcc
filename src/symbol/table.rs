@@ -1,18 +1,16 @@
-use crate::symbol::Symbol;
+use crate::symbol::{Symbol, SymbolId};
 use crate::types::Type;
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
 
 #[derive(Debug)]
 struct Scope {
-    names: HashMap<String, Rc<RefCell<Symbol>>>, // name -> symbol_id
-    tags: HashMap<String, Type>,                 // name -> type
+    names: HashMap<String, SymbolId>, // name -> symbol_id
+    tags: HashMap<String, Type>,      // name -> type
 }
 
 #[derive(Debug)]
 pub(crate) struct ScopedTable {
-    symbols: Vec<Rc<RefCell<Symbol>>>,
+    symbols: Vec<Symbol>,
     scopes: Vec<Scope>,
 }
 
@@ -38,55 +36,52 @@ impl ScopedTable {
         self.scopes.pop();
     }
 
-    pub(crate) fn get_symbols(&self) -> &Vec<Rc<RefCell<Symbol>>> {
+    pub(crate) fn get_symbols(&self) -> &Vec<Symbol> {
         &self.symbols
     }
 
-    pub(crate) fn find_symbol(&self, name: &str) -> Option<Rc<RefCell<Symbol>>> {
-        for scope in self.scopes.iter().rev() {
-            if let Some(symbol) = scope.names.get(name) {
-                return Some(Rc::clone(symbol));
-            }
-        }
-        None
+    pub(crate) fn get_symbol(&self, symbol_id: SymbolId) -> &Symbol {
+        &self.symbols[symbol_id.0]
+    }
+
+    pub(crate) fn get_symbol_mut(&mut self, symbol_id: SymbolId) -> &mut Symbol {
+        &mut self.symbols[symbol_id.0]
+    }
+
+    pub(crate) fn find_symbol_id(&self, name: &str) -> Option<SymbolId> {
+        self.scopes
+            .iter()
+            .rev()
+            .find_map(|scope| scope.names.get(name).copied())
     }
 
     pub(crate) fn find_tag(&self, name: &str) -> Option<&Type> {
-        for scope in self.scopes.iter().rev() {
-            if let Some(ty) = scope.tags.get(name) {
-                return Some(ty);
-            }
-        }
-        None
+        self.scopes
+            .iter()
+            .rev()
+            .find_map(|scope| scope.tags.get(name))
     }
 
-    pub(crate) fn find_symbol_in_current_scope(&self, name: &str) -> Option<Rc<RefCell<Symbol>>> {
-        if let Some(scope) = self.scopes.last()
-            && let Some(symbol) = scope.names.get(name)
-        {
-            return Some(Rc::clone(symbol));
-        }
-
-        None
+    pub(crate) fn find_symbol_in_current_scope(&self, name: &str) -> Option<&Symbol> {
+        self.scopes.last().and_then(|scope| {
+            scope
+                .names
+                .get(name)
+                .map(|&symbol_id| self.get_symbol(symbol_id))
+        })
     }
 
     pub(crate) fn find_tag_in_current_scope(&self, name: &str) -> Option<&Type> {
-        if let Some(scope) = self.scopes.last()
-            && let Some(ty) = scope.tags.get(name)
-        {
-            return Some(ty);
-        }
-
-        None
+        self.scopes.last().and_then(|scope| scope.tags.get(name))
     }
 
-    pub(crate) fn insert_symbol(&mut self, name: &str, symbol: Symbol) -> Rc<RefCell<Symbol>> {
-        let symbol = Rc::new(RefCell::new(symbol));
-        self.symbols.push(Rc::clone(&symbol));
+    pub(crate) fn insert_symbol(&mut self, name: &str, symbol: Symbol) -> SymbolId {
+        self.symbols.push(symbol);
+        let symbol_id = SymbolId(self.symbols.len() - 1);
         if let Some(scope) = self.scopes.last_mut() {
-            scope.names.insert(name.to_string(), Rc::clone(&symbol));
+            scope.names.insert(name.to_string(), symbol_id);
         }
-        symbol
+        symbol_id
     }
 
     pub(crate) fn insert_tag(&mut self, name: &str, ty: Type) {

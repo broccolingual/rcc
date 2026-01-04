@@ -3,19 +3,17 @@ mod expression;
 mod statement;
 
 use crate::errors::CompileError;
-use crate::function::Func;
-use crate::symbol::{ScopedTable, Symbol, SymbolKind};
+use crate::function::{Func, FuncId, LocalVar};
+use crate::symbol::{ScopedTable, Symbol, SymbolId, SymbolKind};
 use crate::token::{Token, TokenKind};
 use crate::types::{AlignUp, Decl, Type};
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
 
 pub(crate) struct Ast<'a> {
     tokens: &'a [Token],
     token_pos: usize,
-    pub(crate) funcs: Vec<Rc<RefCell<Func>>>,
-    current_func: Option<Rc<RefCell<Func>>>, // funcsの参照
+    pub(crate) funcs: Vec<Func>,
+    current_func: Option<FuncId>,
     symbol_table: ScopedTable,
     pub(crate) string_literals: HashMap<String, usize>,
     label_seq: usize,
@@ -36,57 +34,58 @@ impl<'a> Ast<'a> {
         }
     }
 
-    pub(crate) fn get_symbols(&self) -> &Vec<Rc<RefCell<Symbol>>> {
+    pub(crate) fn get_symbols(&self) -> &Vec<Symbol> {
         self.symbol_table.get_symbols()
     }
 
+    pub(crate) fn get_symbol(&self, symbol_id: SymbolId) -> &Symbol {
+        self.symbol_table.get_symbol(symbol_id)
+    }
+
+    pub(crate) fn get_func(&self, func_id: FuncId) -> &Func {
+        &self.funcs[func_id.0]
+    }
+
     // 関数シンボルを登録
-    fn register_func_symbol(
-        &mut self,
-        name: &str,
-        ty: Type,
-        is_defined: bool,
-    ) -> Rc<RefCell<Symbol>> {
+    fn register_func_symbol(&mut self, name: &str, ty: Type, is_defined: bool) -> SymbolId {
         let symbol = Symbol::new_func(name, ty, is_defined);
         self.symbol_table.insert_symbol(name, symbol)
     }
 
     // 関数定義を登録
-    fn register_func_def(&mut self, func: Func) -> Rc<RefCell<Func>> {
-        let func_rc = Rc::new(RefCell::new(func));
-        self.funcs.push(Rc::clone(&func_rc));
-        func_rc
+    fn register_func_def(&mut self, func: Func) -> FuncId {
+        self.funcs.push(func);
+        FuncId(self.funcs.len() - 1)
     }
 
-    fn get_current_func(&mut self) -> Result<Rc<RefCell<Func>>, CompileError> {
-        if let Some(ref func) = self.current_func {
-            return Ok(Rc::clone(func));
-        }
-        Err(CompileError::InternalError {
-            msg: "現在の関数が設定されていません".to_string(),
-        })
+    fn get_current_func_mut(&mut self) -> Result<&mut Func, CompileError> {
+        self.current_func
+            .and_then(|func_id| self.funcs.get_mut(func_id.0))
+            .ok_or_else(|| CompileError::InternalError {
+                msg: "現在の関数が設定されていません".to_string(),
+            })
     }
 
     // 現在の関数のオフセットを計算
     fn calc_current_func_offset(&mut self) -> Result<(), CompileError> {
-        if let Some(func) = &self.current_func {
-            let mut offset = 0;
-            // 引数のオフセットを計算
-            for param in &mut func.borrow_mut().params {
-                let sym = param.symbol.borrow();
-                offset = offset.align_up(sym.ty.align_of());
-                offset += sym.ty.size_of();
-                param.offset = offset;
-            }
+        if let Some(func_id) = self.current_func
+            && let Some(func) = self.funcs.get_mut(func_id.0)
+        {
+            let calculate_offsets =
+                |vars: &mut [LocalVar], symbol_table: &ScopedTable, mut offset: usize| {
+                    for var in vars {
+                        let symbol = symbol_table.get_symbol(var.symbol_id);
+                        offset = offset.align_up(symbol.ty.align_of());
+                        offset += symbol.ty.size_of();
+                        var.offset = offset;
+                    }
+                    offset
+                };
 
-            // ローカル変数のオフセットを計算
-            for local in &mut func.borrow_mut().locals {
-                let sym = local.symbol.borrow();
-                offset = offset.align_up(sym.ty.align_of());
-                offset += sym.ty.size_of();
-                local.offset = offset;
-            }
-            func.borrow_mut().stack_size = offset.align_up(16);
+            let mut offset = 0;
+            offset = calculate_offsets(&mut func.params, &self.symbol_table, offset); // パラメータのオフセット計算
+            offset = calculate_offsets(&mut func.locals, &self.symbol_table, offset); // ローカル変数のオフセット計算
+            func.stack_size = offset.align_up(16);
             Ok(())
         } else {
             Err(CompileError::InternalError {
@@ -123,16 +122,16 @@ impl<'a> Ast<'a> {
 
     fn register_var(
         &mut self,
-        decl: Decl,
-        owner: Option<Rc<RefCell<Func>>>,
-    ) -> Result<Rc<RefCell<Symbol>>, CompileError> {
+        decl: &Decl,
+        owner: Option<FuncId>,
+    ) -> Result<SymbolId, CompileError> {
         if self
             .symbol_table
             .find_symbol_in_current_scope(&decl.name)
             .is_some()
         {
             return Err(CompileError::Redecl {
-                name: decl.name,
+                name: decl.name.to_string(),
                 span: decl.span,
             });
         }
@@ -140,16 +139,18 @@ impl<'a> Ast<'a> {
         let symbol = Symbol::new(
             &decl.name,
             SymbolKind::Var,
-            decl.ty,
+            decl.ty.clone(),
             owner,
-            decl.init,
+            decl.init.clone(),
             is_defined,
         );
         Ok(self.symbol_table.insert_symbol(&decl.name, symbol))
     }
 
-    fn find_var(&self, name: &str) -> Option<Rc<RefCell<Symbol>>> {
-        self.symbol_table.find_symbol(name)
+    fn find_var(&self, name: &str) -> Option<SymbolId> {
+        self.symbol_table
+            .find_symbol_id(name)
+            .filter(|&symbol_id| self.symbol_table.get_symbol(symbol_id).is_var())
     }
 
     fn register_tag(
@@ -303,10 +304,9 @@ impl<'a> Ast<'a> {
     }
 
     fn peek_punct(&mut self, sym: &str) -> bool {
-        match self.get_token() {
-            Some(token) => matches!(&token.kind, TokenKind::Punct(s) if s == sym),
-            _ => false,
-        }
+        self.get_token()
+            .map(|token| matches!(&token.kind, TokenKind::Punct(s) if s == sym))
+            .unwrap_or(false)
     }
 
     fn at_eof(&mut self) -> bool {

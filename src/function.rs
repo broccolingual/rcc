@@ -1,25 +1,29 @@
 use crate::node::Node;
-use crate::symbol::Symbol;
+use crate::symbol::SymbolId;
 use crate::types::Type;
 use core::fmt;
-use std::cell::RefCell;
-use std::rc::Rc;
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub(crate) struct FuncId(pub usize);
 
 #[derive(PartialEq, Eq)]
 pub(crate) struct LocalVar {
-    pub(crate) symbol: Rc<RefCell<Symbol>>, // symbolのインデックス
-    pub(crate) offset: usize,               // スタック上のオフセット
+    pub(crate) symbol_id: SymbolId, // symbolのインデックス
+    pub(crate) offset: usize,       // スタック上のオフセット
 }
 
 impl fmt::Debug for LocalVar {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?} (@{})", self.symbol.borrow().ty, self.offset)
+        write!(f, "ID: {:?} (@{})", self.symbol_id, self.offset)
     }
 }
 
 impl LocalVar {
-    pub(crate) fn new(symbol: Rc<RefCell<Symbol>>) -> Self {
-        Self { symbol, offset: 0 }
+    pub(crate) fn new(symbol_id: SymbolId) -> Self {
+        Self {
+            symbol_id,
+            offset: 0,
+        }
     }
 }
 
@@ -63,15 +67,10 @@ impl Func {
         }
     }
 
-    pub(crate) fn find_local_var(&self, symbol: Rc<RefCell<Symbol>>) -> Option<&LocalVar> {
-        for param in &self.params {
-            if Rc::ptr_eq(&param.symbol, &symbol) {
-                return Some(param);
-            }
-        }
-        self.locals
+    pub(crate) fn find_local_var(&self, symbol_id: SymbolId) -> Option<&LocalVar> {
+        self.params
             .iter()
-            .find(|&local| Rc::ptr_eq(&local.symbol, &symbol))
-            .map(|v| v as _)
+            .chain(self.locals.iter())
+            .find(|v| v.symbol_id == symbol_id)
     }
 }

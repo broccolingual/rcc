@@ -5,11 +5,9 @@ pub(crate) use kind::*;
 pub(crate) use operator::*;
 
 use crate::errors::CompileError;
-use crate::symbol::Symbol;
+use crate::symbol::SymbolId;
 use crate::types::{Type, TypeAttr, TypeKind};
 use core::fmt;
-use std::cell::RefCell;
-use std::rc::Rc;
 
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct Node {
@@ -24,8 +22,8 @@ impl fmt::Debug for Node {
             NodeKind::Number { val } => {
                 write!(f, ", val: {}", val)?;
             }
-            NodeKind::Var { symbol } => {
-                write!(f, ", symbol: {:?}", symbol.borrow())?;
+            NodeKind::Var { symbol_id } => {
+                write!(f, ", symbol_id: {:?}", symbol_id)?;
             }
             NodeKind::Ident { name } => {
                 write!(f, ", ident: {}", name)?;
@@ -423,10 +421,9 @@ impl Node {
         }
     }
 
-    pub(crate) fn new_var(symbol: Rc<RefCell<Symbol>>, span: (usize, usize)) -> Self {
-        let ty = symbol.borrow().ty.clone();
+    pub(crate) fn new_var(symbol_id: SymbolId, ty: Type, span: (usize, usize)) -> Self {
         Node {
-            kind: NodeKind::Var { symbol },
+            kind: NodeKind::Var { symbol_id },
             ty,
             span,
         }
