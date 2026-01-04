@@ -1,4 +1,4 @@
-// 構造体ポインタを使った座標の操作
+// Coordinate manipulation using struct pointers
 struct Point {
     int x;
     int y;

@@ -182,11 +182,10 @@ impl Node {
                 let lhs_ty = lhs.ty;
                 let rhs_ty = rhs.ty;
 
-                if lhs_ty.is_scalar() && rhs_ty.is_scalar()
-                    || (lhs_ty.is_ptr() || lhs_ty.is_array())
-                        && (rhs_ty.is_ptr() || rhs_ty.is_array())
+                if (lhs_ty.is_scalar() || lhs_ty.is_ptr() || lhs_ty.is_array())
+                    && (rhs_ty.is_scalar() || rhs_ty.is_ptr() || rhs_ty.is_array())
                 {
-                    // 両方ともスカラー型の場合、結果型はint型とする
+                    // 結果はint型
                     TypeRef::register(TypeKind::Int, TypeAttr::default(), None)
                 } else {
                     return Err(CompileError::InvalidExpr {

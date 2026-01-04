@@ -251,14 +251,22 @@ impl Ast<'_> {
                     None,
                 );
                 if !struct_name.is_empty() {
-                    if self.find_tag_in_current_scope(&struct_name).is_some() {
-                        return Err(CompileError::InvalidDecl {
-                            msg: format!("構造体タグ '{}' はすでに定義されています", struct_name),
-                            span,
-                        });
+                    if let Some(existing_ty) = self.find_tag_in_current_scope(&struct_name) {
+                        if !existing_ty.is_incomplete() {
+                            return Err(CompileError::InvalidDecl {
+                                msg: format!(
+                                    "構造体タグ '{}' はすでに定義されています",
+                                    struct_name
+                                ),
+                                span,
+                            });
+                        }
+                        // 不完全型の場合は既存のTypeRefを使用
+                        self.register_tag(&struct_name, *existing_ty);
+                    } else {
+                        // 構造体タグを未完成型で登録
+                        self.register_tag(&struct_name, incomplete_ty);
                     }
-                    // 構造体タグを未完成型で登録
-                    self.register_tag(&struct_name, incomplete_ty);
                 }
                 // メンバをパース
                 let members = self.struct_decl_list()?;

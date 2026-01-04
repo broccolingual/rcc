@@ -1,4 +1,4 @@
-// 階乗計算（再帰）
+// Factorial calculation (recursive)
 int factorial(int n) {
     if (n <= 1) {
         return 1;

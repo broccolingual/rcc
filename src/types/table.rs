@@ -42,12 +42,12 @@ impl TypeTable {
 
     pub(crate) fn register(&mut self, data: TypeData) -> TypeRef {
         // 既に登録されている型があればそれを返す
-        if let Some(pos) = self.types.iter().position(|existing| *existing == data) {
+        if let Some(pos) = self.types.iter().position(|existing| existing == &data) {
             return TypeRef(pos);
         }
 
         let id = TypeRef(self.types.len());
-        self.types.push(data.clone());
+        self.types.push(data);
         id
     }
 
@@ -60,6 +60,6 @@ impl TypeTable {
     }
 
     pub(crate) fn set(&mut self, id: TypeRef, data: TypeData) {
-        self.types[id.0] = data.clone();
+        self.types[id.0] = data;
     }
 }

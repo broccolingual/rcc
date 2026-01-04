@@ -1,4 +1,4 @@
-// ポインタを使って配列の要素を交換
+// Swap array elements using pointers
 void swap(int *a, int *b) {
     int temp;
     temp = *a;

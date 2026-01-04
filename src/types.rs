@@ -154,11 +154,11 @@ impl fmt::Debug for MemberDecl {
     }
 }
 
-// offset と span を比較から除外
+// offset を比較から除外
 impl PartialEq for MemberDecl {
     fn eq(&self, other: &Self) -> bool {
         self.name == other.name && self.ty == other.ty
-        // offset と span は無視
+        // offset は無視
     }
 }
 

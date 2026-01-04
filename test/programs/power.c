@@ -1,4 +1,4 @@
-// べき乗計算
+// Power calculation
 int power(int base, int exp) {
     int result;
     int i;
