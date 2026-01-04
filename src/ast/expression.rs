@@ -732,20 +732,13 @@ impl Ast<'_> {
             && let NodeKind::Ident { name } = &n.kind
         {
             // 変数参照
-            if let Some(symbol) = self.find_symbol(name)
-                && symbol.is_var()
-            {
+            if let Some(symbol_id) = self.find_symbol_id(name) {
                 // 変数ノードを作成
-                let symbol_id =
-                    self.find_symbol_id(name)
-                        .ok_or_else(|| CompileError::InternalError {
-                            msg: format!(
-                                "シンボルテーブルからのシンボルIDの取得に失敗しました: {}",
-                                name
-                            ),
-                        })?;
-                let node = Node::new_var(symbol_id, symbol.ty, n.span);
-                return Ok(Some(Box::new(node)));
+                let symbol = self.get_symbol(symbol_id);
+                if symbol.is_var() {
+                    let node = Node::new_var(symbol_id, symbol.ty, n.span);
+                    return Ok(Some(Box::new(node)));
+                }
             }
             Err(CompileError::UndefinedIdent {
                 name: name.clone(),
