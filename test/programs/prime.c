@@ -1,4 +1,4 @@
-// 数値が素数かどうか判定（再帰）
+// Check if a number is prime (recursive)
 int is_prime_helper(int n, int divisor) {
     if (divisor * divisor > n) {
         return 1;

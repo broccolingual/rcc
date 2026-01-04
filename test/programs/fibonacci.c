@@ -1,4 +1,4 @@
-// フィボナッチ数列のn番目を求める（再帰）
+// Find n-th Fibonacci number (recursive)
 int fibonacci(int n) {
     if (n <= 1) {
         return n;

@@ -14,6 +14,7 @@ mod x86;
 
 use crate::ast::Ast;
 use crate::lexer::Lexer;
+use crate::types::get_type_table;
 use crate::x86::Generator;
 
 #[derive(Parser, Debug)]
@@ -69,6 +70,11 @@ fn main() {
     }
 
     if args.debug {
+        println!("=== Types ===");
+        let type_table = get_type_table().read().unwrap();
+        for (i, ty) in type_table.get_all_types().iter().enumerate() {
+            println!("TypeRef({}): {:?}", i, ty);
+        }
         println!("=== Symbols ===");
         println!("{:#?}", ast.get_symbols());
         println!("=== Functions ===");

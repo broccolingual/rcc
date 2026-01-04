@@ -1,4 +1,4 @@
-// バブルソート
+// Bubble sort
 void bubble_sort(int *arr, int n) {
     int i;
     int j;
@@ -24,5 +24,5 @@ int main() {
     
     bubble_sort(arr, 5);
     
-    return arr[2]; // ソート後の中央値: 5
+    return arr[2]; // Median after sorting: 5
 }

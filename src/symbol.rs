@@ -4,10 +4,10 @@ pub(crate) use table::*;
 
 use crate::function::FuncId;
 use crate::node::Node;
-use crate::types::Type;
+use crate::types::TypeRef;
 use core::fmt;
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) struct SymbolId(pub usize);
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -21,7 +21,7 @@ pub(crate) enum SymbolKind {
 pub(crate) struct Symbol {
     pub(crate) name: String,
     kind: SymbolKind,
-    pub(crate) ty: Type,
+    pub(crate) ty: TypeRef,
     owner: Option<FuncId>,
     pub(crate) init: Vec<Node>,
     pub(crate) is_defined: bool, // 定義されているかどうか
@@ -37,7 +37,7 @@ impl Symbol {
     pub(crate) fn new(
         name: &str,
         kind: SymbolKind,
-        ty: Type,
+        ty: TypeRef,
         owner: Option<FuncId>,
         init: Vec<Node>,
         is_defined: bool,
@@ -52,7 +52,7 @@ impl Symbol {
         }
     }
 
-    pub(crate) fn new_func(name: &str, ty: Type, is_defined: bool) -> Self {
+    pub(crate) fn new_func(name: &str, ty: TypeRef, is_defined: bool) -> Self {
         Self {
             name: name.to_string(),
             kind: SymbolKind::Func,

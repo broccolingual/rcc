@@ -1,6 +1,6 @@
+use super::Generator;
 use crate::errors::CompileError;
 use crate::node::{Node, NodeKind};
-use crate::x86::Generator;
 
 impl Generator<'_> {
     // 文のコード生成

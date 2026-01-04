@@ -1,5 +1,4 @@
-use crate::node::Node;
-use crate::node::operator::{BinaryOp, UnaryOp};
+use super::{BinaryOp, Node, UnaryOp};
 use crate::symbol::SymbolId;
 
 #[derive(PartialEq, Eq, Clone, Debug)]

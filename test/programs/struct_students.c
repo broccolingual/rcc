@@ -1,4 +1,4 @@
-// 構造体配列を使った成績管理システム
+// Grade management system using struct array
 struct Student {
     int id;
     int score;
@@ -45,5 +45,5 @@ int main() {
     
     sort_students(students, 5);
     
-    return students[2].score; // ソート後の中央値: 88
+    return students[2].score; // Median after sorting: 88
 }

@@ -1,9 +1,8 @@
-use crate::ast::Ast;
+use super::Ast;
 use crate::errors::CompileError;
 use crate::node::{BinaryOp, Node, NodeKind, UnaryOp};
 use crate::types::TypeKind;
 use core::str::FromStr;
-use std::ops::Deref;
 
 impl Ast<'_> {
     // const_expr ::= cond_expr
@@ -156,7 +155,7 @@ impl Ast<'_> {
                     msg: format!("代入演算子 '{}' の左辺に式がありません", assign_op_str),
                     span,
                 })?;
-                if lhs.ty.attr.is_const {
+                if lhs.ty.attr().is_const {
                     return Err(CompileError::ReadOnlyLvalue {
                         name: format!("代入演算子 '{}' の左辺値", assign_op_str),
                         span: lhs.span,
@@ -736,7 +735,7 @@ impl Ast<'_> {
             if let Some(symbol_id) = self.find_var(name) {
                 // 変数ノードを作成
                 let symbol = self.symbol_table.get_symbol(symbol_id);
-                let node = Node::new_var(symbol_id, symbol.ty.clone(), n.span);
+                let node = Node::new_var(symbol_id, symbol.ty, n.span);
                 return Ok(Some(Box::new(node)));
             }
             Err(CompileError::UndefinedIdent {
@@ -763,7 +762,6 @@ impl Ast<'_> {
                 span,
             });
         }
-
         let member_decl =
             obj.ty
                 .find_struct_member(member_name)
@@ -783,13 +781,13 @@ impl Ast<'_> {
                 ),
             })?;
 
-        let member_ty = member_decl.ty.clone();
+        let member_ty = member_decl.ty;
 
         Ok(Box::new(Node::new_member(
             obj,
             member_name,
             member_offset,
-            &member_ty,
+            member_ty,
             span,
         )))
     }
@@ -842,14 +840,9 @@ impl Ast<'_> {
                 if let Some(symbol_id) = self.symbol_table.find_symbol_id(func_name) {
                     let symbol = self.symbol_table.get_symbol(symbol_id);
                     if symbol.is_func()
-                        && let TypeKind::Func { return_ty, .. } = &symbol.ty.kind
+                        && let TypeKind::Func { return_ty, .. } = &symbol.ty.kind()
                     {
-                        node = Some(Box::new(Node::new_call(
-                            func_name,
-                            args,
-                            return_ty.deref().clone(),
-                            span,
-                        )));
+                        node = Some(Box::new(Node::new_call(func_name, args, *return_ty, span)));
                     } else {
                         return Err(CompileError::InvalidExpr {
                             msg: format!("'{}' は関数ではありません", func_name),

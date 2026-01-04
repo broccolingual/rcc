@@ -6,7 +6,7 @@ use crate::errors::CompileError;
 use crate::function::{Func, FuncId, LocalVar};
 use crate::symbol::{ScopedTable, Symbol, SymbolId, SymbolKind};
 use crate::token::{Token, TokenKind};
-use crate::types::{AlignUp, Decl, Type};
+use crate::types::{AlignUp, Decl, TypeRef};
 use std::collections::HashMap;
 
 pub(crate) struct Ast<'a> {
@@ -47,7 +47,7 @@ impl<'a> Ast<'a> {
     }
 
     // 関数シンボルを登録
-    fn register_func_symbol(&mut self, name: &str, ty: Type, is_defined: bool) -> SymbolId {
+    fn register_func_symbol(&mut self, name: &str, ty: TypeRef, is_defined: bool) -> SymbolId {
         let symbol = Symbol::new_func(name, ty, is_defined);
         self.symbol_table.insert_symbol(name, symbol)
     }
@@ -139,7 +139,7 @@ impl<'a> Ast<'a> {
         let symbol = Symbol::new(
             &decl.name,
             SymbolKind::Var,
-            decl.ty.clone(),
+            decl.ty,
             owner,
             decl.init.clone(),
             is_defined,
@@ -153,24 +153,16 @@ impl<'a> Ast<'a> {
             .filter(|&symbol_id| self.symbol_table.get_symbol(symbol_id).is_var())
     }
 
-    fn register_tag(
-        &mut self,
-        name: &str,
-        ty: Type,
-        span: (usize, usize),
-    ) -> Result<(), CompileError> {
-        if self.symbol_table.find_tag_in_current_scope(name).is_some() {
-            return Err(CompileError::Redecl {
-                name: name.to_string(),
-                span,
-            });
-        }
+    fn register_tag(&mut self, name: &str, ty: TypeRef) {
         self.symbol_table.insert_tag(name, ty);
-        Ok(())
     }
 
-    fn find_tag(&self, name: &str) -> Option<&Type> {
+    fn find_tag(&self, name: &str) -> Option<&TypeRef> {
         self.symbol_table.find_tag(name)
+    }
+
+    fn find_tag_in_current_scope(&self, name: &str) -> Option<&TypeRef> {
+        self.symbol_table.find_tag_in_current_scope(name)
     }
 
     fn next_label(&mut self) -> usize {

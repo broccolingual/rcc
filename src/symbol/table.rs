@@ -1,11 +1,11 @@
-use crate::symbol::{Symbol, SymbolId};
-use crate::types::Type;
+use super::{Symbol, SymbolId};
+use crate::types::TypeRef;
 use std::collections::HashMap;
 
 #[derive(Debug)]
 struct Scope {
     names: HashMap<String, SymbolId>, // name -> symbol_id
-    tags: HashMap<String, Type>,      // name -> type
+    tags: HashMap<String, TypeRef>,   // name -> type
 }
 
 #[derive(Debug)]
@@ -55,7 +55,7 @@ impl ScopedTable {
             .find_map(|scope| scope.names.get(name).copied())
     }
 
-    pub(crate) fn find_tag(&self, name: &str) -> Option<&Type> {
+    pub(crate) fn find_tag(&self, name: &str) -> Option<&TypeRef> {
         self.scopes
             .iter()
             .rev()
@@ -71,7 +71,7 @@ impl ScopedTable {
         })
     }
 
-    pub(crate) fn find_tag_in_current_scope(&self, name: &str) -> Option<&Type> {
+    pub(crate) fn find_tag_in_current_scope(&self, name: &str) -> Option<&TypeRef> {
         self.scopes.last().and_then(|scope| scope.tags.get(name))
     }
 
@@ -84,7 +84,7 @@ impl ScopedTable {
         symbol_id
     }
 
-    pub(crate) fn insert_tag(&mut self, name: &str, ty: Type) {
+    pub(crate) fn insert_tag(&mut self, name: &str, ty: TypeRef) {
         if let Some(scope) = self.scopes.last_mut() {
             scope.tags.insert(name.to_string(), ty);
         }

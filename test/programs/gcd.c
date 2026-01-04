@@ -1,4 +1,4 @@
-// ユークリッドの互除法で最大公約数を求める
+// Find greatest common divisor using Euclidean algorithm
 int gcd(int a, int b) {
     while (b != 0) {
         int temp;

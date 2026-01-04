@@ -1,4 +1,4 @@
-// 文字列の長さを求める（libc関数のextern宣言）
+// Calculate string length (extern declaration for libc function)
 extern int strlen(char *s);
 
 int main() {

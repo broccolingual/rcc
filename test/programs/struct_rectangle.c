@@ -1,4 +1,4 @@
-// 構造体ポインタを使った矩形の面積計算
+// Rectangle area calculation using struct pointers
 struct Rectangle {
     int x;
     int y;
@@ -10,7 +10,7 @@ int calc_area(struct Rectangle *rect) {
     return rect->width * rect->height;
 }
 
-// 2つの矩形が重なっているか判定
+// Check if two rectangles overlap
 int is_overlapping(struct Rectangle *r1, struct Rectangle *r2) {
     int r1_right;
     int r1_bottom;

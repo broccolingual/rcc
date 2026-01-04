@@ -1,8 +1,7 @@
+use super::{ARG_REGS, Generator};
 use crate::errors::CompileError;
 use crate::node::{BinaryOp, Node, NodeKind, UnaryOp};
-use crate::types::Type;
-use crate::x86::Generator;
-use crate::x86::register::ARG_REGS;
+use crate::types::TypeRef;
 
 impl Generator<'_> {
     // 式のコード生成
@@ -126,7 +125,7 @@ impl Generator<'_> {
         Ok(())
     }
 
-    fn gen_unary(&mut self, op: &UnaryOp, expr: &Node, ty: &Type) -> Result<(), CompileError> {
+    fn gen_unary(&mut self, op: &UnaryOp, expr: &Node, ty: &TypeRef) -> Result<(), CompileError> {
         match op {
             UnaryOp::BitNot => {
                 self.gen_expr(expr)?;

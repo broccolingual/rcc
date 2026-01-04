@@ -1,4 +1,4 @@
-// 二分探索（ソート済み配列から値を探す）
+// Binary search (find value in sorted array)
 int binary_search(int *arr, int n, int target) {
     int left;
     int right;
@@ -25,5 +25,5 @@ int binary_search(int *arr, int n, int target) {
 int main() {
     int arr[7] = {1, 3, 5, 7, 9, 11, 13};
     
-    return binary_search(arr, 7, 9); // インデックス4
+    return binary_search(arr, 7, 9); // Index 4
 }
