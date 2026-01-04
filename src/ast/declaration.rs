@@ -240,81 +240,115 @@ impl Ast<'_> {
             } else {
                 String::new()
             };
-            if self.consume_punct("{").is_some() {
-                // メンバをパースする前に未完成型を登録
-                let incomplete_ty = TypeRef::register(
-                    TypeKind::Struct {
-                        name: struct_name.clone(),
-                        members: Vec::new(),
-                    },
-                    TypeAttr::default(),
-                    None,
-                );
-                if !struct_name.is_empty() {
-                    if let Some(existing_ty) = self.find_tag_in_current_scope(&struct_name) {
-                        if !existing_ty.is_incomplete() {
-                            return Err(CompileError::InvalidDecl {
-                                msg: format!(
-                                    "構造体タグ '{}' はすでに定義されています",
-                                    struct_name
-                                ),
-                                span,
-                            });
-                        }
-                        // 不完全型の場合は既存のTypeRefを使用
-                        self.register_tag(&struct_name, *existing_ty);
-                    } else {
-                        // 構造体タグを未完成型で登録
-                        self.register_tag(&struct_name, incomplete_ty);
-                    }
-                }
-                // メンバをパース
-                let members = self.struct_decl_list()?;
-                self.expect_punct("}")?;
-                // 構造体型を更新
-                let struct_ty = if incomplete_ty.is_incomplete() {
-                    incomplete_ty.complete_struct(members)
-                } else {
-                    TypeRef::register(
-                        TypeKind::Struct {
-                            name: struct_name.clone(),
-                            members,
-                        },
-                        TypeAttr::default(),
-                        None,
-                    )
-                };
-                // 構造体タグを更新
-                if !struct_name.is_empty() {
-                    self.register_tag(&struct_name, struct_ty);
-                }
-                return Ok(Some(struct_ty.kind()));
-            } else if !struct_name.is_empty() {
-                // 既存の構造体タグを検索
-                if let Some(ty) = self.find_tag(&struct_name) {
-                    return Ok(Some(ty.kind()));
-                } else {
-                    // 前方宣言として未完成型を登録
-                    let incomplete_ty = TypeRef::register(
-                        TypeKind::Struct {
-                            name: struct_name.clone(),
-                            members: Vec::new(),
-                        },
-                        TypeAttr::default(),
-                        None,
-                    );
-                    self.register_tag(&struct_name, incomplete_ty);
-                    return Ok(Some(incomplete_ty.kind()));
-                }
-            } else {
-                let span = self.get_prev_token_span().unwrap_or((0, 0));
+            // 構造体定義: struct ident? { ... }
+            if self.peek_punct("{") {
+                return self.parse_struct_definition(struct_name, span);
+            }
+
+            // 構造体参照または前方宣言: struct ident
+            if !struct_name.is_empty() {
+                return Ok(self.parse_struct_reference(struct_name));
+            }
+
+            // 無名構造体の前方宣言はエラー
+            return Err(CompileError::InvalidDecl {
+                msg: "無名構造体には定義が必要です".to_string(),
+                span: self.get_prev_token_span().unwrap_or((0, 0)),
+            });
+        }
+        Ok(None)
+    }
+
+    // 構造体定義をパース
+    fn parse_struct_definition(
+        &mut self,
+        struct_name: String,
+        span: (usize, usize),
+    ) -> Result<Option<TypeKind>, CompileError> {
+        // メンバをパースする前に未完成型を登録
+        let incomplete_ty = TypeRef::register(
+            TypeKind::Struct {
+                name: struct_name.clone(),
+                members: Vec::new(),
+            },
+            TypeAttr::default(),
+            None,
+        );
+
+        // タグの重複チェックと登録
+        if !struct_name.is_empty() {
+            self.validate_and_register_incomplete_tag(&struct_name, incomplete_ty, span)?;
+        }
+
+        // メンバをパース
+        self.expect_punct("{")?;
+        let members = self.struct_decl_list()?;
+        self.expect_punct("}")?;
+
+        // 構造体型を完成させる
+        let struct_ty = if incomplete_ty.is_incomplete() {
+            incomplete_ty.complete_struct(members)
+        } else {
+            // 構造体が入れ子になっている場合
+            TypeRef::register(
+                TypeKind::Struct {
+                    name: struct_name.clone(),
+                    members,
+                },
+                TypeAttr::default(),
+                None,
+            )
+        };
+
+        // 構造体タグを更新
+        if !struct_name.is_empty() {
+            self.register_tag(&struct_name, struct_ty);
+        }
+
+        Ok(Some(struct_ty.kind()))
+    }
+
+    // 構造体参照または前方宣言をパース
+    fn parse_struct_reference(&mut self, struct_name: String) -> Option<TypeKind> {
+        // 既存の構造体タグを検索
+        if let Some(ty) = self.find_tag(&struct_name) {
+            return Some(ty.kind());
+        }
+
+        // 前方宣言として未完成型を登録
+        let incomplete_ty = TypeRef::register(
+            TypeKind::Struct {
+                name: struct_name.clone(),
+                members: Vec::new(),
+            },
+            TypeAttr::default(),
+            None,
+        );
+        self.register_tag(&struct_name, incomplete_ty);
+        Some(incomplete_ty.kind())
+    }
+
+    // タグの重複チェックと未完成型の登録
+    fn validate_and_register_incomplete_tag(
+        &mut self,
+        tag_name: &str,
+        incomplete_ty: TypeRef,
+        span: (usize, usize),
+    ) -> Result<(), CompileError> {
+        if let Some(existing_ty) = self.find_tag_in_current_scope(tag_name) {
+            if !existing_ty.is_incomplete() {
                 return Err(CompileError::InvalidDecl {
-                    msg: "無名構造体には定義が必要です".to_string(),
+                    msg: format!("構造体タグ '{}' はすでに定義されています", tag_name),
                     span,
                 });
             }
+            // 不完全型の場合は既存のTypeRefを使用
+            self.register_tag(tag_name, *existing_ty);
+        } else {
+            // 構造体タグを未完成型で登録
+            self.register_tag(tag_name, incomplete_ty);
         }
-        Ok(None)
+        Ok(())
     }
 
     // struct_decl_list ::= struct_decl+
