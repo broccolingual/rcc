@@ -59,12 +59,8 @@ impl Default for TypeData {
 }
 
 impl TypeData {
-    fn from_kind(
-        mut kind: TypeKind,
-        attr: TypeAttr,
-        storage_class: Option<StorageClassKind>,
-    ) -> Self {
-        let (size, align) = match &mut kind {
+    fn from_kind(kind: TypeKind, attr: TypeAttr, storage_class: Option<StorageClassKind>) -> Self {
+        let (size, align) = match &kind {
             TypeKind::Void => (0, 0),
             TypeKind::Char => (1, 1),
             TypeKind::Short => (2, 2),
@@ -78,7 +74,7 @@ impl TypeData {
                 size: array_size,
             } => {
                 let base_data = base.get();
-                (base_data.size * *array_size, base_data.align)
+                (base_data.size * array_size, base_data.align)
             }
             TypeKind::Struct { members, .. } => {
                 let mut offset = 0;

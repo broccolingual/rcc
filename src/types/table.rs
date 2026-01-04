@@ -1,11 +1,11 @@
 use super::{TypeAttr, TypeData, TypeKind, TypeRef};
 use std::collections::HashMap;
-use std::sync::{Mutex, OnceLock};
+use std::sync::{OnceLock, RwLock};
 
-static TYPE_TABLE: OnceLock<Mutex<TypeTable>> = OnceLock::new();
+static TYPE_TABLE: OnceLock<RwLock<TypeTable>> = OnceLock::new();
 
-pub(crate) fn get_type_table() -> &'static Mutex<TypeTable> {
-    TYPE_TABLE.get_or_init(|| Mutex::new(TypeTable::new()))
+pub(crate) fn get_type_table() -> &'static RwLock<TypeTable> {
+    TYPE_TABLE.get_or_init(|| RwLock::new(TypeTable::new()))
 }
 
 pub(crate) struct TypeTable {

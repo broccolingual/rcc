@@ -71,7 +71,7 @@ fn main() {
 
     if args.debug {
         println!("=== Types ===");
-        let type_table = get_type_table().lock().unwrap();
+        let type_table = get_type_table().read().unwrap();
         for (i, ty) in type_table.get_all_types().iter().enumerate() {
             println!("TypeRef({}): {:?}", i, ty);
         }

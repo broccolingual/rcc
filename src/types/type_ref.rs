@@ -14,38 +14,38 @@ impl TypeRef {
     ) -> Self {
         let data = TypeData::from_kind(kind, attr, storage_class);
         let table = get_type_table();
-        let mut table = table.lock().unwrap();
+        let mut table = table.write().unwrap();
         table.register(data)
     }
 
     pub(crate) fn get(&self) -> TypeData {
         let table = get_type_table();
-        let table = table.lock().unwrap();
+        let table = table.read().unwrap();
         table.get(*self).clone()
     }
 
     pub(crate) fn kind(&self) -> TypeKind {
-        let table = get_type_table().lock().unwrap();
+        let table = get_type_table().read().unwrap();
         table.get(*self).kind.clone()
     }
 
     pub(crate) fn attr(&self) -> TypeAttr {
-        let table = get_type_table().lock().unwrap();
+        let table = get_type_table().read().unwrap();
         table.get(*self).attr
     }
 
     pub(crate) fn storage_class(&self) -> Option<StorageClassKind> {
-        let table = get_type_table().lock().unwrap();
+        let table = get_type_table().read().unwrap();
         table.get(*self).storage_class
     }
 
     pub(crate) fn size_of(&self) -> usize {
-        let table = get_type_table().lock().unwrap();
+        let table = get_type_table().read().unwrap();
         table.get(*self).size
     }
 
     pub(crate) fn align_of(&self) -> usize {
-        let table = get_type_table().lock().unwrap();
+        let table = get_type_table().read().unwrap();
         table.get(*self).align
     }
 
