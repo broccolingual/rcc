@@ -485,7 +485,6 @@ impl Ast<'_> {
             self.expect_punct("]")?;
             let inner_ty = self.parse_postfix_declarators(base_ty)?;
             let elem_ty = TypeRef::register(inner_ty.kind(), inner_ty.attr(), None); // 要素型のストレージクラスはなし
-            // TODO: array_sizeが0の場合の未完成型として登録
             Ok(TypeRef::register(
                 TypeKind::Array {
                     base: elem_ty,
