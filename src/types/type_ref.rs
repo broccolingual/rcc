@@ -3,7 +3,7 @@ use super::{
     TypeSpecQual, get_type_table,
 };
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash, Default)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub(crate) struct TypeRef(pub usize);
 
 impl TypeRef {
@@ -22,6 +22,12 @@ impl TypeRef {
         let table = get_type_table();
         let table = table.read().unwrap();
         table.get(*self).clone()
+    }
+
+    fn set(&self, data: TypeData) {
+        let table = get_type_table();
+        let mut table = table.write().unwrap();
+        table.set(*self, data);
     }
 
     pub(crate) fn kind(&self) -> TypeKind {
@@ -47,6 +53,10 @@ impl TypeRef {
     pub(crate) fn align_of(&self) -> usize {
         let table = get_type_table().read().unwrap();
         table.get(*self).align
+    }
+
+    pub(crate) fn is_incomplete(&self) -> bool {
+        self.kind().is_incomplete()
     }
 
     pub(crate) fn is_struct(&self) -> bool {
@@ -157,6 +167,35 @@ impl TypeRef {
             Some(TypeRef::register(ty.kind, ty.attr, ty.storage_class))
         } else {
             None
+        }
+    }
+
+    pub(crate) fn complete_array(&self, size: usize) -> TypeRef {
+        if let TypeKind::Array { base, .. } = self.kind() {
+            let data = TypeData::from_kind(
+                TypeKind::Array { base, size },
+                self.attr(),
+                self.storage_class(),
+            );
+            self.set(data);
+            *self
+        } else {
+            *self
+        }
+    }
+
+    pub(crate) fn complete_struct(&self, members: Vec<MemberDecl>) -> TypeRef {
+        let kind = self.kind();
+        if let TypeKind::Struct { name, .. } = kind {
+            let data = TypeData::from_kind(
+                TypeKind::Struct { name, members },
+                self.attr(),
+                self.storage_class(),
+            );
+            self.set(data);
+            *self
+        } else {
+            *self
         }
     }
 }

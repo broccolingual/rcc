@@ -34,7 +34,7 @@ impl FuncKind {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum StorageClassKind {
     Auto,
     Extern,

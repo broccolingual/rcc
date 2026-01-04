@@ -7,7 +7,7 @@ use crate::node::Node;
 use crate::types::TypeRef;
 use core::fmt;
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) struct SymbolId(pub usize);
 
 #[derive(Clone, Copy, PartialEq, Eq)]

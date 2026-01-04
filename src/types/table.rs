@@ -1,5 +1,4 @@
 use super::{TypeAttr, TypeData, TypeKind, TypeRef};
-use std::collections::HashMap;
 use std::sync::{OnceLock, RwLock};
 
 static TYPE_TABLE: OnceLock<RwLock<TypeTable>> = OnceLock::new();
@@ -10,15 +9,11 @@ pub(crate) fn get_type_table() -> &'static RwLock<TypeTable> {
 
 pub(crate) struct TypeTable {
     types: Vec<TypeData>,
-    type_map: HashMap<TypeData, TypeRef>,
 }
 
 impl TypeTable {
     fn new() -> Self {
-        let mut table = TypeTable {
-            types: Vec::new(),
-            type_map: HashMap::new(),
-        };
+        let mut table = TypeTable { types: Vec::new() };
 
         // 基本型を事前登録
         table.register_primitive(TypeKind::Void, 0, 0);
@@ -42,19 +37,17 @@ impl TypeTable {
         };
         let id = TypeRef(self.types.len());
         self.types.push(data.clone());
-        self.type_map.insert(data, id);
         id
     }
 
     pub(crate) fn register(&mut self, data: TypeData) -> TypeRef {
-        // 既に登録されている型か確認
-        if let Some(&id) = self.type_map.get(&data) {
-            return id;
+        // 既に登録されている型があればそれを返す
+        if let Some(pos) = self.types.iter().position(|existing| *existing == data) {
+            return TypeRef(pos);
         }
 
         let id = TypeRef(self.types.len());
         self.types.push(data.clone());
-        self.type_map.insert(data, id);
         id
     }
 
@@ -64,5 +57,9 @@ impl TypeTable {
 
     pub(crate) fn get_all_types(&self) -> &Vec<TypeData> {
         &self.types
+    }
+
+    pub(crate) fn set(&mut self, id: TypeRef, data: TypeData) {
+        self.types[id.0] = data.clone();
     }
 }

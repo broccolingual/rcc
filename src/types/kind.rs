@@ -1,7 +1,7 @@
 use super::{Decl, MemberDecl, TypeRef};
 use core::fmt;
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq)]
 pub(crate) enum TypeKind {
     Void,
     Char,
@@ -95,5 +95,15 @@ impl TypeKind {
             TypeKind::Float,
             TypeKind::Double,
         ]
+    }
+
+    // 型が未完成型かどうかを判定
+    pub(crate) fn is_incomplete(&self) -> bool {
+        match self {
+            TypeKind::Void => true,                                 // void は常に未完成型
+            TypeKind::Array { size, .. } => *size == 0,             // サイズ不明の配列
+            TypeKind::Struct { members, .. } => members.is_empty(), // メンバーが定義されていない構造体
+            _ => false,
+        }
     }
 }

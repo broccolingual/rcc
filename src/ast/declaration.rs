@@ -3,8 +3,8 @@ use crate::errors::CompileError;
 use crate::function::{Func, LocalVar};
 use crate::node::{Node, NodeKind};
 use crate::types::{
-    AlignUp, Decl, DeclSpec, FuncKind, MemberDecl, StorageClassKind, TypeAttr, TypeKind,
-    TypeQualKind, TypeRef, TypeSpecQual,
+    Decl, DeclSpec, FuncKind, MemberDecl, StorageClassKind, TypeAttr, TypeKind, TypeQualKind,
+    TypeRef, TypeSpecQual,
 };
 
 impl Ast<'_> {
@@ -200,17 +200,11 @@ impl Ast<'_> {
             if self.consume_punct("=").is_some() {
                 // TODO: 代入時の型チェック
                 decl.init = self.initializer()?; // initializerを設定
-                if let TypeKind::Array { base, size: 0 } = decl.ty.kind() {
+
+                if decl.ty.is_incomplete() && decl.ty.is_array() {
                     // サイズ不明な配列型の場合、初期化子の要素数でサイズを決定
-                    // TODO: 未完成型を上書き
-                    decl.ty = TypeRef::register(
-                        TypeKind::Array {
-                            base,
-                            size: decl.init.len(),
-                        },
-                        decl.ty.attr(),
-                        decl.ty.storage_class(),
-                    );
+                    let len = decl.init.len();
+                    decl.ty.complete_array(len);
                 }
             }
             return Ok(Some(decl));
@@ -247,27 +241,44 @@ impl Ast<'_> {
                 String::new()
             };
             if self.consume_punct("{").is_some() {
-                let mut members = self.struct_decl_list()?;
-                self.expect_punct("}")?;
-                // メンバの相対オフセットを計算
-                let mut offset = 0;
-                for member in &mut members {
-                    offset = offset.align_up(member.ty.align_of());
-                    member.offset = Some(offset);
-                    offset += member.ty.size_of();
-                }
-                // 構造体型を登録
-                let struct_ty = TypeRef::register(
+                // メンバをパースする前に未完成型を登録
+                let incomplete_ty = TypeRef::register(
                     TypeKind::Struct {
                         name: struct_name.clone(),
-                        members,
+                        members: Vec::new(),
                     },
                     TypeAttr::default(),
                     None,
                 );
-                // 構造体タグを登録
                 if !struct_name.is_empty() {
-                    self.register_tag(&struct_name, struct_ty, span)?;
+                    if self.find_tag_in_current_scope(&struct_name).is_some() {
+                        return Err(CompileError::InvalidDecl {
+                            msg: format!("構造体タグ '{}' はすでに定義されています", struct_name),
+                            span,
+                        });
+                    }
+                    // 構造体タグを未完成型で登録
+                    self.register_tag(&struct_name, incomplete_ty);
+                }
+                // メンバをパース
+                let members = self.struct_decl_list()?;
+                self.expect_punct("}")?;
+                // 構造体型を更新
+                let struct_ty = if incomplete_ty.is_incomplete() {
+                    incomplete_ty.complete_struct(members)
+                } else {
+                    TypeRef::register(
+                        TypeKind::Struct {
+                            name: struct_name.clone(),
+                            members,
+                        },
+                        TypeAttr::default(),
+                        None,
+                    )
+                };
+                // 構造体タグを更新
+                if !struct_name.is_empty() {
+                    self.register_tag(&struct_name, struct_ty);
                 }
                 return Ok(Some(struct_ty.kind()));
             } else if !struct_name.is_empty() {
@@ -275,11 +286,17 @@ impl Ast<'_> {
                 if let Some(ty) = self.find_tag(&struct_name) {
                     return Ok(Some(ty.kind()));
                 } else {
-                    let span = self.get_prev_token_span().unwrap_or((0, 0));
-                    return Err(CompileError::InvalidDecl {
-                        msg: format!("未宣言の構造体タグ: '{}'", struct_name),
-                        span,
-                    });
+                    // 前方宣言として未完成型を登録
+                    let incomplete_ty = TypeRef::register(
+                        TypeKind::Struct {
+                            name: struct_name.clone(),
+                            members: Vec::new(),
+                        },
+                        TypeAttr::default(),
+                        None,
+                    );
+                    self.register_tag(&struct_name, incomplete_ty);
+                    return Ok(Some(incomplete_ty.kind()));
                 }
             } else {
                 let span = self.get_prev_token_span().unwrap_or((0, 0));

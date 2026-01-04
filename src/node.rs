@@ -9,7 +9,7 @@ use crate::symbol::SymbolId;
 use crate::types::{TypeAttr, TypeKind, TypeRef};
 use core::fmt;
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq)]
 pub(crate) struct Node {
     pub(crate) kind: NodeKind,
     pub(crate) ty: TypeRef,

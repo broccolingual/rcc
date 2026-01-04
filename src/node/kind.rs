@@ -1,7 +1,7 @@
 use super::{BinaryOp, Node, UnaryOp};
 use crate::symbol::SymbolId;
 
-#[derive(PartialEq, Eq, Hash, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub(crate) enum NodeKind {
     BinaryOp {
         op: BinaryOp,

@@ -153,24 +153,16 @@ impl<'a> Ast<'a> {
             .filter(|&symbol_id| self.symbol_table.get_symbol(symbol_id).is_var())
     }
 
-    fn register_tag(
-        &mut self,
-        name: &str,
-        ty: TypeRef,
-        span: (usize, usize),
-    ) -> Result<(), CompileError> {
-        if self.symbol_table.find_tag_in_current_scope(name).is_some() {
-            return Err(CompileError::Redecl {
-                name: name.to_string(),
-                span,
-            });
-        }
+    fn register_tag(&mut self, name: &str, ty: TypeRef) {
         self.symbol_table.insert_tag(name, ty);
-        Ok(())
     }
 
     fn find_tag(&self, name: &str) -> Option<&TypeRef> {
         self.symbol_table.find_tag(name)
+    }
+
+    fn find_tag_in_current_scope(&self, name: &str) -> Option<&TypeRef> {
+        self.symbol_table.find_tag_in_current_scope(name)
     }
 
     fn next_label(&mut self) -> usize {

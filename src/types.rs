@@ -11,7 +11,7 @@ pub(crate) use type_ref::*;
 use crate::node::Node;
 use core::fmt;
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
 pub(crate) struct TypeAttr {
     pub(crate) is_const: bool,
     pub(crate) is_volatile: bool,
@@ -34,7 +34,7 @@ impl fmt::Debug for TypeAttr {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq)]
 pub(crate) struct TypeData {
     kind: TypeKind,
     size: usize,
@@ -59,8 +59,12 @@ impl Default for TypeData {
 }
 
 impl TypeData {
-    fn from_kind(kind: TypeKind, attr: TypeAttr, storage_class: Option<StorageClassKind>) -> Self {
-        let (size, align) = match &kind {
+    fn from_kind(
+        mut kind: TypeKind,
+        attr: TypeAttr,
+        storage_class: Option<StorageClassKind>,
+    ) -> Self {
+        let (size, align) = match &mut kind {
             TypeKind::Void => (0, 0),
             TypeKind::Char => (1, 1),
             TypeKind::Short => (2, 2),
@@ -74,7 +78,7 @@ impl TypeData {
                 size: array_size,
             } => {
                 let base_data = base.get();
-                (base_data.size * array_size, base_data.align)
+                (base_data.size * *array_size, base_data.align)
             }
             TypeKind::Struct { members, .. } => {
                 let mut offset = 0;
@@ -82,6 +86,7 @@ impl TypeData {
                 for member in members {
                     let member_align = member.ty.align_of();
                     offset = offset.align_up(member_align);
+                    member.offset = Some(offset);
                     offset += member.ty.size_of();
                     if member_align > max_align {
                         max_align = member_align;
@@ -102,7 +107,7 @@ impl TypeData {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone)]
 pub(crate) struct Decl {
     pub(crate) name: String,
     pub(crate) ty: TypeRef,
@@ -116,12 +121,21 @@ impl fmt::Debug for Decl {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+// init と span を比較から除外
+impl PartialEq for Decl {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name && self.ty == other.ty
+        // init と span は型の同一性に影響しない
+    }
+}
+
+impl Eq for Decl {}
+
+#[derive(Clone)]
 pub(crate) struct MemberDecl {
     pub(crate) name: String,
     pub(crate) ty: TypeRef,
     pub(crate) offset: Option<usize>,
-    pub(crate) span: (usize, usize),
 }
 
 impl From<Decl> for MemberDecl {
@@ -130,7 +144,6 @@ impl From<Decl> for MemberDecl {
             name: decl.name,
             ty: decl.ty,
             offset: None,
-            span: decl.span,
         }
     }
 }
@@ -140,6 +153,16 @@ impl fmt::Debug for MemberDecl {
         write!(f, "{:?} {} @{:?}", self.ty.get(), self.name, self.offset)
     }
 }
+
+// offset と span を比較から除外
+impl PartialEq for MemberDecl {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name && self.ty == other.ty
+        // offset と span は無視
+    }
+}
+
+impl Eq for MemberDecl {}
 
 pub(crate) trait AlignUp {
     fn align_up(&self, align: usize) -> usize;

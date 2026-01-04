@@ -3,7 +3,7 @@ use crate::symbol::SymbolId;
 use crate::types::TypeRef;
 use core::fmt;
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) struct FuncId(pub usize);
 
 #[derive(PartialEq, Eq)]
@@ -27,7 +27,6 @@ impl LocalVar {
     }
 }
 
-#[derive(PartialEq, Eq)]
 pub(crate) struct Func {
     pub(crate) name: String,
     pub(crate) body: Vec<Node>,
