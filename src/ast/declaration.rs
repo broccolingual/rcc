@@ -35,8 +35,7 @@ impl Ast<'_> {
             if let TypeKind::Func { params, return_ty } = &first_decl.ty.kind() {
                 if self.peek_punct("{") {
                     // プロトタイプ宣言を確認
-                    if let Some(symbol_id) = self.symbol_table.find_symbol_id(&first_decl.name) {
-                        let symbol = self.symbol_table.get_symbol_mut(symbol_id);
+                    if let Some(symbol) = self.find_symbol_mut(&first_decl.name) {
                         // 関数シンボルが既に存在する場合
                         if symbol.is_func() {
                             if symbol.is_defined {
@@ -311,8 +310,8 @@ impl Ast<'_> {
     // 構造体参照または前方宣言をパース
     fn parse_struct_reference(&mut self, struct_name: String) -> Option<TypeKind> {
         // 既存の構造体タグを検索
-        if let Some(ty) = self.find_tag(&struct_name) {
-            return Some(ty.kind());
+        if let Some(tag) = self.find_tag(&struct_name) {
+            return Some(tag.ty.kind());
         }
 
         // 前方宣言として未完成型を登録
@@ -335,15 +334,15 @@ impl Ast<'_> {
         incomplete_ty: TypeRef,
         span: (usize, usize),
     ) -> Result<(), CompileError> {
-        if let Some(existing_ty) = self.find_tag_in_current_scope(tag_name) {
-            if !existing_ty.is_incomplete() {
+        if let Some(existing_tag) = self.find_tag_in_current_scope(tag_name) {
+            if !existing_tag.ty.is_incomplete() {
                 return Err(CompileError::InvalidDecl {
                     msg: format!("構造体タグ '{}' はすでに定義されています", tag_name),
                     span,
                 });
             }
             // 不完全型の場合は既存のTypeRefを使用
-            self.register_tag(tag_name, *existing_ty);
+            self.register_tag(tag_name, existing_tag.ty);
         } else {
             // 構造体タグを未完成型で登録
             self.register_tag(tag_name, incomplete_ty);

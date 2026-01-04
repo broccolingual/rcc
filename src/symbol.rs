@@ -8,6 +8,30 @@ use crate::types::TypeRef;
 use core::fmt;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) struct TagId(pub usize);
+
+#[derive(PartialEq, Eq)]
+pub(crate) struct Tag {
+    pub(crate) name: String,
+    pub(crate) ty: TypeRef,
+}
+
+impl fmt::Debug for Tag {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}: {:?}", self.name, self.ty)
+    }
+}
+
+impl Tag {
+    pub(crate) fn new(name: &str, ty: TypeRef) -> Self {
+        Self {
+            name: name.to_string(),
+            ty,
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) struct SymbolId(pub usize);
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -34,9 +58,8 @@ impl fmt::Debug for Symbol {
 }
 
 impl Symbol {
-    pub(crate) fn new(
+    pub(crate) fn new_var(
         name: &str,
-        kind: SymbolKind,
         ty: TypeRef,
         owner: Option<FuncId>,
         init: Vec<Node>,
@@ -44,7 +67,7 @@ impl Symbol {
     ) -> Self {
         Self {
             name: name.to_string(),
-            kind,
+            kind: SymbolKind::Var,
             ty,
             owner,
             init,

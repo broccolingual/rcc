@@ -732,9 +732,18 @@ impl Ast<'_> {
             && let NodeKind::Ident { name } = &n.kind
         {
             // 変数参照
-            if let Some(symbol_id) = self.find_var(name) {
+            if let Some(symbol) = self.find_symbol(name)
+                && symbol.is_var()
+            {
                 // 変数ノードを作成
-                let symbol = self.symbol_table.get_symbol(symbol_id);
+                let symbol_id =
+                    self.find_symbol_id(name)
+                        .ok_or_else(|| CompileError::InternalError {
+                            msg: format!(
+                                "シンボルテーブルからのシンボルIDの取得に失敗しました: {}",
+                                name
+                            ),
+                        })?;
                 let node = Node::new_var(symbol_id, symbol.ty, n.span);
                 return Ok(Some(Box::new(node)));
             }
@@ -837,8 +846,7 @@ impl Ast<'_> {
                         msg: "関数呼び出しの関数名のパースに失敗しました".to_string(),
                     });
                 };
-                if let Some(symbol_id) = self.symbol_table.find_symbol_id(func_name) {
-                    let symbol = self.symbol_table.get_symbol(symbol_id);
+                if let Some(symbol) = self.find_symbol(func_name) {
                     if symbol.is_func()
                         && let TypeKind::Func { return_ty, .. } = &symbol.ty.kind()
                     {

@@ -1,16 +1,17 @@
-use super::{Symbol, SymbolId};
+use super::{Symbol, SymbolId, Tag, TagId};
 use crate::types::TypeRef;
 use std::collections::HashMap;
 
 #[derive(Debug)]
 struct Scope {
     names: HashMap<String, SymbolId>, // name -> symbol_id
-    tags: HashMap<String, TypeRef>,   // name -> type
+    tags: HashMap<String, TagId>,     // name -> tag_id
 }
 
 #[derive(Debug)]
 pub(crate) struct ScopedTable {
     symbols: Vec<Symbol>,
+    tags: Vec<Tag>,
     scopes: Vec<Scope>,
 }
 
@@ -18,6 +19,7 @@ impl ScopedTable {
     pub(crate) fn new() -> Self {
         Self {
             symbols: Vec::new(),
+            tags: Vec::new(),
             scopes: vec![Scope {
                 names: HashMap::new(),
                 tags: HashMap::new(),
@@ -40,8 +42,16 @@ impl ScopedTable {
         &self.symbols
     }
 
+    pub(crate) fn get_tags(&self) -> &Vec<Tag> {
+        &self.tags
+    }
+
     pub(crate) fn get_symbol(&self, symbol_id: SymbolId) -> &Symbol {
         &self.symbols[symbol_id.0]
+    }
+
+    pub(crate) fn get_tag(&self, tag_id: TagId) -> &Tag {
+        &self.tags[tag_id.0]
     }
 
     pub(crate) fn get_symbol_mut(&mut self, symbol_id: SymbolId) -> &mut Symbol {
@@ -55,11 +65,29 @@ impl ScopedTable {
             .find_map(|scope| scope.names.get(name).copied())
     }
 
-    pub(crate) fn find_tag(&self, name: &str) -> Option<&TypeRef> {
+    pub(crate) fn find_symbol(&self, name: &str) -> Option<&Symbol> {
+        self.scopes.iter().rev().find_map(|scope| {
+            scope
+                .names
+                .get(name)
+                .map(|&symbol_id| self.get_symbol(symbol_id))
+        })
+    }
+
+    pub(crate) fn find_symbol_mut(&mut self, name: &str) -> Option<&mut Symbol> {
+        for scope in self.scopes.iter().rev() {
+            if let Some(&symbol_id) = scope.names.get(name) {
+                return Some(self.get_symbol_mut(symbol_id));
+            }
+        }
+        None
+    }
+
+    pub(crate) fn find_tag(&self, name: &str) -> Option<&Tag> {
         self.scopes
             .iter()
             .rev()
-            .find_map(|scope| scope.tags.get(name))
+            .find_map(|scope| scope.tags.get(name).map(|&tag_id| self.get_tag(tag_id)))
     }
 
     pub(crate) fn find_symbol_in_current_scope(&self, name: &str) -> Option<&Symbol> {
@@ -71,8 +99,10 @@ impl ScopedTable {
         })
     }
 
-    pub(crate) fn find_tag_in_current_scope(&self, name: &str) -> Option<&TypeRef> {
-        self.scopes.last().and_then(|scope| scope.tags.get(name))
+    pub(crate) fn find_tag_in_current_scope(&self, name: &str) -> Option<&Tag> {
+        self.scopes
+            .last()
+            .and_then(|scope| scope.tags.get(name).map(|&tag_id| self.get_tag(tag_id)))
     }
 
     pub(crate) fn insert_symbol(&mut self, name: &str, symbol: Symbol) -> SymbolId {
@@ -84,9 +114,12 @@ impl ScopedTable {
         symbol_id
     }
 
-    pub(crate) fn insert_tag(&mut self, name: &str, ty: TypeRef) {
+    pub(crate) fn insert_tag(&mut self, name: &str, ty: TypeRef) -> TagId {
+        self.tags.push(Tag::new(name, ty));
+        let tag_id = TagId(self.tags.len() - 1);
         if let Some(scope) = self.scopes.last_mut() {
-            scope.tags.insert(name.to_string(), ty);
+            scope.tags.insert(name.to_string(), tag_id);
         }
+        tag_id
     }
 }
