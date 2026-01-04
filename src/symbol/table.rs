@@ -66,21 +66,13 @@ impl ScopedTable {
     }
 
     pub(crate) fn find_symbol(&self, name: &str) -> Option<&Symbol> {
-        self.scopes.iter().rev().find_map(|scope| {
-            scope
-                .names
-                .get(name)
-                .map(|&symbol_id| self.get_symbol(symbol_id))
-        })
+        self.find_symbol_id(name)
+            .map(|symbol_id| self.get_symbol(symbol_id))
     }
 
     pub(crate) fn find_symbol_mut(&mut self, name: &str) -> Option<&mut Symbol> {
-        for scope in self.scopes.iter().rev() {
-            if let Some(&symbol_id) = scope.names.get(name) {
-                return Some(self.get_symbol_mut(symbol_id));
-            }
-        }
-        None
+        self.find_symbol_id(name)
+            .map(|symbol_id| self.get_symbol_mut(symbol_id))
     }
 
     pub(crate) fn find_tag(&self, name: &str) -> Option<&Tag> {
