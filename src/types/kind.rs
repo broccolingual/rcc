@@ -1,7 +1,7 @@
-use crate::types::{Decl, MemberDecl, Type};
+use crate::types::*;
 use core::fmt;
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub(crate) enum TypeKind {
     Void,
     Char,
@@ -11,10 +11,10 @@ pub(crate) enum TypeKind {
     Float,
     Double,
     Ptr {
-        to: Box<Type>,
+        to: TypeRef,
     }, // to: ポインタの指す型
     Array {
-        base: Box<Type>,
+        base: TypeRef,
         size: usize,
     }, // base: 配列の要素型, size: 要素数
     Struct {
@@ -22,7 +22,7 @@ pub(crate) enum TypeKind {
         members: Vec<MemberDecl>,
     }, // name: 構造体名, members: メンバーリスト
     Func {
-        return_ty: Box<Type>,
+        return_ty: TypeRef,
         params: Vec<Decl>,
     }, // return_ty: 戻り値の型, params: パラメータリスト
 }
@@ -45,7 +45,13 @@ impl fmt::Debug for TypeKind {
                     if i > 0 {
                         write!(f, ", ")?;
                     }
-                    write!(f, "{:?}", member)?;
+                    write!(
+                        f,
+                        "TypeRef({}) {} @{:?}",
+                        member.ty.0,
+                        member.name,
+                        member.offset.unwrap_or(0)
+                    )?;
                 }
                 write!(f, " }}")
             }
@@ -55,9 +61,9 @@ impl fmt::Debug for TypeKind {
                     if i > 0 {
                         write!(f, ", ")?;
                     }
-                    write!(f, "{:?}", param)?;
+                    write!(f, "TypeRef({}) {}", param.ty.0, param.name)?;
                 }
-                write!(f, ") -> {:?}", return_ty)
+                write!(f, ") -> TypeRef({})", return_ty.0)
             }
         }
     }

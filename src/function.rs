@@ -1,6 +1,6 @@
 use crate::node::Node;
 use crate::symbol::SymbolId;
-use crate::types::Type;
+use crate::types::TypeRef;
 use core::fmt;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -14,7 +14,7 @@ pub(crate) struct LocalVar {
 
 impl fmt::Debug for LocalVar {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ID: {:?} (@{})", self.symbol_id, self.offset)
+        write!(f, "{:?} (@{})", self.symbol_id, self.offset)
     }
 }
 
@@ -34,7 +34,7 @@ pub(crate) struct Func {
     pub(crate) params: Vec<LocalVar>, // symbolのインデックス
     pub(crate) locals: Vec<LocalVar>, // symbolのインデックス
     pub(crate) stack_size: usize,
-    pub(crate) return_ty: Type,
+    pub(crate) return_ty: TypeRef,
 }
 
 impl fmt::Debug for Func {
@@ -63,7 +63,7 @@ impl Func {
             params: Vec::new(),
             locals: Vec::new(),
             stack_size: 0,
-            return_ty: Type::default(),
+            return_ty: TypeRef::default(),
         }
     }
 

@@ -8,7 +8,7 @@ use crate::errors::CompileError;
 use crate::function::LocalVar;
 use crate::node::{Node, NodeKind, UnaryOp};
 use crate::symbol::Symbol;
-use crate::types::{Type, TypeKind};
+use crate::types::{TypeKind, TypeRef};
 use register::ARG_REGS;
 
 pub(crate) struct Generator<'a> {
@@ -105,7 +105,7 @@ impl<'a> Generator<'a> {
                 .add_row(&format!(".zero {}", symbol.ty.size_of()), true);
             return Ok(());
         }
-        if let TypeKind::Array { base, size } = &symbol.ty.kind {
+        if let TypeKind::Array { base, size } = &symbol.ty.kind() {
             // TODO: 多次元配列の初期化、文字列リテラルによる初期化
             let init_len = symbol.init.len().min(*size);
             for i in 0..init_len {
@@ -155,7 +155,7 @@ impl<'a> Generator<'a> {
                 self.builder
                     .add_row(&format!(".zero {}", zero_fill_size), true);
             }
-        } else if let TypeKind::Struct { .. } = symbol.ty.kind {
+        } else if let TypeKind::Struct { .. } = symbol.ty.kind() {
             // TODO: 構造体の初期化式
             unimplemented!("構造体のグローバル変数初期化には未対応です");
         } else if symbol.init.len() == 1 {
@@ -292,7 +292,7 @@ impl<'a> Generator<'a> {
         if symbol.init.is_empty() {
             return Ok(());
         }
-        if let TypeKind::Array { base, size } = &symbol.ty.kind {
+        if let TypeKind::Array { base, size } = &symbol.ty.kind() {
             // 配列の初期化式
             // TODO: 多次元配列の初期化、文字列リテラルによる初期化
             let init_len = symbol.init.len().min(*size);
@@ -317,7 +317,7 @@ impl<'a> Generator<'a> {
                 self.builder.add_row("xor rax, rax", true); // raxを0クリア
                 self.builder.add_row("rep stosb", true); // 0で初期化
             }
-        } else if let TypeKind::Struct { .. } = symbol.ty.kind {
+        } else if let TypeKind::Struct { .. } = symbol.ty.kind() {
             // TODO: 構造体の初期化式
             unimplemented!("構造体のローカル変数初期化には未対応です");
         } else if symbol.init.len() == 1 {
@@ -387,7 +387,7 @@ impl<'a> Generator<'a> {
     }
 
     // スタックトップのアドレスから値を読み出してスタックに積む
-    fn load(&mut self, ty: &Type) -> Result<(), CompileError> {
+    fn load(&mut self, ty: &TypeRef) -> Result<(), CompileError> {
         self.builder.add_row("pop rax", true); // ロード先のアドレス
         let inst = match ty.size_of() {
             1 => "movsx rax, BYTE PTR [rax]",
@@ -406,7 +406,7 @@ impl<'a> Generator<'a> {
     }
 
     // スタックトップの値をアドレスに格納する
-    fn store(&mut self, ty: &Type) -> Result<(), CompileError> {
+    fn store(&mut self, ty: &TypeRef) -> Result<(), CompileError> {
         self.builder.add_row("pop rdi", true); // ストアする値
         self.builder.add_row("pop rax", true); // ストア先のアドレス
         let instruction = match ty.size_of() {

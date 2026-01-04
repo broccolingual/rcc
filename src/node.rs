@@ -6,13 +6,13 @@ pub(crate) use operator::*;
 
 use crate::errors::CompileError;
 use crate::symbol::SymbolId;
-use crate::types::{Type, TypeAttr, TypeKind};
+use crate::types::{TypeAttr, TypeKind, TypeRef};
 use core::fmt;
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub(crate) struct Node {
     pub(crate) kind: NodeKind,
-    pub(crate) ty: Type,
+    pub(crate) ty: TypeRef,
     pub(crate) span: (usize, usize), // 開始位置と終了位置
 }
 
@@ -54,7 +54,7 @@ impl Default for Node {
     fn default() -> Self {
         Node {
             kind: NodeKind::Nop,
-            ty: Type::default(),
+            ty: TypeRef::default(),
             span: (0, 0),
         }
     }
@@ -64,7 +64,7 @@ impl Node {
     pub(crate) fn new(kind: NodeKind, span: (usize, usize)) -> Self {
         Node {
             kind,
-            ty: Type::default(),
+            ty: TypeRef::default(),
             span,
         }
     }
@@ -72,7 +72,7 @@ impl Node {
     pub(crate) fn new_call(
         name: &str,
         args: Vec<Node>,
-        return_ty: Type,
+        return_ty: TypeRef,
         span: (usize, usize),
     ) -> Self {
         Node {
@@ -93,22 +93,22 @@ impl Node {
     ) -> Result<Self, CompileError> {
         let ty = match op {
             BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => {
-                let lhs_ty = &lhs.ty;
-                let rhs_ty = &rhs.ty;
+                let lhs_ty = lhs.ty;
+                let rhs_ty = rhs.ty;
 
                 if lhs_ty.is_scalar() && rhs_ty.is_scalar() {
                     // 両方ともスカラー型の場合、大きい方の型に合わせる
                     if lhs_ty.size_of() >= rhs_ty.size_of() {
-                        lhs_ty.clone()
+                        lhs_ty
                     } else {
-                        rhs_ty.clone()
+                        rhs_ty
                     }
                 } else if (lhs_ty.is_ptr() || lhs_ty.is_array()) && rhs_ty.is_scalar() {
                     // 左辺がポインタ/配列型、右辺がスカラー型の場合、左辺の型を結果型とする
-                    lhs_ty.clone()
+                    lhs_ty
                 } else if lhs_ty.is_scalar() && (rhs_ty.is_ptr() || rhs_ty.is_array()) {
                     // 右辺がポインタ/配列型、左辺がスカラー型の場合、右辺の型を結果型とする
-                    rhs_ty.clone()
+                    rhs_ty
                 } else {
                     return Err(CompileError::InvalidExpr {
                         msg: format!(
@@ -120,15 +120,15 @@ impl Node {
                 }
             }
             BinaryOp::Rem => {
-                let lhs_ty = &lhs.ty;
-                let rhs_ty = &rhs.ty;
+                let lhs_ty = lhs.ty;
+                let rhs_ty = rhs.ty;
 
                 if lhs_ty.is_integer() && rhs_ty.is_integer() {
                     // 両方とも整数型の場合、大きい方の型に合わせる
                     if lhs_ty.size_of() >= rhs_ty.size_of() {
-                        lhs_ty.clone()
+                        lhs_ty
                     } else {
-                        rhs_ty.clone()
+                        rhs_ty
                     }
                 } else {
                     return Err(CompileError::InvalidExpr {
@@ -141,15 +141,15 @@ impl Node {
                 }
             }
             BinaryOp::BitAnd | BinaryOp::BitOr | BinaryOp::BitXor => {
-                let lhs_ty = &lhs.ty;
-                let rhs_ty = &rhs.ty;
+                let lhs_ty = lhs.ty;
+                let rhs_ty = rhs.ty;
 
                 if lhs_ty.is_integer() && rhs_ty.is_integer() {
                     // 両方とも整数型の場合、大きい方の型に合わせる
                     if lhs_ty.size_of() >= rhs_ty.size_of() {
-                        lhs_ty.clone()
+                        lhs_ty
                     } else {
-                        rhs_ty.clone()
+                        rhs_ty
                     }
                 } else {
                     return Err(CompileError::InvalidExpr {
@@ -162,12 +162,12 @@ impl Node {
                 }
             }
             BinaryOp::Shl | BinaryOp::Shr => {
-                let lhs_ty = &lhs.ty;
-                let rhs_ty = &rhs.ty;
+                let lhs_ty = lhs.ty;
+                let rhs_ty = rhs.ty;
 
                 if lhs_ty.is_integer() && rhs_ty.is_integer() {
                     // 両方とも整数型の場合、昇格後の型を結果型とする
-                    Type::from(TypeKind::Int, TypeAttr::default(), None)
+                    TypeRef::register(TypeKind::Int, TypeAttr::default(), None)
                 } else {
                     return Err(CompileError::InvalidExpr {
                         msg: format!(
@@ -179,15 +179,15 @@ impl Node {
                 }
             }
             BinaryOp::Eq | BinaryOp::Ne | BinaryOp::Lt | BinaryOp::Le => {
-                let lhs_ty = &lhs.ty;
-                let rhs_ty = &rhs.ty;
+                let lhs_ty = lhs.ty;
+                let rhs_ty = rhs.ty;
 
                 if lhs_ty.is_scalar() && rhs_ty.is_scalar()
                     || (lhs_ty.is_ptr() || lhs_ty.is_array())
                         && (rhs_ty.is_ptr() || rhs_ty.is_array())
                 {
                     // 両方ともスカラー型の場合、結果型はint型とする
-                    Type::from(TypeKind::Int, TypeAttr::default(), None)
+                    TypeRef::register(TypeKind::Int, TypeAttr::default(), None)
                 } else {
                     return Err(CompileError::InvalidExpr {
                         msg: format!(
@@ -198,7 +198,7 @@ impl Node {
                     });
                 }
             }
-            BinaryOp::Assign => lhs.ty.clone(),
+            BinaryOp::Assign => lhs.ty,
         };
 
         Ok(Node {
@@ -218,7 +218,7 @@ impl Node {
                 let expr_ty = &expr.ty;
 
                 if expr_ty.is_integer() {
-                    Type::from(TypeKind::Int, TypeAttr::default(), None) // 整数拡張
+                    TypeRef::register(TypeKind::Int, TypeAttr::default(), None) // 整数拡張
                 } else {
                     return Err(CompileError::InvalidExpr {
                         msg: format!("ビット否定演算子は整数型にのみ適用可能です: {:?}", expr_ty),
@@ -230,7 +230,7 @@ impl Node {
                 let expr_ty = &expr.ty;
 
                 if expr_ty.is_scalar() || expr_ty.is_ptr() || expr_ty.is_array() {
-                    Type::from(TypeKind::Int, TypeAttr::default(), None) // 結果型はint型
+                    TypeRef::register(TypeKind::Int, TypeAttr::default(), None) // 結果型はint型
                 } else {
                     return Err(CompileError::InvalidExpr {
                         msg: format!(
@@ -245,13 +245,7 @@ impl Node {
                 let expr_ty = &expr.ty;
 
                 // アドレス演算子の型はポインタ型にする
-                Type::from(
-                    TypeKind::Ptr {
-                        to: Box::new(expr_ty.clone()),
-                    },
-                    TypeAttr::default(),
-                    None,
-                )
+                TypeRef::register(TypeKind::Ptr { to: *expr_ty }, TypeAttr::default(), None)
             }
             UnaryOp::Deref => {
                 let expr_ty = &expr.ty;
@@ -266,13 +260,10 @@ impl Node {
                         span,
                     });
                 }
-                expr_ty.base_type().clone()
+                expr_ty.base_type()
             }
             UnaryOp::PreInc | UnaryOp::PreDec | UnaryOp::PostInc | UnaryOp::PostDec => {
-                let expr_ty = &expr.ty;
-
-                // インクリメント・デクリメント演算子の型はオペランドの型とする
-                expr_ty.clone()
+                expr.ty // インクリメント・デクリメント演算子の型はオペランドの型とする
             }
         };
 
@@ -289,7 +280,7 @@ impl Node {
         rhs: Box<Node>,
         span: (usize, usize),
     ) -> Self {
-        let ty = lhs.ty.clone(); // 代入演算子の型は左辺の型とする
+        let ty = lhs.ty; // 代入演算子の型は左辺の型とする
 
         Node {
             kind: NodeKind::Assign { op, lhs, rhs },
@@ -311,7 +302,7 @@ impl Node {
             || (lhs_ty.is_ptr() || lhs_ty.is_array()) && (rhs_ty.is_ptr() || rhs_ty.is_array())
         {
             // 両方ともスカラー型の場合、結果型はint型とする
-            Type::from(TypeKind::Int, TypeAttr::default(), None)
+            TypeRef::register(TypeKind::Int, TypeAttr::default(), None)
         } else {
             return Err(CompileError::InvalidExpr {
                 msg: format!(
@@ -342,7 +333,7 @@ impl Node {
             || (lhs_ty.is_ptr() || lhs_ty.is_array()) && (rhs_ty.is_ptr() || rhs_ty.is_array())
         {
             // 両方ともスカラー型の場合、結果型はint型とする
-            Type::from(TypeKind::Int, TypeAttr::default(), None)
+            TypeRef::register(TypeKind::Int, TypeAttr::default(), None)
         } else {
             return Err(CompileError::InvalidExpr {
                 msg: format!(
@@ -367,20 +358,20 @@ impl Node {
         label: usize,
         span: (usize, usize),
     ) -> Result<Self, CompileError> {
-        let cond_ty = &cond.ty;
-        let then_ty = &then.ty;
-        let els_ty = &els.ty;
+        let cond_ty = cond.ty;
+        let then_ty = then.ty;
+        let els_ty = els.ty;
 
         let ty = if cond_ty.is_scalar() || cond_ty.is_ptr() || cond_ty.is_array() {
             if then_ty == els_ty {
                 // then節とelse節の型が同じ場合、その型を結果型とする
-                then_ty.clone()
+                then_ty
             } else if then_ty.is_scalar() && els_ty.is_scalar() {
                 // 両方ともスカラー型の場合、大きい方の型に合わせる
                 if then_ty.size_of() >= els_ty.size_of() {
-                    then_ty.clone()
+                    then_ty
                 } else {
-                    els_ty.clone()
+                    els_ty
                 }
             } else {
                 return Err(CompileError::InvalidExpr {
@@ -416,12 +407,12 @@ impl Node {
     pub(crate) fn new_num(val: i64, span: (usize, usize)) -> Self {
         Node {
             kind: NodeKind::Number { val },
-            ty: Type::from(TypeKind::Int, TypeAttr::default(), None),
+            ty: TypeRef::register(TypeKind::Int, TypeAttr::default(), None),
             span,
         }
     }
 
-    pub(crate) fn new_var(symbol_id: SymbolId, ty: Type, span: (usize, usize)) -> Self {
+    pub(crate) fn new_var(symbol_id: SymbolId, ty: TypeRef, span: (usize, usize)) -> Self {
         Node {
             kind: NodeKind::Var { symbol_id },
             ty,
@@ -433,7 +424,7 @@ impl Node {
         obj: Box<Node>,
         name: &str,
         offset: usize,
-        ty: &Type,
+        ty: TypeRef,
         span: (usize, usize),
     ) -> Self {
         Node {
@@ -442,7 +433,7 @@ impl Node {
                 name: name.to_string(),
                 offset,
             },
-            ty: ty.clone(),
+            ty,
             span,
         }
     }

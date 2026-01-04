@@ -1,4 +1,4 @@
-use crate::types::TypeKind;
+use crate::types::*;
 use core::fmt;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -34,7 +34,7 @@ impl FuncKind {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum StorageClassKind {
     Auto,
     Extern,

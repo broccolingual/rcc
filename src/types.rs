@@ -1,13 +1,17 @@
 mod kind;
 mod specifier;
+mod table;
+mod type_ref;
 
 pub(crate) use kind::*;
 pub(crate) use specifier::*;
+pub(crate) use table::*;
+pub(crate) use type_ref::*;
 
 use crate::node::Node;
 use core::fmt;
 
-#[derive(Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub(crate) struct TypeAttr {
     pub(crate) is_const: bool,
     pub(crate) is_volatile: bool,
@@ -30,16 +34,16 @@ impl fmt::Debug for TypeAttr {
     }
 }
 
-#[derive(Clone, PartialEq, Eq)]
-pub(crate) struct Type {
-    pub(crate) kind: TypeKind,
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub(crate) struct TypeData {
+    kind: TypeKind,
     size: usize,
     align: usize,
-    pub(crate) attr: TypeAttr,
-    pub(crate) storage_class: Option<StorageClassKind>,
+    attr: TypeAttr,
+    storage_class: Option<StorageClassKind>,
 }
 
-impl fmt::Debug for Type {
+impl fmt::Debug for TypeData {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(sc) = &self.storage_class {
             write!(f, "{} ", sc)?;
@@ -48,268 +52,78 @@ impl fmt::Debug for Type {
     }
 }
 
-impl Default for Type {
+impl Default for TypeData {
     fn default() -> Self {
-        Type::from(TypeKind::Void, TypeAttr::default(), None)
+        TypeData::from_kind(TypeKind::Void, TypeAttr::default(), None)
     }
 }
 
-impl Type {
-    pub(crate) fn from(
-        kind: TypeKind,
+impl TypeData {
+    fn from_kind(
+        mut kind: TypeKind,
         attr: TypeAttr,
         storage_class: Option<StorageClassKind>,
     ) -> Self {
-        match kind {
-            TypeKind::Void => Type {
-                kind: TypeKind::Void,
-                size: 0,
-                align: 0,
-                attr,
-                storage_class,
-            },
-            TypeKind::Char => Type {
-                kind: TypeKind::Char,
-                size: 1,
-                align: 1,
-                attr,
-                storage_class,
-            },
-            TypeKind::Short => Type {
-                kind: TypeKind::Short,
-                size: 2,
-                align: 2,
-                attr,
-                storage_class,
-            },
-            TypeKind::Int => Type {
-                kind: TypeKind::Int,
-                size: 4,
-                align: 4,
-                attr,
-                storage_class,
-            },
-            TypeKind::Long => Type {
-                kind: TypeKind::Long,
-                size: 8,
-                align: 8,
-                attr,
-                storage_class,
-            },
-            TypeKind::Float => Type {
-                kind: TypeKind::Float,
-                size: 4,
-                align: 4,
-                attr,
-                storage_class,
-            },
-            TypeKind::Double => Type {
-                kind: TypeKind::Double,
-                size: 8,
-                align: 8,
-                attr,
-                storage_class,
-            },
-            TypeKind::Ptr { to } => Type {
-                kind: TypeKind::Ptr { to: to.clone() },
-                size: 8,
-                align: 8,
-                attr,
-                storage_class,
-            },
-            TypeKind::Array { base, size } => Type {
-                kind: TypeKind::Array {
-                    base: base.clone(),
-                    size,
-                },
-                size: base.size * size,
-                align: base.align,
-                attr,
-                storage_class,
-            },
-            TypeKind::Struct { name, members } => {
+        let (size, align) = match &mut kind {
+            TypeKind::Void => (0, 0),
+            TypeKind::Char => (1, 1),
+            TypeKind::Short => (2, 2),
+            TypeKind::Int => (4, 4),
+            TypeKind::Long => (8, 8),
+            TypeKind::Float => (4, 4),
+            TypeKind::Double => (8, 8),
+            TypeKind::Ptr { .. } => (8, 8),
+            TypeKind::Array {
+                base,
+                size: array_size,
+            } => {
+                let base_data = base.get();
+                (base_data.size * *array_size, base_data.align)
+            }
+            TypeKind::Struct { members, .. } => {
                 let mut offset = 0;
                 let mut max_align = 1;
-                let mut members = members.clone();
-                for member in members.iter_mut() {
-                    let a = member.ty.align_of();
-                    offset = offset.align_up(a); // メンバーのアラインメントに合わせてオフセットを調整
-                    member.offset = Some(offset); // メンバーの相対オフセットを設定
-                    offset += member.ty.size_of(); // メンバーのサイズ分オフセットを進める
-                    // 構造体全体のアラインメントを更新
-                    if a > max_align {
-                        max_align = a;
+                for member in members {
+                    let member_align = member.ty.align_of();
+                    offset = offset.align_up(member_align);
+                    offset += member.ty.size_of();
+                    if member_align > max_align {
+                        max_align = member_align;
                     }
                 }
-                Type {
-                    kind: TypeKind::Struct {
-                        name: name.to_string(),
-                        members,
-                    },
-                    size: offset.align_up(max_align), // 構造体全体のサイズをアラインメントに合わせて調整
-                    align: max_align, // メンバーの最大アラインメントを構造体のアラインメントとする
-                    attr,
-                    storage_class,
-                }
+                (offset.align_up(max_align), max_align)
             }
-            TypeKind::Func { return_ty, params } => Type {
-                kind: TypeKind::Func {
-                    return_ty: return_ty.clone(),
-                    params: params.clone(),
-                },
-                size: 8,
-                align: 8,
-                attr,
-                storage_class,
-            },
+            TypeKind::Func { .. } => (8, 8),
+        };
+
+        TypeData {
+            kind,
+            size,
+            align,
+            attr,
+            storage_class,
         }
-    }
-
-    pub(crate) fn from_ds(decl_specs: Vec<DeclSpec>) -> Option<Self> {
-        let mut ty = Type::default();
-        let mut has_type_spec = false;
-        let mut storage_class = None;
-        for spec in decl_specs {
-            match spec {
-                DeclSpec::TypeQual(tq_kind) => match tq_kind {
-                    TypeQualKind::Const => ty.attr.is_const = true,
-                    TypeQualKind::Volatile => ty.attr.is_volatile = true,
-                    TypeQualKind::Restrict => ty.attr.is_restrict = true,
-                },
-                DeclSpec::TypeSpec(ty_kind) => {
-                    if has_type_spec {
-                        return None; // すでに型指定子があった場合は無効
-                    }
-                    ty = Type::from(ty_kind, ty.attr, None);
-                    has_type_spec = true;
-                }
-                DeclSpec::StorageClassSpec(sc_kind) => {
-                    if storage_class.is_some() {
-                        return None; // すでに記憶クラス指定子があった場合は無効
-                    }
-                    storage_class = Some(sc_kind);
-                }
-                DeclSpec::FuncSpec(_) => {}
-            }
-        }
-        if has_type_spec {
-            ty.storage_class = storage_class;
-            Some(ty)
-        } else {
-            None
-        }
-    }
-
-    pub(crate) fn from_tsq(type_spec_quals: Vec<TypeSpecQual>) -> Option<Self> {
-        let mut ty = Type::default();
-        let mut has_type_spec = false;
-        for spec in type_spec_quals {
-            match spec {
-                TypeSpecQual::TypeQual(tq_kind) => match tq_kind {
-                    TypeQualKind::Const => ty.attr.is_const = true,
-                    TypeQualKind::Volatile => ty.attr.is_volatile = true,
-                    TypeQualKind::Restrict => ty.attr.is_restrict = true,
-                },
-                TypeSpecQual::TypeSpec(ty_kind) => {
-                    if has_type_spec {
-                        return None; // すでに型指定子があった場合は無効
-                    }
-                    ty = Type::from(ty_kind, ty.attr, None);
-                    has_type_spec = true;
-                }
-            }
-        }
-        if has_type_spec { Some(ty) } else { None }
-    }
-
-    // ポインタもしくは配列の指している型を取得
-    pub(crate) fn base_type(&self) -> &Type {
-        match &self.kind {
-            TypeKind::Ptr { to } => to,
-            TypeKind::Array { base, .. } => base,
-            _ => self,
-        }
-    }
-
-    // 型がexternかどうか
-    pub(crate) fn is_extern(&self) -> bool {
-        matches!(self.storage_class, Some(StorageClassKind::Extern))
-    }
-
-    // 型がポインタかどうか
-    pub(crate) fn is_ptr(&self) -> bool {
-        matches!(&self.kind, TypeKind::Ptr { .. })
-    }
-
-    // 型が配列かどうか
-    pub(crate) fn is_array(&self) -> bool {
-        matches!(&self.kind, TypeKind::Array { .. })
-    }
-
-    // 型が整数型かどうか
-    pub(crate) fn is_integer(&self) -> bool {
-        matches!(
-            &self.kind,
-            TypeKind::Char | TypeKind::Short | TypeKind::Int | TypeKind::Long
-        )
-    }
-
-    // 型が浮動小数点型かどうか
-    pub(crate) fn is_floating_point(&self) -> bool {
-        matches!(&self.kind, TypeKind::Float | TypeKind::Double)
-    }
-
-    // 型がスカラー型かどうか（整数型または浮動小数点型）
-    pub(crate) fn is_scalar(&self) -> bool {
-        self.is_integer() || self.is_floating_point()
-    }
-
-    // 型が構造体かどうか
-    pub(crate) fn is_struct(&self) -> bool {
-        matches!(&self.kind, TypeKind::Struct { .. })
-    }
-
-    // 構造体メンバーの検索
-    pub(crate) fn find_struct_member(&self, name: &str) -> Option<&MemberDecl> {
-        if let TypeKind::Struct { members, .. } = &self.kind {
-            for member in members {
-                if member.name == name {
-                    return Some(member);
-                }
-            }
-        }
-        None
-    }
-
-    // 型の実際のサイズ
-    pub(crate) fn size_of(&self) -> usize {
-        self.size
-    }
-
-    // 型のアラインメント
-    pub(crate) fn align_of(&self) -> usize {
-        self.align
     }
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub(crate) struct Decl {
     pub(crate) name: String,
-    pub(crate) ty: Type,
+    pub(crate) ty: TypeRef,
     pub(crate) init: Vec<Node>,
     pub(crate) span: (usize, usize),
 }
 
 impl fmt::Debug for Decl {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?} {}", self.ty, self.name)
+        write!(f, "{:?} {}", self.ty.get(), self.name)
     }
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub(crate) struct MemberDecl {
     pub(crate) name: String,
-    pub(crate) ty: Type,
+    pub(crate) ty: TypeRef,
     pub(crate) offset: Option<usize>,
     pub(crate) span: (usize, usize),
 }
@@ -327,7 +141,7 @@ impl From<Decl> for MemberDecl {
 
 impl fmt::Debug for MemberDecl {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?} {}", self.ty, self.name)
+        write!(f, "{:?} {} @{:?}", self.ty.get(), self.name, self.offset)
     }
 }
 

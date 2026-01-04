@@ -1,6 +1,6 @@
 use core::str::FromStr;
 
-#[derive(PartialEq, Eq, Clone, Copy, Debug)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub(crate) enum BinaryOp {
     Assign, // =
     Add,    // +
@@ -40,7 +40,7 @@ impl FromStr for BinaryOp {
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Copy, Debug)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub(crate) enum UnaryOp {
     BitNot,     // ~
     LogicalNot, // !

@@ -1,10 +1,10 @@
-use crate::ast::Ast;
+use crate::ast::*;
 use crate::errors::CompileError;
 use crate::function::{Func, LocalVar};
 use crate::node::{Node, NodeKind};
 use crate::types::{
-    Decl, DeclSpec, FuncKind, MemberDecl, StorageClassKind, Type, TypeAttr, TypeKind, TypeQualKind,
-    TypeSpecQual,
+    AlignUp, Decl, DeclSpec, FuncKind, MemberDecl, StorageClassKind, TypeAttr, TypeKind,
+    TypeQualKind, TypeRef, TypeSpecQual,
 };
 
 impl Ast<'_> {
@@ -21,7 +21,7 @@ impl Ast<'_> {
             });
         }
 
-        let base_ty = Type::from_ds(specs).ok_or_else(|| {
+        let base_ty = TypeRef::from_ds(specs).ok_or_else(|| {
             let span = self.get_prev_token_span().unwrap_or((0, 0));
             CompileError::InvalidDecl {
                 msg: "無効な型指定子です".to_string(),
@@ -32,7 +32,7 @@ impl Ast<'_> {
         let token_pos = self.token_pos; // 関数定義でなかった場合にバックトラックするために保存
         if let Ok(first_decl) = self.declarator(&base_ty) {
             // 関数定義の場合: compound_stmt
-            if let TypeKind::Func { params, return_ty } = &first_decl.ty.kind {
+            if let TypeKind::Func { params, return_ty } = &first_decl.ty.kind() {
                 if self.peek_punct("{") {
                     // プロトタイプ宣言を確認
                     if let Some(symbol_id) = self.symbol_table.find_symbol_id(&first_decl.name) {
@@ -73,7 +73,7 @@ impl Ast<'_> {
                         symbol.is_defined = true; // 既存のプロトタイプ宣言を定義済みに更新
                     } else {
                         // 関数をシンボルが存在しない場合，新規に関数シンボルを登録
-                        self.register_func_symbol(&first_decl.name, first_decl.ty.clone(), true);
+                        self.register_func_symbol(&first_decl.name, first_decl.ty, true);
                     }
                     let func_id = self.register_func_def(Func::new(&first_decl.name)); // 関数を登録
                     self.current_func = Some(func_id); // 現在の関数を設定
@@ -86,7 +86,7 @@ impl Ast<'_> {
                             .push(LocalVar::new(symbol_id));
                     }
                     // 関数の戻り値の型を設定
-                    self.get_current_func_mut()?.return_ty = *return_ty.clone();
+                    self.get_current_func_mut()?.return_ty = *return_ty;
                     // 関数本体をパース
                     let func_body = self.compound_stmt()?.ok_or_else(|| {
                         let span = self.get_prev_token_span().unwrap_or((0, 0));
@@ -111,7 +111,7 @@ impl Ast<'_> {
                     return Ok(());
                 } else if self.consume_punct(";").is_some() {
                     // 関数プロトタイプ宣言
-                    self.register_func_symbol(&first_decl.name, first_decl.ty.clone(), false);
+                    self.register_func_symbol(&first_decl.name, first_decl.ty, false);
                     return Ok(());
                 } else {
                     let span = first_decl.span;
@@ -141,7 +141,7 @@ impl Ast<'_> {
         if specs.is_empty() {
             return Ok(None);
         }
-        let base_ty = Type::from_ds(specs).ok_or_else(|| {
+        let base_ty = TypeRef::from_ds(specs).ok_or_else(|| {
             let span = self.get_prev_token_span().unwrap_or((0, 0));
             CompileError::InvalidDecl {
                 msg: "無効な型指定子です".to_string(),
@@ -180,7 +180,7 @@ impl Ast<'_> {
     }
 
     // init_declarator_list ::= init_declarator ("," init_declarator)*
-    fn init_declarator_list(&mut self, base_ty: &Type) -> Result<Vec<Decl>, CompileError> {
+    fn init_declarator_list(&mut self, base_ty: &TypeRef) -> Result<Vec<Decl>, CompileError> {
         let mut decls = Vec::new();
         if let Some(decl) = self.init_declarator(base_ty)? {
             decls.push(decl);
@@ -195,20 +195,21 @@ impl Ast<'_> {
 
     // init_declarator ::= declarator
     //                   | declarator "=" initializer
-    fn init_declarator(&mut self, base_ty: &Type) -> Result<Option<Decl>, CompileError> {
+    fn init_declarator(&mut self, base_ty: &TypeRef) -> Result<Option<Decl>, CompileError> {
         if let Ok(mut decl) = self.declarator(base_ty) {
             if self.consume_punct("=").is_some() {
                 // TODO: 代入時の型チェック
                 decl.init = self.initializer()?; // initializerを設定
-                if let TypeKind::Array { base, size: 0 } = decl.ty.kind {
+                if let TypeKind::Array { base, size: 0 } = decl.ty.kind() {
                     // サイズ不明な配列型の場合、初期化子の要素数でサイズを決定
-                    decl.ty = Type::from(
+                    // TODO: 未完成型を上書き
+                    decl.ty = TypeRef::register(
                         TypeKind::Array {
-                            base: base.clone(),
+                            base,
                             size: decl.init.len(),
                         },
-                        decl.ty.attr,
-                        decl.ty.storage_class,
+                        decl.ty.attr(),
+                        decl.ty.storage_class(),
                     );
                 }
             }
@@ -246,9 +247,17 @@ impl Ast<'_> {
                 String::new()
             };
             if self.consume_punct("{").is_some() {
-                let members = self.struct_decl_list()?;
+                let mut members = self.struct_decl_list()?;
                 self.expect_punct("}")?;
-                let struct_ty = Type::from(
+                // メンバの相対オフセットを計算
+                let mut offset = 0;
+                for member in &mut members {
+                    offset = offset.align_up(member.ty.align_of());
+                    member.offset = Some(offset);
+                    offset += member.ty.size_of();
+                }
+                // 構造体型を登録
+                let struct_ty = TypeRef::register(
                     TypeKind::Struct {
                         name: struct_name.clone(),
                         members,
@@ -258,13 +267,13 @@ impl Ast<'_> {
                 );
                 // 構造体タグを登録
                 if !struct_name.is_empty() {
-                    self.register_tag(&struct_name, struct_ty.clone(), span)?;
+                    self.register_tag(&struct_name, struct_ty, span)?;
                 }
-                return Ok(Some(struct_ty.kind));
+                return Ok(Some(struct_ty.kind()));
             } else if !struct_name.is_empty() {
                 // 既存の構造体タグを検索
                 if let Some(ty) = self.find_tag(&struct_name) {
-                    return Ok(Some(ty.kind.clone()));
+                    return Ok(Some(ty.kind()));
                 } else {
                     let span = self.get_prev_token_span().unwrap_or((0, 0));
                     return Err(CompileError::InvalidDecl {
@@ -298,7 +307,7 @@ impl Ast<'_> {
         if specs.is_empty() {
             return Ok(None);
         }
-        let base_ty = Type::from_tsq(specs).ok_or_else(|| {
+        let base_ty = TypeRef::from_tsq(specs).ok_or_else(|| {
             let span = self.get_prev_token_span().unwrap_or((0, 0));
             CompileError::InvalidDecl {
                 msg: "無効な型指定子です".to_string(),
@@ -311,7 +320,10 @@ impl Ast<'_> {
     }
 
     // struct_declarator_list ::= struct_declarator ("," struct_declarator)*
-    fn struct_declarator_list(&mut self, base_ty: &Type) -> Result<Vec<MemberDecl>, CompileError> {
+    fn struct_declarator_list(
+        &mut self,
+        base_ty: &TypeRef,
+    ) -> Result<Vec<MemberDecl>, CompileError> {
         let mut members = Vec::new();
         if let Some(member) = self.struct_declarator(base_ty)? {
             members.push(member);
@@ -325,7 +337,7 @@ impl Ast<'_> {
     }
 
     // struct_declarator ::= declarator
-    fn struct_declarator(&mut self, base_ty: &Type) -> Result<Option<MemberDecl>, CompileError> {
+    fn struct_declarator(&mut self, base_ty: &TypeRef) -> Result<Option<MemberDecl>, CompileError> {
         if let Ok(decl) = self.declarator(base_ty) {
             return Ok(Some(decl.into()));
         }
@@ -376,23 +388,23 @@ impl Ast<'_> {
     }
 
     // ptr ::= "*" type_qual_list? ptr?
-    fn ptr(&mut self, base_ty: &Type) -> Type {
+    fn ptr(&mut self, base_ty: &TypeRef) -> TypeRef {
         if self.consume_punct("*").is_some() {
             self.type_qual_list(); // 現状は型修飾子を無視
-            let ptr_type = Type::from(
+            let ptr_type = TypeRef::register(
                 TypeKind::Ptr {
-                    to: Box::new(Type::from(base_ty.kind.clone(), base_ty.attr, None)),
+                    to: TypeRef::register(base_ty.kind(), base_ty.attr(), None),
                 },
                 TypeAttr::default(),
-                base_ty.storage_class,
+                base_ty.storage_class(),
             );
             return self.ptr(&ptr_type);
         }
-        base_ty.clone()
+        *base_ty
     }
 
     // declarator ::= ptr? direct_declarator
-    pub(super) fn declarator(&mut self, base_ty: &Type) -> Result<Decl, CompileError> {
+    pub(super) fn declarator(&mut self, base_ty: &TypeRef) -> Result<Decl, CompileError> {
         let ty = self.ptr(base_ty);
         self.direct_declarator(&ty)
     }
@@ -401,7 +413,7 @@ impl Ast<'_> {
     //                     | ident
     //                     | direct_declarator "[" type_qual_list? assign_expr? "]"
     //                     | direct_declarator "(" param_type_list ")"
-    fn direct_declarator(&mut self, base_ty: &Type) -> Result<Decl, CompileError> {
+    fn direct_declarator(&mut self, base_ty: &TypeRef) -> Result<Decl, CompileError> {
         let span;
         let name = if let Some(token) = self.consume_punct("(") {
             span = token.span;
@@ -429,7 +441,7 @@ impl Ast<'_> {
     }
 
     // 右結合で解析
-    fn parse_postfix_declarators(&mut self, base_ty: &Type) -> Result<Type, CompileError> {
+    fn parse_postfix_declarators(&mut self, base_ty: &TypeRef) -> Result<TypeRef, CompileError> {
         // "[" type_qual_list? assign_expr? "]"
         if self.consume_punct("[").is_some() {
             self.type_qual_list(); // 現状は型修飾子を無視
@@ -447,14 +459,15 @@ impl Ast<'_> {
             };
             self.expect_punct("]")?;
             let inner_ty = self.parse_postfix_declarators(base_ty)?;
-            let elem_ty = Type::from(inner_ty.kind.clone(), inner_ty.attr, None); // 要素型のストレージクラスはなし
-            Ok(Type::from(
+            let elem_ty = TypeRef::register(inner_ty.kind(), inner_ty.attr(), None); // 要素型のストレージクラスはなし
+            // TODO: array_sizeが0の場合の未完成型として登録
+            Ok(TypeRef::register(
                 TypeKind::Array {
-                    base: Box::new(elem_ty),
+                    base: elem_ty,
                     size: array_size,
                 },
                 TypeAttr::default(),
-                inner_ty.storage_class,
+                inner_ty.storage_class(),
             ))
         }
         // "(" param_type_list ")"
@@ -470,17 +483,14 @@ impl Ast<'_> {
                 params
             };
             let inner_ty = self.parse_postfix_declarators(base_ty)?;
-            let return_ty = Type::from(inner_ty.kind.clone(), inner_ty.attr, None); // 戻り値型のストレージクラスはなし
-            Ok(Type::from(
-                TypeKind::Func {
-                    return_ty: Box::new(return_ty),
-                    params,
-                },
+            let return_ty = TypeRef::register(inner_ty.kind(), inner_ty.attr(), None); // 戻り値型のストレージクラスはなし
+            Ok(TypeRef::register(
+                TypeKind::Func { return_ty, params },
                 TypeAttr::default(),
-                inner_ty.storage_class,
+                inner_ty.storage_class(),
             ))
         } else {
-            Ok(base_ty.clone())
+            Ok(*base_ty)
         }
     }
 
@@ -507,7 +517,7 @@ impl Ast<'_> {
     fn param_decl(&mut self) -> Result<Decl, CompileError> {
         let specs = self.decl_specs()?;
         if !specs.is_empty() {
-            let base_kind = Type::from_ds(specs).ok_or_else(|| {
+            let base_kind = TypeRef::from_ds(specs).ok_or_else(|| {
                 let span = self.get_prev_token_span().unwrap_or((0, 0));
                 CompileError::InvalidDecl {
                     msg: "無効な型指定子です".to_string(),
@@ -526,7 +536,7 @@ impl Ast<'_> {
     }
 
     // type_name ::= spec_qual_list abst_declarator?
-    pub(super) fn type_name(&mut self) -> Result<Type, CompileError> {
+    pub(super) fn type_name(&mut self) -> Result<TypeRef, CompileError> {
         let specs = self.spec_qual_list()?;
         if specs.is_empty() {
             let span = self.get_prev_token_span().unwrap_or((0, 0));
@@ -535,7 +545,7 @@ impl Ast<'_> {
                 span,
             });
         }
-        let base_ty = Type::from_tsq(specs).ok_or_else(|| {
+        let base_ty = TypeRef::from_tsq(specs).ok_or_else(|| {
             let span = self.get_prev_token_span().unwrap_or((0, 0));
             CompileError::InvalidDecl {
                 msg: "無効な型指定子です".to_string(),
@@ -550,7 +560,7 @@ impl Ast<'_> {
 
     // abst_declarator ::= ptr // TODO: 未実装
     //                   | ptr? direct_abst_declarator
-    fn abst_declarator(&mut self, base_ty: &Type) -> Result<Type, CompileError> {
+    fn abst_declarator(&mut self, base_ty: &TypeRef) -> Result<TypeRef, CompileError> {
         let ty = self.ptr(base_ty);
         self.direct_abst_declarator(&ty)
     }
@@ -558,20 +568,23 @@ impl Ast<'_> {
     // direct_abst_declarator ::= "(" abst_declarator ")"
     //                          | direct_abst_declarator "[" type_qual_list? assign_expr? "]"
     //                          | direct_abst_declarator "(" param_type_list ")"
-    fn direct_abst_declarator(&mut self, base_ty: &Type) -> Result<Type, CompileError> {
+    fn direct_abst_declarator(&mut self, base_ty: &TypeRef) -> Result<TypeRef, CompileError> {
         let mut current_ty = if self.consume_punct("(").is_some() {
             let inner_ty = self.abst_declarator(base_ty)?;
             self.expect_punct(")")?;
             inner_ty
         } else {
-            base_ty.clone()
+            *base_ty
         };
         current_ty = self.parse_abst_postfix_declarators(&current_ty)?;
         Ok(current_ty)
     }
 
     // 右結合で解析
-    fn parse_abst_postfix_declarators(&mut self, base_ty: &Type) -> Result<Type, CompileError> {
+    fn parse_abst_postfix_declarators(
+        &mut self,
+        base_ty: &TypeRef,
+    ) -> Result<TypeRef, CompileError> {
         // "[" type_qual_list? assign_expr? "]"
         if self.consume_punct("[").is_some() {
             self.type_qual_list(); // 現状は型修飾子を無視
@@ -589,9 +602,9 @@ impl Ast<'_> {
             };
             self.expect_punct("]")?;
             let inner_ty = self.parse_abst_postfix_declarators(base_ty)?;
-            Ok(Type::from(
+            Ok(TypeRef::register(
                 TypeKind::Array {
-                    base: Box::new(inner_ty),
+                    base: inner_ty,
                     size: array_size,
                 },
                 TypeAttr::default(),
@@ -611,16 +624,16 @@ impl Ast<'_> {
                 params
             };
             let inner_ty = self.parse_abst_postfix_declarators(base_ty)?;
-            Ok(Type::from(
+            Ok(TypeRef::register(
                 TypeKind::Func {
-                    return_ty: Box::new(inner_ty),
+                    return_ty: inner_ty,
                     params,
                 },
                 TypeAttr::default(),
                 None,
             ))
         } else {
-            Ok(base_ty.clone())
+            Ok(*base_ty)
         }
     }
 
