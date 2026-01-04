@@ -77,6 +77,8 @@ fn main() {
         }
         println!("=== Symbols ===");
         println!("{:#?}", ast.get_symbols());
+        println!("=== Tags ===");
+        println!("{:#?}", ast.get_tags());
         println!("=== Functions ===");
         println!("{:#?}", ast.funcs);
         println!("=== String Literals ===");

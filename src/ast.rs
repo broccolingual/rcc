@@ -4,7 +4,7 @@ mod statement;
 
 use crate::errors::CompileError;
 use crate::function::{Func, FuncId, LocalVar};
-use crate::symbol::{ScopedTable, Symbol, SymbolId, SymbolKind};
+use crate::symbol::{ScopedTable, Symbol, SymbolId, Tag};
 use crate::token::{Token, TokenKind};
 use crate::types::{AlignUp, Decl, TypeRef};
 use std::collections::HashMap;
@@ -36,6 +36,10 @@ impl<'a> Ast<'a> {
 
     pub(crate) fn get_symbols(&self) -> &Vec<Symbol> {
         self.symbol_table.get_symbols()
+    }
+
+    pub(crate) fn get_tags(&self) -> &Vec<Tag> {
+        self.symbol_table.get_tags()
     }
 
     pub(crate) fn get_symbol(&self, symbol_id: SymbolId) -> &Symbol {
@@ -125,6 +129,7 @@ impl<'a> Ast<'a> {
         decl: &Decl,
         owner: Option<FuncId>,
     ) -> Result<SymbolId, CompileError> {
+        // 同じスコープに同名の変数が存在する場合はエラー
         if self
             .symbol_table
             .find_symbol_in_current_scope(&decl.name)
@@ -136,32 +141,34 @@ impl<'a> Ast<'a> {
             });
         }
         let is_defined = !decl.ty.is_extern();
-        let symbol = Symbol::new(
-            &decl.name,
-            SymbolKind::Var,
-            decl.ty,
-            owner,
-            decl.init.clone(),
-            is_defined,
-        );
+        let symbol = Symbol::new_var(&decl.name, decl.ty, owner, decl.init.clone(), is_defined);
         Ok(self.symbol_table.insert_symbol(&decl.name, symbol))
     }
 
-    fn find_var(&self, name: &str) -> Option<SymbolId> {
-        self.symbol_table
-            .find_symbol_id(name)
-            .filter(|&symbol_id| self.symbol_table.get_symbol(symbol_id).is_var())
+    fn find_symbol_id(&self, name: &str) -> Option<SymbolId> {
+        self.symbol_table.find_symbol_id(name)
+    }
+
+    fn find_symbol(&self, name: &str) -> Option<&Symbol> {
+        self.symbol_table.find_symbol(name)
+    }
+
+    fn find_symbol_mut(&mut self, name: &str) -> Option<&mut Symbol> {
+        self.symbol_table.find_symbol_mut(name)
     }
 
     fn register_tag(&mut self, name: &str, ty: TypeRef) {
-        self.symbol_table.insert_tag(name, ty);
+        // 同じスコープに同名のタグが存在しない場合のみ登録
+        if self.symbol_table.find_tag_in_current_scope(name).is_none() {
+            self.symbol_table.insert_tag(name, ty);
+        }
     }
 
-    fn find_tag(&self, name: &str) -> Option<&TypeRef> {
+    fn find_tag(&self, name: &str) -> Option<&Tag> {
         self.symbol_table.find_tag(name)
     }
 
-    fn find_tag_in_current_scope(&self, name: &str) -> Option<&TypeRef> {
+    fn find_tag_in_current_scope(&self, name: &str) -> Option<&Tag> {
         self.symbol_table.find_tag_in_current_scope(name)
     }
 
