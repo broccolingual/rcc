@@ -1,4 +1,4 @@
-use crate::ast::*;
+use super::Ast;
 use crate::errors::CompileError;
 use crate::node::{BinaryOp, Node, NodeKind, UnaryOp};
 use crate::types::TypeKind;

@@ -1,4 +1,4 @@
-use crate::types::*;
+use super::TypeKind;
 use core::fmt;
 
 #[derive(Clone, Debug, PartialEq, Eq)]

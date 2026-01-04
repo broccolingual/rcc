@@ -1,7 +1,7 @@
+use super::{ARG_REGS, Generator};
 use crate::errors::CompileError;
 use crate::node::{BinaryOp, Node, NodeKind, UnaryOp};
 use crate::types::TypeRef;
-use crate::x86::*;
 
 impl Generator<'_> {
     // 式のコード生成

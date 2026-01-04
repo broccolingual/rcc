@@ -1,4 +1,4 @@
-use crate::node::*;
+use super::{BinaryOp, Node, UnaryOp};
 use crate::symbol::SymbolId;
 
 #[derive(PartialEq, Eq, Hash, Clone, Debug)]

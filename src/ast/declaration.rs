@@ -1,4 +1,4 @@
-use crate::ast::*;
+use super::Ast;
 use crate::errors::CompileError;
 use crate::function::{Func, LocalVar};
 use crate::node::{Node, NodeKind};

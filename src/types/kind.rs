@@ -1,4 +1,4 @@
-use crate::types::*;
+use super::{Decl, MemberDecl, TypeRef};
 use core::fmt;
 
 #[derive(Clone, PartialEq, Eq, Hash)]

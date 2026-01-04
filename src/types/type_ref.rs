@@ -1,4 +1,7 @@
-use crate::types::*;
+use super::{
+    DeclSpec, MemberDecl, StorageClassKind, TypeAttr, TypeData, TypeKind, TypeQualKind,
+    TypeSpecQual, get_type_table,
+};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash, Default)]
 pub(crate) struct TypeRef(pub usize);
@@ -22,23 +25,28 @@ impl TypeRef {
     }
 
     pub(crate) fn kind(&self) -> TypeKind {
-        self.get().kind
+        let table = get_type_table().lock().unwrap();
+        table.get(*self).kind.clone()
     }
 
     pub(crate) fn attr(&self) -> TypeAttr {
-        self.get().attr
+        let table = get_type_table().lock().unwrap();
+        table.get(*self).attr
     }
 
     pub(crate) fn storage_class(&self) -> Option<StorageClassKind> {
-        self.get().storage_class
+        let table = get_type_table().lock().unwrap();
+        table.get(*self).storage_class
     }
 
     pub(crate) fn size_of(&self) -> usize {
-        self.get().size
+        let table = get_type_table().lock().unwrap();
+        table.get(*self).size
     }
 
     pub(crate) fn align_of(&self) -> usize {
-        self.get().align
+        let table = get_type_table().lock().unwrap();
+        table.get(*self).align
     }
 
     pub(crate) fn is_struct(&self) -> bool {
@@ -46,7 +54,7 @@ impl TypeRef {
     }
 
     pub(crate) fn is_extern(&self) -> bool {
-        matches!(self.get().storage_class, Some(StorageClassKind::Extern))
+        matches!(self.storage_class(), Some(StorageClassKind::Extern))
     }
 
     pub(crate) fn is_ptr(&self) -> bool {

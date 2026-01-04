@@ -1,4 +1,4 @@
-use crate::types::*;
+use super::{TypeAttr, TypeData, TypeKind, TypeRef};
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 

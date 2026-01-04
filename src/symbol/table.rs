@@ -1,4 +1,4 @@
-use crate::symbol::*;
+use super::{Symbol, SymbolId};
 use crate::types::TypeRef;
 use std::collections::HashMap;
 
