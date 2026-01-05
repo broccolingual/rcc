@@ -132,13 +132,7 @@ impl Symbol {
     }
 
     pub(crate) fn is_var(&self) -> bool {
-        matches!(
-            self,
-            Symbol {
-                kind: SymbolKind::Var { .. },
-                ..
-            }
-        )
+        matches!(self.kind, SymbolKind::Var { .. })
     }
 
     pub(crate) fn is_global_var(&self) -> bool {
@@ -146,30 +140,18 @@ impl Symbol {
     }
 
     pub(crate) fn is_func(&self) -> bool {
-        matches!(
-            self,
-            Symbol {
-                kind: SymbolKind::Func { .. },
-                ..
-            }
-        )
+        matches!(self.kind, SymbolKind::Func { .. })
     }
 
     pub(crate) fn is_defined(&self) -> bool {
         match &self.kind {
             SymbolKind::Var { is_defined, .. } => *is_defined,
             SymbolKind::Func { is_defined } => *is_defined,
-            _ => false,
+            SymbolKind::EnumConst { .. } => true,
         }
     }
 
     pub(crate) fn is_enum_const(&self) -> bool {
-        matches!(
-            self,
-            Symbol {
-                kind: SymbolKind::EnumConst { .. },
-                ..
-            }
-        )
+        matches!(self.kind, SymbolKind::EnumConst { .. })
     }
 }
