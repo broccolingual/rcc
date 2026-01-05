@@ -406,7 +406,7 @@ impl Ast<'_> {
                 return Ok(Some(self.parse_enum_definition(enum_name, span)?));
             }
 
-            // 列挙体参照または前方宣言: enum ident
+            // 列挙体参照: enum ident
             if !enum_name.is_empty() {
                 return Ok(Some(self.parse_enum_reference(enum_name, span)?));
             }
@@ -462,10 +462,10 @@ impl Ast<'_> {
         if let Some(tag) = self.find_tag(&enum_name) {
             return Ok(tag.ty.kind());
         }
-        return Err(CompileError::InvalidDecl {
+        Err(CompileError::InvalidDecl {
             msg: format!("列挙体 '{}' が見つかりません", enum_name),
             span,
-        })?;
+        })?
     }
 
     // enum_list ::= enumerator ("," enumerator)*
