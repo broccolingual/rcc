@@ -58,8 +58,8 @@ pub(crate) struct Symbol {
 
 impl fmt::Debug for Symbol {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.is_enum_const() {
-            write!(f, "{} = {:?}", self.name, self.ty)
+        if let Some(value) = self.get_value() {
+            write!(f, "{} = {}", self.name, value) // 列挙定数の場合
         } else {
             write!(f, "{}: {:?}", self.name, self.ty)
         }
@@ -116,10 +116,10 @@ impl Symbol {
         }
     }
 
-    pub(crate) fn get_init(&self) -> Vec<Node> {
+    pub(crate) fn get_init(&self) -> &[Node] {
         match &self.kind {
-            SymbolKind::Var { init, .. } => init.clone(),
-            _ => Vec::new(),
+            SymbolKind::Var { init, .. } => init,
+            _ => &[],
         }
     }
 
