@@ -277,3 +277,24 @@ assert_inline 20 'struct Point {int x; int y;}; struct Point p; struct Point *pt
 assert_inline 70 'struct Point {int x; int y;}; struct Point p; struct Point *ptr; p.x = 10; p.y = 20; ptr = &p; ptr->x = 30; ptr->y = 40; return ptr->x + ptr->y;'  # アロー演算子で書き込み
 assert_inline 30 'struct Point {int x; int y;}; struct Point p; struct Point *ptr; p.x = 10; p.y = 20; ptr = &p; ptr->x = 30; return p.x;'  # ポインタ経由での書き込みが元の変数に反映
 assert_inline 15 'struct Point {int x; int y;}; struct Point p; struct Point *ptr; p.x = 5; p.y = 10; ptr = &p; return (*ptr).x + (*ptr).y;'  # ドット演算子での参照外し
+
+# 列挙型（enum）のテスト
+assert_inline 0 'enum {RED, GREEN, BLUE}; return RED;'  # 最初の列挙定数は0
+assert_inline 1 'enum {RED, GREEN, BLUE}; return GREEN;'  # 2番目は1
+assert_inline 2 'enum {RED, GREEN, BLUE}; return BLUE;'  # 3番目は2
+assert_inline 10 'enum {RED = 10, GREEN, BLUE}; return RED;'  # 明示的な値の指定
+assert_inline 11 'enum {RED = 10, GREEN, BLUE}; return GREEN;'  # 明示的な値の後は自動インクリメント
+assert_inline 12 'enum {RED = 10, GREEN, BLUE}; return BLUE;'  # 自動インクリメントの続き
+assert_inline 15 'enum {A = 5, B = 10, C = 15}; return C;'  # すべて明示的に指定
+assert_inline 22 'enum {A = 5, B, C = 10, D}; return A + B + D;'  # 混在（5 + 6 + 10 = 21）
+assert_inline 0 'enum Color {RED, GREEN, BLUE}; return RED;'  # 名前付き列挙型
+assert_inline 2 'enum Color {RED, GREEN, BLUE}; enum Color c; c = BLUE; return c;'  # 列挙型の変数
+assert_inline 1 'enum {RED, GREEN, BLUE}; int x; x = GREEN; return x;'  # 列挙定数をint変数に代入
+assert_inline 1 'enum {RED, GREEN, BLUE}; return RED < GREEN;'  # 列挙定数の比較
+assert_inline 5 'enum {A = 2, B = 3,}; return A + B;'  # 列挙定数の演算
+assert_inline 21 'enum {X = 10, Y}; return X + Y;'  # 自動インクリメントとの演算（10 + 11 = 21）
+assert_inline 3 'enum {RED, GREEN, BLUE}; int a[BLUE]; a[0] = 1; a[1] = 2; return a[0] + a[1];'  # 列挙定数を配列サイズに使用
+assert_inline 5 'enum Size {SIZE = 5}; int a[SIZE]; a[2] = 5; return a[2];'  # 名前付き列挙型の定数を配列サイズに
+assert_inline 1 'enum {ZERO, ONE, TWO}; if (ONE) return 1; return 0;'  # 列挙定数を条件式で使用
+assert_inline 3 'enum {A = 1, B = 2, C = 4}; return (A | B);'  # ビット演算で使用
+assert_inline 100 'enum {MAX = 100}; return MAX;'  # 大きな値の指定

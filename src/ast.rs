@@ -56,6 +56,28 @@ impl<'a> Ast<'a> {
         self.symbol_table.insert_symbol(name, symbol)
     }
 
+    // 列挙定数シンボルを登録
+    fn register_enum_const_symbol(
+        &mut self,
+        name: &str,
+        value: i64,
+        span: (usize, usize),
+    ) -> Result<SymbolId, CompileError> {
+        // 同じスコープに同名の列挙定数が存在する場合はエラー
+        if self
+            .symbol_table
+            .find_symbol_in_current_scope(name)
+            .is_some()
+        {
+            return Err(CompileError::Redecl {
+                name: name.to_string(),
+                span,
+            });
+        }
+        let symbol = Symbol::new_enum_const(name, value);
+        Ok(self.symbol_table.insert_symbol(name, symbol))
+    }
+
     // 関数定義を登録
     fn register_func_def(&mut self, func: Func) -> FuncId {
         self.funcs.push(func);
@@ -170,6 +192,29 @@ impl<'a> Ast<'a> {
 
     fn find_tag_in_current_scope(&self, name: &str) -> Option<&Tag> {
         self.symbol_table.find_tag_in_current_scope(name)
+    }
+
+    // タグの重複チェックと型の登録
+    fn validate_and_register_tag(
+        &mut self,
+        tag_name: &str,
+        ty: TypeRef,
+        span: (usize, usize),
+    ) -> Result<(), CompileError> {
+        if let Some(existing_tag) = self.find_tag_in_current_scope(tag_name) {
+            if !existing_tag.ty.is_incomplete() {
+                return Err(CompileError::InvalidDecl {
+                    msg: format!("タグ '{}' はすでに定義されています", tag_name),
+                    span,
+                });
+            }
+            // 不完全型の場合は既存のTypeRefを使用
+            self.register_tag(tag_name, existing_tag.ty);
+        } else {
+            // タグを未完成型で登録
+            self.register_tag(tag_name, ty);
+        }
+        Ok(())
     }
 
     fn next_label(&mut self) -> usize {

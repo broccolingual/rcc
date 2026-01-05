@@ -229,29 +229,12 @@ impl Ast<'_> {
         if let Some(token) = self.consume_keyword("return") {
             let span = token.span;
             if self.consume_punct(";").is_some() {
-                // TODO: プロトタイプ宣言実装まで保留
-                // if TypeKind::Void != self.get_current_func()?.return_ty.kind {
-                //     return Err(CompileError::InvalidReturnType {
-                //         expected: self.get_current_func()?.return_ty.clone().kind,
-                //         found: TypeKind::Void,
-                //     });
-                // }
                 return Ok(Some(Box::new(Node::new(
                     NodeKind::Return { expr: None },
                     span,
                 ))));
             }
             let node = self.expr()?;
-            // TODO: プロトタイプ宣言実装まで保留
-            // if let Some(n) = &mut node {
-            //     // let func_ret_ty = &self.get_current_func()?.return_ty;
-            //     // if &n.ty != func_ret_ty {
-            //     //     return Err(CompileError::InvalidReturnType {
-            //     //         expected: func_ret_ty.kind.clone(),
-            //     //         found: n.ty.kind.clone(),
-            //     //     });
-            //     // }
-            // }
             self.expect_punct(";")?;
             return Ok(Some(Box::new(Node::new(
                 NodeKind::Return { expr: node },

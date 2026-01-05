@@ -218,9 +218,12 @@ impl Ast<'_> {
             .find(|spec| self.consume_keyword(&spec.to_string()).is_some())
     }
 
-    // type_spec ::= "void" | "char" | "short" | "int" | "long" | "float" | "double" | struct_or_union_spec
+    // type_spec ::= "void" | "char" | "short" | "int" | "long" | "float" | "double" | struct_or_union_spec | enum_spec
     fn type_spec(&mut self) -> Result<Option<TypeKind>, CompileError> {
         if let Some(ty) = self.struct_or_union_spec()? {
+            return Ok(Some(ty));
+        }
+        if let Some(ty) = self.enum_spec()? {
             return Ok(Some(ty));
         }
         Ok(TypeKind::all()
@@ -241,12 +244,12 @@ impl Ast<'_> {
             };
             // 構造体定義: struct ident? { ... }
             if self.peek_punct("{") {
-                return self.parse_struct_definition(struct_name, span);
+                return Ok(Some(self.parse_struct_definition(struct_name, span)?));
             }
 
             // 構造体参照または前方宣言: struct ident
             if !struct_name.is_empty() {
-                return Ok(self.parse_struct_reference(struct_name));
+                return Ok(Some(self.parse_struct_reference(struct_name)));
             }
 
             // 無名構造体の前方宣言はエラー
@@ -263,7 +266,7 @@ impl Ast<'_> {
         &mut self,
         struct_name: String,
         span: (usize, usize),
-    ) -> Result<Option<TypeKind>, CompileError> {
+    ) -> Result<TypeKind, CompileError> {
         // メンバをパースする前に未完成型を登録
         let incomplete_ty = TypeRef::register(
             TypeKind::Struct {
@@ -276,13 +279,20 @@ impl Ast<'_> {
 
         // タグの重複チェックと登録
         if !struct_name.is_empty() {
-            self.validate_and_register_incomplete_tag(&struct_name, incomplete_ty, span)?;
+            self.validate_and_register_tag(&struct_name, incomplete_ty, span)?;
         }
 
         // メンバをパース
         self.expect_punct("{")?;
         let members = self.struct_decl_list()?;
         self.expect_punct("}")?;
+
+        if members.is_empty() {
+            return Err(CompileError::InvalidDecl {
+                msg: "構造体には少なくとも1つのメンバが必要です".to_string(),
+                span,
+            });
+        }
 
         // 構造体型を完成させる
         let struct_ty = if incomplete_ty.is_incomplete() {
@@ -304,14 +314,14 @@ impl Ast<'_> {
             self.register_tag(&struct_name, struct_ty);
         }
 
-        Ok(Some(struct_ty.kind()))
+        Ok(struct_ty.kind())
     }
 
     // 構造体参照または前方宣言をパース
-    fn parse_struct_reference(&mut self, struct_name: String) -> Option<TypeKind> {
+    fn parse_struct_reference(&mut self, struct_name: String) -> TypeKind {
         // 既存の構造体タグを検索
         if let Some(tag) = self.find_tag(&struct_name) {
-            return Some(tag.ty.kind());
+            return tag.ty.kind();
         }
 
         // 前方宣言として未完成型を登録
@@ -324,30 +334,7 @@ impl Ast<'_> {
             None,
         );
         self.register_tag(&struct_name, incomplete_ty);
-        Some(incomplete_ty.kind())
-    }
-
-    // タグの重複チェックと未完成型の登録
-    fn validate_and_register_incomplete_tag(
-        &mut self,
-        tag_name: &str,
-        incomplete_ty: TypeRef,
-        span: (usize, usize),
-    ) -> Result<(), CompileError> {
-        if let Some(existing_tag) = self.find_tag_in_current_scope(tag_name) {
-            if !existing_tag.ty.is_incomplete() {
-                return Err(CompileError::InvalidDecl {
-                    msg: format!("構造体タグ '{}' はすでに定義されています", tag_name),
-                    span,
-                });
-            }
-            // 不完全型の場合は既存のTypeRefを使用
-            self.register_tag(tag_name, existing_tag.ty);
-        } else {
-            // 構造体タグを未完成型で登録
-            self.register_tag(tag_name, incomplete_ty);
-        }
-        Ok(())
+        incomplete_ty.kind()
     }
 
     // struct_decl_list ::= struct_decl+
@@ -398,6 +385,133 @@ impl Ast<'_> {
     fn struct_declarator(&mut self, base_ty: &TypeRef) -> Result<Option<MemberDecl>, CompileError> {
         if let Ok(decl) = self.declarator(base_ty) {
             return Ok(Some(decl.into()));
+        }
+        Ok(None)
+    }
+
+    // enum_spec ::= "enum" ident? "{" enum_list "}"
+    //             | "enum" ident? "{" enum_list "," "}"
+    //             | "enum" ident
+    fn enum_spec(&mut self) -> Result<Option<TypeKind>, CompileError> {
+        if let Some(enum_token) = self.consume_keyword("enum") {
+            let mut span = enum_token.span;
+            let enum_name = if let Some((name, ident_token)) = self.consume_ident() {
+                span = ident_token.span;
+                name
+            } else {
+                String::new()
+            };
+            // 列挙体定義: enum ident? { ... }
+            if self.peek_punct("{") {
+                return Ok(Some(self.parse_enum_definition(enum_name, span)?));
+            }
+
+            // 列挙体参照: enum ident
+            if !enum_name.is_empty() {
+                return Ok(Some(self.parse_enum_reference(enum_name, span)?));
+            }
+
+            // 無名列挙体の前方宣言はエラー
+            return Err(CompileError::InvalidDecl {
+                msg: "無名列挙体には定義が必要です".to_string(),
+                span: self.get_prev_token_span().unwrap_or((0, 0)),
+            });
+        }
+        Ok(None)
+    }
+
+    // 列挙体定義をパース
+    fn parse_enum_definition(
+        &mut self,
+        enum_name: String,
+        span: (usize, usize),
+    ) -> Result<TypeKind, CompileError> {
+        // タグの重複チェックと登録
+        let int_ty = TypeRef::register(TypeKind::Int, TypeAttr::default(), None);
+        if !enum_name.is_empty() {
+            self.validate_and_register_tag(&enum_name, int_ty, span)?;
+        }
+
+        // メンバをパース
+        self.expect_punct("{")?;
+        let variants = self.enum_list()?;
+        self.expect_punct("}")?;
+
+        // 列挙定数をシンボルとして登録
+        for (name, val) in &variants {
+            self.register_enum_const_symbol(name, *val, span)?;
+        }
+
+        Ok(TypeKind::Int) // 列挙体の型は int として扱う
+    }
+
+    // 列挙体定義または参照をパース
+    fn parse_enum_reference(
+        &mut self,
+        enum_name: String,
+        span: (usize, usize),
+    ) -> Result<TypeKind, CompileError> {
+        // 既存の列挙体タグを検索
+        if let Some(tag) = self.find_tag(&enum_name) {
+            return Ok(tag.ty.kind());
+        }
+        Err(CompileError::InvalidDecl {
+            msg: format!("列挙体 '{}' が見つかりません", enum_name),
+            span,
+        })
+    }
+
+    // enum_list ::= enumerator ( "," enumerator )*
+    fn enum_list(&mut self) -> Result<Vec<(String, i64)>, CompileError> {
+        let mut variants_with_opt = Vec::new();
+        let variant = self
+            .enumerator()?
+            .ok_or_else(|| CompileError::InvalidDecl {
+                msg: "列挙体には少なくとも1つの列挙定数が必要です".to_string(),
+                span: self.get_prev_token_span().unwrap_or((0, 0)),
+            })?;
+        variants_with_opt.push(variant);
+        while self.consume_punct(",").is_some() {
+            if self.peek_punct("}") {
+                // 末尾カンマに対応
+                break;
+            }
+            if let Some(variant) = self.enumerator()? {
+                variants_with_opt.push(variant);
+            } else {
+                // カンマの後に識別子がない場合はエラー
+                return Err(CompileError::InvalidDecl {
+                    msg: "カンマの後に識別子が必要です".to_string(),
+                    span: self.get_prev_token_span().unwrap_or((0, 0)),
+                });
+            }
+        }
+
+        // 値の割り当て
+        let mut variants = Vec::new();
+        let mut current_val: i64 = 0;
+        for (name, value_opt) in variants_with_opt {
+            let value = if let Some(v) = value_opt {
+                current_val = v;
+                v
+            } else {
+                current_val
+            };
+            variants.push((name, value));
+            current_val += 1;
+        }
+        Ok(variants)
+    }
+
+    // enumerator ::= ident ("=" const_expr)?
+    fn enumerator(&mut self) -> Result<Option<(String, Option<i64>)>, CompileError> {
+        if let Some((name, _)) = self.consume_ident() {
+            let value = if self.consume_punct("=").is_some() {
+                Some(self.const_expr()?)
+            } else {
+                None
+            };
+            return Ok(Some((name, value)));
         }
         Ok(None)
     }
