@@ -6,7 +6,6 @@ use crate::types::{
     Decl, DeclSpec, FuncKind, MemberDecl, StorageClassKind, TypeAttr, TypeKind, TypeQualKind,
     TypeRef, TypeSpecQual,
 };
-use std::collections::HashMap;
 
 impl Ast<'_> {
     // external_decl ::= func_def | decl
@@ -280,13 +279,20 @@ impl Ast<'_> {
 
         // タグの重複チェックと登録
         if !struct_name.is_empty() {
-            self.validate_and_register_incomplete_tag(&struct_name, incomplete_ty, span)?;
+            self.validate_and_register_tag(&struct_name, incomplete_ty, span)?;
         }
 
         // メンバをパース
         self.expect_punct("{")?;
         let members = self.struct_decl_list()?;
         self.expect_punct("}")?;
+
+        if members.is_empty() {
+            return Err(CompileError::InvalidDecl {
+                msg: "構造体には少なくとも1つのメンバが必要です".to_string(),
+                span,
+            });
+        }
 
         // 構造体型を完成させる
         let struct_ty = if incomplete_ty.is_incomplete() {
@@ -402,7 +408,7 @@ impl Ast<'_> {
 
             // 列挙体参照または前方宣言: enum ident
             if !enum_name.is_empty() {
-                return Ok(Some(self.parse_enum_reference(enum_name)));
+                return Ok(Some(self.parse_enum_reference(enum_name, span)?));
             }
 
             // 無名列挙体の前方宣言はエラー
@@ -420,19 +426,10 @@ impl Ast<'_> {
         enum_name: String,
         span: (usize, usize),
     ) -> Result<TypeKind, CompileError> {
-        // メンバをパースする前に未完成型を登録
-        let incomplete_ty = TypeRef::register(
-            TypeKind::Enum {
-                name: enum_name.clone(),
-                variants: HashMap::new(),
-            },
-            TypeAttr::default(),
-            None,
-        );
-
         // タグの重複チェックと登録
+        let int_ty = TypeRef::register(TypeKind::Int, TypeAttr::default(), None);
         if !enum_name.is_empty() {
-            self.validate_and_register_incomplete_tag(&enum_name, incomplete_ty, span)?;
+            self.validate_and_register_tag(&enum_name, int_ty, span)?;
         }
 
         // メンバをパース
@@ -440,39 +437,39 @@ impl Ast<'_> {
         let variants = self.enum_list()?;
         self.expect_punct("}")?;
 
-        // 列挙体型を完成させる
-        let enum_ty = incomplete_ty.complete_enum(variants);
-
-        // 列挙体タグを更新
-        if !enum_name.is_empty() {
-            self.register_tag(&enum_name, enum_ty);
+        if variants.is_empty() {
+            return Err(CompileError::InvalidDecl {
+                msg: "列挙体には少なくとも1つの列挙定数が必要です".to_string(),
+                span,
+            });
         }
 
-        Ok(enum_ty.kind())
+        // 列挙定数をシンボルとして登録
+        for (name, val) in &variants {
+            self.register_enum_const_symbol(name, *val)?;
+        }
+
+        Ok(TypeKind::Int) // 列挙体の型は int として扱う
     }
 
     // 列挙体定義または参照をパース
-    fn parse_enum_reference(&mut self, enum_name: String) -> TypeKind {
+    fn parse_enum_reference(
+        &mut self,
+        enum_name: String,
+        span: (usize, usize),
+    ) -> Result<TypeKind, CompileError> {
         // 既存の列挙体タグを検索
         if let Some(tag) = self.find_tag(&enum_name) {
-            return tag.ty.kind();
+            return Ok(tag.ty.kind());
         }
-
-        // 前方宣言として未完成型を登録
-        let incomplete_ty = TypeRef::register(
-            TypeKind::Enum {
-                name: enum_name.clone(),
-                variants: HashMap::new(),
-            },
-            TypeAttr::default(),
-            None,
-        );
-        self.register_tag(&enum_name, incomplete_ty);
-        incomplete_ty.kind()
+        return Err(CompileError::InvalidDecl {
+            msg: format!("列挙体 '{}' が見つかりません", enum_name),
+            span,
+        })?;
     }
 
     // enum_list ::= enumerator ("," enumerator)*
-    fn enum_list(&mut self) -> Result<HashMap<String, usize>, CompileError> {
+    fn enum_list(&mut self) -> Result<Vec<(String, usize)>, CompileError> {
         let mut variants = Vec::new();
         if let Some(variant) = self.enumerator()? {
             variants.push(variant);
@@ -492,7 +489,7 @@ impl Ast<'_> {
             }
             current_val += 1;
         }
-        Ok(variants.into_iter().collect())
+        Ok(variants)
     }
 
     // enumerator ::= ident ("=" const_expr)?

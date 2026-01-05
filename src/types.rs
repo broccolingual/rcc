@@ -94,7 +94,6 @@ impl TypeData {
                 }
                 (offset.align_up(max_align), max_align)
             }
-            TypeKind::Enum { .. } => (4, 4), // 列挙体は int として扱う
             TypeKind::Func { .. } => (8, 8),
         };
 

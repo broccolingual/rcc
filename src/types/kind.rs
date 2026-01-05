@@ -1,6 +1,5 @@
 use super::{Decl, MemberDecl, TypeRef};
 use core::fmt;
-use std::collections::HashMap;
 
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) enum TypeKind {
@@ -22,10 +21,6 @@ pub(crate) enum TypeKind {
         name: String,
         members: Vec<MemberDecl>,
     }, // name: 構造体名, members: メンバーリスト
-    Enum {
-        name: String,
-        variants: HashMap<String, usize>,
-    }, // name: 列挙体名, variants: 列挙体のバリアントリスト (名前, 値)
     Func {
         return_ty: TypeRef,
         params: Vec<Decl>,
@@ -57,16 +52,6 @@ impl fmt::Debug for TypeKind {
                         member.name,
                         member.offset.unwrap_or(0)
                     )?;
-                }
-                write!(f, " }}")
-            }
-            TypeKind::Enum { name, variants } => {
-                write!(f, "enum {} {{ ", name)?;
-                for (i, (variant_name, value)) in variants.iter().enumerate() {
-                    if i > 0 {
-                        write!(f, ", ")?;
-                    }
-                    write!(f, "{} = {}", variant_name, value)?;
                 }
                 write!(f, " }}")
             }
@@ -118,7 +103,6 @@ impl TypeKind {
             TypeKind::Void => true,                                 // void は常に未完成型
             TypeKind::Array { size, .. } => *size == 0,             // サイズ不明の配列
             TypeKind::Struct { members, .. } => members.is_empty(), // メンバーが定義されていない構造体
-            TypeKind::Enum { variants, .. } => variants.is_empty(), // バリアントが定義されていない列挙体
             _ => false,
         }
     }

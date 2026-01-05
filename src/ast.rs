@@ -56,6 +56,27 @@ impl<'a> Ast<'a> {
         self.symbol_table.insert_symbol(name, symbol)
     }
 
+    // 列挙定数シンボルを登録
+    fn register_enum_const_symbol(
+        &mut self,
+        name: &str,
+        value: usize,
+    ) -> Result<SymbolId, CompileError> {
+        // 同じスコープに同名の列挙定数が存在する場合はエラー
+        if self
+            .symbol_table
+            .find_symbol_in_current_scope(name)
+            .is_some()
+        {
+            return Err(CompileError::Redecl {
+                name: name.to_string(),
+                span: (0, 0), // 適切なspanを設定する必要があります
+            });
+        }
+        let symbol = Symbol::new_enum_const(name, value as i64);
+        Ok(self.symbol_table.insert_symbol(name, symbol))
+    }
+
     // 関数定義を登録
     fn register_func_def(&mut self, func: Func) -> FuncId {
         self.funcs.push(func);
@@ -172,11 +193,11 @@ impl<'a> Ast<'a> {
         self.symbol_table.find_tag_in_current_scope(name)
     }
 
-    // タグの重複チェックと未完成型の登録
-    fn validate_and_register_incomplete_tag(
+    // タグの重複チェックと型の登録
+    fn validate_and_register_tag(
         &mut self,
         tag_name: &str,
-        incomplete_ty: TypeRef,
+        ty: TypeRef,
         span: (usize, usize),
     ) -> Result<(), CompileError> {
         if let Some(existing_tag) = self.find_tag_in_current_scope(tag_name) {
@@ -190,7 +211,7 @@ impl<'a> Ast<'a> {
             self.register_tag(tag_name, existing_tag.ty);
         } else {
             // タグを未完成型で登録
-            self.register_tag(tag_name, incomplete_ty);
+            self.register_tag(tag_name, ty);
         }
         Ok(())
     }
