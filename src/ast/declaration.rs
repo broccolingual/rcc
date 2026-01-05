@@ -6,6 +6,7 @@ use crate::types::{
     Decl, DeclSpec, FuncKind, MemberDecl, StorageClassKind, TypeAttr, TypeKind, TypeQualKind,
     TypeRef, TypeSpecQual,
 };
+use std::collections::HashMap;
 
 impl Ast<'_> {
     // external_decl ::= func_def | decl
@@ -218,9 +219,12 @@ impl Ast<'_> {
             .find(|spec| self.consume_keyword(&spec.to_string()).is_some())
     }
 
-    // type_spec ::= "void" | "char" | "short" | "int" | "long" | "float" | "double" | struct_or_union_spec
+    // type_spec ::= "void" | "char" | "short" | "int" | "long" | "float" | "double" | struct_or_union_spec | enum_spec
     fn type_spec(&mut self) -> Result<Option<TypeKind>, CompileError> {
         if let Some(ty) = self.struct_or_union_spec()? {
+            return Ok(Some(ty));
+        }
+        if let Some(ty) = self.enum_spec()? {
             return Ok(Some(ty));
         }
         Ok(TypeKind::all()
@@ -241,12 +245,12 @@ impl Ast<'_> {
             };
             // 構造体定義: struct ident? { ... }
             if self.peek_punct("{") {
-                return self.parse_struct_definition(struct_name, span);
+                return Ok(Some(self.parse_struct_definition(struct_name, span)?));
             }
 
             // 構造体参照または前方宣言: struct ident
             if !struct_name.is_empty() {
-                return Ok(self.parse_struct_reference(struct_name));
+                return Ok(Some(self.parse_struct_reference(struct_name)));
             }
 
             // 無名構造体の前方宣言はエラー
@@ -263,7 +267,7 @@ impl Ast<'_> {
         &mut self,
         struct_name: String,
         span: (usize, usize),
-    ) -> Result<Option<TypeKind>, CompileError> {
+    ) -> Result<TypeKind, CompileError> {
         // メンバをパースする前に未完成型を登録
         let incomplete_ty = TypeRef::register(
             TypeKind::Struct {
@@ -304,14 +308,14 @@ impl Ast<'_> {
             self.register_tag(&struct_name, struct_ty);
         }
 
-        Ok(Some(struct_ty.kind()))
+        Ok(struct_ty.kind())
     }
 
     // 構造体参照または前方宣言をパース
-    fn parse_struct_reference(&mut self, struct_name: String) -> Option<TypeKind> {
+    fn parse_struct_reference(&mut self, struct_name: String) -> TypeKind {
         // 既存の構造体タグを検索
         if let Some(tag) = self.find_tag(&struct_name) {
-            return Some(tag.ty.kind());
+            return tag.ty.kind();
         }
 
         // 前方宣言として未完成型を登録
@@ -324,30 +328,7 @@ impl Ast<'_> {
             None,
         );
         self.register_tag(&struct_name, incomplete_ty);
-        Some(incomplete_ty.kind())
-    }
-
-    // タグの重複チェックと未完成型の登録
-    fn validate_and_register_incomplete_tag(
-        &mut self,
-        tag_name: &str,
-        incomplete_ty: TypeRef,
-        span: (usize, usize),
-    ) -> Result<(), CompileError> {
-        if let Some(existing_tag) = self.find_tag_in_current_scope(tag_name) {
-            if !existing_tag.ty.is_incomplete() {
-                return Err(CompileError::InvalidDecl {
-                    msg: format!("構造体タグ '{}' はすでに定義されています", tag_name),
-                    span,
-                });
-            }
-            // 不完全型の場合は既存のTypeRefを使用
-            self.register_tag(tag_name, existing_tag.ty);
-        } else {
-            // 構造体タグを未完成型で登録
-            self.register_tag(tag_name, incomplete_ty);
-        }
-        Ok(())
+        incomplete_ty.kind()
     }
 
     // struct_decl_list ::= struct_decl+
@@ -398,6 +379,131 @@ impl Ast<'_> {
     fn struct_declarator(&mut self, base_ty: &TypeRef) -> Result<Option<MemberDecl>, CompileError> {
         if let Ok(decl) = self.declarator(base_ty) {
             return Ok(Some(decl.into()));
+        }
+        Ok(None)
+    }
+
+    // enum_spec ::= "enum" ident? "{" enum_list "}"
+    //             | "enum" ident? "{" enum_list "," "}" // TODO: 未対応
+    //             | "enum" ident
+    fn enum_spec(&mut self) -> Result<Option<TypeKind>, CompileError> {
+        if let Some(enum_token) = self.consume_keyword("enum") {
+            let mut span = enum_token.span;
+            let enum_name = if let Some((name, ident_token)) = self.consume_ident() {
+                span = ident_token.span;
+                name
+            } else {
+                String::new()
+            };
+            // 列挙体定義: enum ident? { ... }
+            if self.peek_punct("{") {
+                return Ok(Some(self.parse_enum_definition(enum_name, span)?));
+            }
+
+            // 列挙体参照または前方宣言: enum ident
+            if !enum_name.is_empty() {
+                return Ok(Some(self.parse_enum_reference(enum_name)));
+            }
+
+            // 無名列挙体の前方宣言はエラー
+            return Err(CompileError::InvalidDecl {
+                msg: "無名列挙体には定義が必要です".to_string(),
+                span: self.get_prev_token_span().unwrap_or((0, 0)),
+            });
+        }
+        Ok(None)
+    }
+
+    // 列挙体定義をパース
+    fn parse_enum_definition(
+        &mut self,
+        enum_name: String,
+        span: (usize, usize),
+    ) -> Result<TypeKind, CompileError> {
+        // メンバをパースする前に未完成型を登録
+        let incomplete_ty = TypeRef::register(
+            TypeKind::Enum {
+                name: enum_name.clone(),
+                variants: HashMap::new(),
+            },
+            TypeAttr::default(),
+            None,
+        );
+
+        // タグの重複チェックと登録
+        if !enum_name.is_empty() {
+            self.validate_and_register_incomplete_tag(&enum_name, incomplete_ty, span)?;
+        }
+
+        // メンバをパース
+        self.expect_punct("{")?;
+        let variants = self.enum_list()?;
+        self.expect_punct("}")?;
+
+        // 列挙体型を完成させる
+        let enum_ty = incomplete_ty.complete_enum(variants);
+
+        // 列挙体タグを更新
+        if !enum_name.is_empty() {
+            self.register_tag(&enum_name, enum_ty);
+        }
+
+        Ok(enum_ty.kind())
+    }
+
+    // 列挙体定義または参照をパース
+    fn parse_enum_reference(&mut self, enum_name: String) -> TypeKind {
+        // 既存の列挙体タグを検索
+        if let Some(tag) = self.find_tag(&enum_name) {
+            return tag.ty.kind();
+        }
+
+        // 前方宣言として未完成型を登録
+        let incomplete_ty = TypeRef::register(
+            TypeKind::Enum {
+                name: enum_name.clone(),
+                variants: HashMap::new(),
+            },
+            TypeAttr::default(),
+            None,
+        );
+        self.register_tag(&enum_name, incomplete_ty);
+        incomplete_ty.kind()
+    }
+
+    // enum_list ::= enumerator ("," enumerator)*
+    fn enum_list(&mut self) -> Result<HashMap<String, usize>, CompileError> {
+        let mut variants = Vec::new();
+        if let Some(variant) = self.enumerator()? {
+            variants.push(variant);
+        }
+        while self.consume_punct(",").is_some() {
+            if let Some(variant) = self.enumerator()? {
+                variants.push(variant);
+            }
+        }
+        // 値の割り当て
+        let mut current_val = 0;
+        for variant in variants.iter_mut() {
+            if variant.1 == 0 {
+                variant.1 = current_val;
+            } else {
+                current_val = variant.1;
+            }
+            current_val += 1;
+        }
+        Ok(variants.into_iter().collect())
+    }
+
+    // enumerator ::= ident ("=" const_expr)?
+    fn enumerator(&mut self) -> Result<Option<(String, usize)>, CompileError> {
+        if let Some((name, _)) = self.consume_ident() {
+            let value = if self.consume_punct("=").is_some() {
+                self.const_expr()? as usize
+            } else {
+                0
+            };
+            return Ok(Some((name, value)));
         }
         Ok(None)
     }

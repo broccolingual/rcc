@@ -172,6 +172,29 @@ impl<'a> Ast<'a> {
         self.symbol_table.find_tag_in_current_scope(name)
     }
 
+    // タグの重複チェックと未完成型の登録
+    fn validate_and_register_incomplete_tag(
+        &mut self,
+        tag_name: &str,
+        incomplete_ty: TypeRef,
+        span: (usize, usize),
+    ) -> Result<(), CompileError> {
+        if let Some(existing_tag) = self.find_tag_in_current_scope(tag_name) {
+            if !existing_tag.ty.is_incomplete() {
+                return Err(CompileError::InvalidDecl {
+                    msg: format!("タグ '{}' はすでに定義されています", tag_name),
+                    span,
+                });
+            }
+            // 不完全型の場合は既存のTypeRefを使用
+            self.register_tag(tag_name, existing_tag.ty);
+        } else {
+            // タグを未完成型で登録
+            self.register_tag(tag_name, incomplete_ty);
+        }
+        Ok(())
+    }
+
     fn next_label(&mut self) -> usize {
         let seq = self.label_seq;
         self.label_seq += 1;

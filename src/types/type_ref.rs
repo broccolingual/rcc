@@ -2,6 +2,7 @@ use super::{
     DeclSpec, MemberDecl, StorageClassKind, TypeAttr, TypeData, TypeKind, TypeQualKind,
     TypeSpecQual, get_type_table,
 };
+use std::collections::HashMap;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub(crate) struct TypeRef(pub usize);
@@ -189,6 +190,21 @@ impl TypeRef {
         if let TypeKind::Struct { name, .. } = kind {
             let data = TypeData::from_kind(
                 TypeKind::Struct { name, members },
+                self.attr(),
+                self.storage_class(),
+            );
+            self.set(data);
+            *self
+        } else {
+            *self
+        }
+    }
+
+    pub(crate) fn complete_enum(&self, variants: HashMap<String, usize>) -> TypeRef {
+        let kind = self.kind();
+        if let TypeKind::Enum { name, .. } = kind {
+            let data = TypeData::from_kind(
+                TypeKind::Enum { name, variants },
                 self.attr(),
                 self.storage_class(),
             );
