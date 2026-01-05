@@ -132,7 +132,7 @@ int main() {
 }'
 # GCCがlibcをリンクしてくれるおかげでprintfが使える
 assert_func 0 '
-extern void printf(char *fmt, int a);
+extern void printf(const char *fmt, ...);
 
 int main() {
     char *a = "Hello, World! %d\n";
@@ -140,7 +140,7 @@ int main() {
     return 0;
 }'
 assert_func 5 '
-extern void printf(char *fmt);
+extern void printf(const char *fmt, ...);
 
 int a = 5;
 short b = 3;
