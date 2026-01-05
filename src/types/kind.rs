@@ -24,7 +24,8 @@ pub(crate) enum TypeKind {
     Func {
         return_ty: TypeRef,
         params: Vec<Decl>,
-    }, // return_ty: 戻り値の型, params: パラメータリスト
+        is_variadic: bool,
+    }, // return_ty: 戻り値の型, params: パラメータリスト, is_variadic: 可変長引数かどうか
 }
 
 impl fmt::Debug for TypeKind {
@@ -55,13 +56,20 @@ impl fmt::Debug for TypeKind {
                 }
                 write!(f, " }}")
             }
-            TypeKind::Func { return_ty, params } => {
+            TypeKind::Func {
+                return_ty,
+                params,
+                is_variadic,
+            } => {
                 write!(f, "func(")?;
                 for (i, param) in params.iter().enumerate() {
                     if i > 0 {
                         write!(f, ", ")?;
                     }
                     write!(f, "TypeRef({}) {}", param.ty.0, param.name)?;
+                }
+                if *is_variadic {
+                    write!(f, ", ...")?;
                 }
                 write!(f, ") -> TypeRef({})", return_ty.0)
             }

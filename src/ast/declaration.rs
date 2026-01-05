@@ -32,7 +32,10 @@ impl Ast<'_> {
         let token_pos = self.token_pos; // 関数定義でなかった場合にバックトラックするために保存
         if let Ok(first_decl) = self.declarator(&base_ty) {
             // 関数定義の場合: compound_stmt
-            if let TypeKind::Func { params, return_ty } = &first_decl.ty.kind() {
+            if let TypeKind::Func {
+                params, return_ty, ..
+            } = &first_decl.ty.kind()
+            {
                 if self.peek_punct("{") {
                     // プロトタイプ宣言を確認
                     if let Some(symbol) = self.find_symbol_mut(&first_decl.name) {
@@ -643,20 +646,24 @@ impl Ast<'_> {
         }
         // "(" param_type_list ")"
         else if self.consume_punct("(").is_some() {
-            let params = if self.peek_punct(")") {
+            let (params, is_variadic) = if self.peek_punct(")") {
                 // パラメータが0個の場合
                 self.expect_punct(")")?;
-                Vec::new()
+                (Vec::new(), false)
             } else {
                 // パラメータが1個以上の場合
-                let params = self.param_type_list()?;
+                let result = self.param_type_list()?;
                 self.expect_punct(")")?;
-                params
+                result
             };
             let inner_ty = self.parse_postfix_declarators(base_ty)?;
             let return_ty = TypeRef::register(inner_ty.kind(), inner_ty.attr(), None); // 戻り値型のストレージクラスはなし
             Ok(TypeRef::register(
-                TypeKind::Func { return_ty, params },
+                TypeKind::Func {
+                    return_ty,
+                    params,
+                    is_variadic,
+                },
                 TypeAttr::default(),
                 inner_ty.storage_class(),
             ))
@@ -666,21 +673,24 @@ impl Ast<'_> {
     }
 
     // param_type_list ::= param_list
-    //                   | param_list "," "..." // TODO: 未実装
-    fn param_type_list(&mut self) -> Result<Vec<Decl>, CompileError> {
+    //                   | param_list "," "..." // param_listで処理
+    fn param_type_list(&mut self) -> Result<(Vec<Decl>, bool), CompileError> {
         self.param_list()
     }
 
     // param_list ::= param_decl ("," param_decl)*
-    fn param_list(&mut self) -> Result<Vec<Decl>, CompileError> {
+    fn param_list(&mut self) -> Result<(Vec<Decl>, bool), CompileError> {
         let mut params = Vec::new();
         let param = self.param_decl()?;
         params.push(param);
         while self.consume_punct(",").is_some() {
+            if self.consume_punct("...").is_some() {
+                return Ok((params, true));
+            }
             let param = self.param_decl()?;
             params.push(param);
         }
-        Ok(params)
+        Ok((params, false))
     }
 
     // param_decl ::= decl_specs declarator
@@ -784,21 +794,22 @@ impl Ast<'_> {
         }
         // "(" param_type_list ")"
         else if self.consume_punct("(").is_some() {
-            let params = if self.peek_punct(")") {
+            let (params, is_variadic) = if self.peek_punct(")") {
                 // パラメータが0個の場合
                 self.expect_punct(")")?;
-                Vec::new()
+                (Vec::new(), false)
             } else {
                 // パラメータが1個以上の場合
-                let params = self.param_type_list()?;
+                let result = self.param_type_list()?;
                 self.expect_punct(")")?;
-                params
+                result
             };
             let inner_ty = self.parse_abst_postfix_declarators(base_ty)?;
             Ok(TypeRef::register(
                 TypeKind::Func {
                     return_ty: inner_ty,
                     params,
+                    is_variadic,
                 },
                 TypeAttr::default(),
                 None,
