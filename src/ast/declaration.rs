@@ -38,7 +38,7 @@ impl Ast<'_> {
                     if let Some(symbol) = self.find_symbol_mut(&first_decl.name) {
                         // 関数シンボルが既に存在する場合
                         if symbol.is_func() {
-                            if symbol.is_defined {
+                            if symbol.is_defined() {
                                 // 既に定義済みの場合エラー
                                 let span = first_decl.span;
                                 return Err(CompileError::InvalidDecl {
@@ -69,7 +69,7 @@ impl Ast<'_> {
                                 span,
                             });
                         }
-                        symbol.is_defined = true; // 既存のプロトタイプ宣言を定義済みに更新
+                        symbol.set_defined(true); // 既存のプロトタイプ宣言を定義済みに更新
                     } else {
                         // 関数をシンボルが存在しない場合，新規に関数シンボルを登録
                         self.register_func_symbol(&first_decl.name, first_decl.ty, true);

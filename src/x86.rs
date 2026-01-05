@@ -76,7 +76,7 @@ impl<'a> Generator<'a> {
             .ast
             .get_symbols()
             .iter()
-            .filter(|symbol| symbol.is_global_var() && symbol.is_defined)
+            .filter(|symbol| symbol.is_global_var() && symbol.is_defined())
             .collect::<Vec<_>>();
         if global_symbols.is_empty() {
             return Ok(());
@@ -100,16 +100,16 @@ impl<'a> Generator<'a> {
     }
 
     fn emit_global_init(&mut self, symbol: &Symbol) -> Result<(), CompileError> {
-        if symbol.init.is_empty() {
+        let inits = symbol.get_init();
+        if inits.is_empty() {
             self.builder
                 .add_row(&format!(".zero {}", symbol.ty.size_of()), true);
             return Ok(());
         }
         if let TypeKind::Array { base, size } = &symbol.ty.kind() {
             // TODO: 多次元配列の初期化、文字列リテラルによる初期化
-            let init_len = symbol.init.len().min(*size);
-            for i in 0..init_len {
-                let init = &symbol.init[i];
+            let init_len = inits.len().min(*size);
+            for init in inits.iter().take(init_len) {
                 match &init.kind {
                     NodeKind::UnaryOp {
                         op: UnaryOp::Addr,
@@ -150,16 +150,16 @@ impl<'a> Generator<'a> {
                     }
                 }
             }
-            if symbol.init.len() < *size {
-                let zero_fill_size = (*size - symbol.init.len()) * base.size_of();
+            if inits.len() < *size {
+                let zero_fill_size = (*size - inits.len()) * base.size_of();
                 self.builder
                     .add_row(&format!(".zero {}", zero_fill_size), true);
             }
         } else if let TypeKind::Struct { .. } = symbol.ty.kind() {
             // TODO: 構造体の初期化式
             unimplemented!("構造体のグローバル変数初期化には未対応です");
-        } else if symbol.init.len() == 1 {
-            let init = &symbol.init[0];
+        } else if inits.len() == 1 {
+            let init = &inits[0];
             match &init.kind {
                 NodeKind::UnaryOp {
                     op: UnaryOp::Addr,
@@ -202,7 +202,7 @@ impl<'a> Generator<'a> {
         } else {
             return Err(CompileError::InvalidExpr {
                 msg: format!("スカラー変数の初期化式が複数あります: {}", symbol.name),
-                span: symbol.init[0].span,
+                span: inits[0].span,
             });
         }
         Ok(())
@@ -289,16 +289,17 @@ impl<'a> Generator<'a> {
     fn gen_local_init(&mut self, local_var: &LocalVar) -> Result<(), CompileError> {
         // 初期化式がなければ何もしない
         let symbol = self.ast.get_symbol(local_var.symbol_id);
-        if symbol.init.is_empty() {
+        let inits = symbol.get_init();
+        if inits.is_empty() {
             return Ok(());
         }
         if let TypeKind::Array { base, size } = &symbol.ty.kind() {
             // 配列の初期化式
             // TODO: 多次元配列の初期化、文字列リテラルによる初期化
-            let init_len = symbol.init.len().min(*size);
+            let init_len = inits.len().min(*size);
             let base_size = base.size_of();
 
-            for (i, init) in symbol.init.iter().enumerate().take(init_len) {
+            for (i, init) in inits.iter().enumerate().take(init_len) {
                 let elem_offset = local_var.offset - i * base_size;
                 self.builder
                     .add_row(&format!("lea rax, [rbp-{}]", elem_offset), true);
@@ -307,7 +308,7 @@ impl<'a> Generator<'a> {
                 self.store(base)?; // スタックトップの値を配列要素に格納
             }
             // 初期化式の数が配列サイズに満たない場合、残りを0で埋める
-            if symbol.init.len() < *size {
+            if inits.len() < *size {
                 let zero_fill_offset = local_var.offset - init_len * base_size;
                 let zero_fill_size = (*size - init_len) * base_size;
                 self.builder
@@ -320,19 +321,19 @@ impl<'a> Generator<'a> {
         } else if let TypeKind::Struct { .. } = symbol.ty.kind() {
             // TODO: 構造体の初期化式
             unimplemented!("構造体のローカル変数初期化には未対応です");
-        } else if symbol.init.len() == 1 {
+        } else if inits.len() == 1 {
             self.gen_addr(&Node {
                 kind: NodeKind::Var {
                     symbol_id: local_var.symbol_id,
                 },
                 ..Default::default()
             })?; // 変数のアドレスをスタックに積む
-            self.gen_expr(&symbol.init[0])?; // 初期化式のコードを生成し、スタックに値を積む
+            self.gen_expr(&inits[0])?; // 初期化式のコードを生成し、スタックに値を積む
             self.store(&symbol.ty)?; // スタックトップの値を変数に格納
         } else {
             return Err(CompileError::InvalidExpr {
                 msg: format!("スカラー変数の初期化式が複数あります: {}", symbol.name),
-                span: symbol.init[0].span,
+                span: inits[0].span,
             });
         }
         Ok(())
