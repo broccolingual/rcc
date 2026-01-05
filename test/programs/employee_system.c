@@ -30,14 +30,11 @@ int calculate_salary(struct Employee *emp) {
     dept_bonus = 0;
     if (emp->dept == ENGINEERING) {
         dept_bonus = 10;
-    }
-    if (emp->dept == SALES) {
+    } else if (emp->dept == SALES) {
         dept_bonus = 15;
-    }
-    if (emp->dept == MARKETING) {
+    } else if (emp->dept == MARKETING) {
         dept_bonus = 8;
-    }
-    if (emp->dept == HR) {
+    } else if (emp->dept == HR) {
         dept_bonus = 5;
     }
     
@@ -45,11 +42,9 @@ int calculate_salary(struct Employee *emp) {
     level_bonus = 0;
     if (emp->level == JUNIOR) {
         level_bonus = 0;
-    }
-    if (emp->level == SENIOR) {
+    } else if (emp->level == SENIOR) {
         level_bonus = 20;
-    }
-    if (emp->level == MANAGER) {
+    } else if (emp->level == MANAGER) {
         level_bonus = 50;
     }
     

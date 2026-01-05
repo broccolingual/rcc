@@ -740,9 +740,12 @@ impl Ast<'_> {
                     return Ok(Some(Box::new(node)));
                 } else if symbol.is_enum_const() {
                     // 列挙定数は整数リテラルとして扱う
-                    if let Some(value) = symbol.get_value() {
-                        return Ok(Some(Box::new(Node::new_num(value, n.span))));
-                    }
+                    let value = symbol
+                        .get_value()
+                        .ok_or_else(|| CompileError::InternalError {
+                            msg: format!("列挙定数 '{}' の値が設定されていません", name),
+                        })?;
+                    return Ok(Some(Box::new(Node::new_num(value, n.span))));
                 }
             }
             Err(CompileError::UndefinedIdent {

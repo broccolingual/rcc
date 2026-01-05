@@ -60,7 +60,8 @@ impl<'a> Ast<'a> {
     fn register_enum_const_symbol(
         &mut self,
         name: &str,
-        value: usize,
+        value: i64,
+        span: (usize, usize),
     ) -> Result<SymbolId, CompileError> {
         // 同じスコープに同名の列挙定数が存在する場合はエラー
         if self
@@ -70,10 +71,10 @@ impl<'a> Ast<'a> {
         {
             return Err(CompileError::Redecl {
                 name: name.to_string(),
-                span: (0, 0), // 適切なspanを設定する必要があります
+                span,
             });
         }
-        let symbol = Symbol::new_enum_const(name, value as i64);
+        let symbol = Symbol::new_enum_const(name, value);
         Ok(self.symbol_table.insert_symbol(name, symbol))
     }
 

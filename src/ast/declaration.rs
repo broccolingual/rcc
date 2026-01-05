@@ -390,7 +390,7 @@ impl Ast<'_> {
     }
 
     // enum_spec ::= "enum" ident? "{" enum_list "}"
-    //             | "enum" ident? "{" enum_list "," "}" // TODO: 未対応
+    //             | "enum" ident? "{" enum_list "," "}"
     //             | "enum" ident
     fn enum_spec(&mut self) -> Result<Option<TypeKind>, CompileError> {
         if let Some(enum_token) = self.consume_keyword("enum") {
@@ -437,16 +437,9 @@ impl Ast<'_> {
         let variants = self.enum_list()?;
         self.expect_punct("}")?;
 
-        if variants.is_empty() {
-            return Err(CompileError::InvalidDecl {
-                msg: "列挙体には少なくとも1つの列挙定数が必要です".to_string(),
-                span,
-            });
-        }
-
         // 列挙定数をシンボルとして登録
         for (name, val) in &variants {
-            self.register_enum_const_symbol(name, *val)?;
+            self.register_enum_const_symbol(name, *val, span)?;
         }
 
         Ok(TypeKind::Int) // 列挙体の型は int として扱う
@@ -465,40 +458,58 @@ impl Ast<'_> {
         Err(CompileError::InvalidDecl {
             msg: format!("列挙体 '{}' が見つかりません", enum_name),
             span,
-        })?
+        })
     }
 
-    // enum_list ::= enumerator ("," enumerator)*
-    fn enum_list(&mut self) -> Result<Vec<(String, usize)>, CompileError> {
-        let mut variants = Vec::new();
-        if let Some(variant) = self.enumerator()? {
-            variants.push(variant);
-        }
+    // enum_list ::= enumerator ( "," enumerator )*
+    fn enum_list(&mut self) -> Result<Vec<(String, i64)>, CompileError> {
+        let mut variants_with_opt = Vec::new();
+        let variant = self
+            .enumerator()?
+            .ok_or_else(|| CompileError::InvalidDecl {
+                msg: "列挙体には少なくとも1つの列挙定数が必要です".to_string(),
+                span: self.get_prev_token_span().unwrap_or((0, 0)),
+            })?;
+        variants_with_opt.push(variant);
         while self.consume_punct(",").is_some() {
+            if self.peek_punct("}") {
+                // 末尾カンマに対応
+                break;
+            }
             if let Some(variant) = self.enumerator()? {
-                variants.push(variant);
+                variants_with_opt.push(variant);
+            } else {
+                // カンマの後に識別子がない場合はエラー
+                return Err(CompileError::InvalidDecl {
+                    msg: "カンマの後に識別子が必要です".to_string(),
+                    span: self.get_prev_token_span().unwrap_or((0, 0)),
+                });
             }
         }
+
         // 値の割り当て
-        let mut current_val = 0;
-        for variant in variants.iter_mut() {
-            if variant.1 == 0 {
-                variant.1 = current_val;
+        let mut variants = Vec::new();
+        let mut current_val: i64 = 0;
+        for (name, value_opt) in variants_with_opt {
+            let value = if let Some(v) = value_opt {
+                current_val = v;
+                v
             } else {
-                current_val = variant.1;
-            }
+                current_val
+            };
+            variants.push((name, value));
             current_val += 1;
         }
         Ok(variants)
     }
 
     // enumerator ::= ident ("=" const_expr)?
-    fn enumerator(&mut self) -> Result<Option<(String, usize)>, CompileError> {
+    fn enumerator(&mut self) -> Result<Option<(String, Option<i64>)>, CompileError> {
         if let Some((name, _)) = self.consume_ident() {
             let value = if self.consume_punct("=").is_some() {
-                self.const_expr()? as usize
+                Some(self.const_expr()?)
             } else {
-                0
+                None
             };
             return Ok(Some((name, value)));
         }

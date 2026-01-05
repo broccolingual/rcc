@@ -291,7 +291,7 @@ assert_inline 0 'enum Color {RED, GREEN, BLUE}; return RED;'  # 名前付き列�
 assert_inline 2 'enum Color {RED, GREEN, BLUE}; enum Color c; c = BLUE; return c;'  # 列挙型の変数
 assert_inline 1 'enum {RED, GREEN, BLUE}; int x; x = GREEN; return x;'  # 列挙定数をint変数に代入
 assert_inline 1 'enum {RED, GREEN, BLUE}; return RED < GREEN;'  # 列挙定数の比較
-assert_inline 5 'enum {A = 2, B = 3}; return A + B;'  # 列挙定数の演算
+assert_inline 5 'enum {A = 2, B = 3,}; return A + B;'  # 列挙定数の演算
 assert_inline 21 'enum {X = 10, Y}; return X + Y;'  # 自動インクリメントとの演算（10 + 11 = 21）
 assert_inline 3 'enum {RED, GREEN, BLUE}; int a[BLUE]; a[0] = 1; a[1] = 2; return a[0] + a[1];'  # 列挙定数を配列サイズに使用
 assert_inline 5 'enum Size {SIZE = 5}; int a[SIZE]; a[2] = 5; return a[2];'  # 名前付き列挙型の定数を配列サイズに
