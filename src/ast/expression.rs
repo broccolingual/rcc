@@ -700,15 +700,15 @@ impl Ast<'_> {
         if let Some(token) = self.consume_keyword("sizeof") {
             let span = token.span;
             // sizeof ( type_name )
-            if self.peek_punct("(") {
-                if let Some(size) = self.attempt(|ast| {
+            if self.peek_punct("(")
+                && let Some(size) = self.attempt(|ast| {
                     ast.expect_punct("(")?;
                     let ty = ast.type_name()?;
                     ast.expect_punct(")")?;
                     Ok(ty.size_of())
-                }) {
-                    return Ok(Some(Box::new(Node::new_num(size as i64, span))));
-                }
+                })
+            {
+                return Ok(Some(Box::new(Node::new_num(size as i64, span))));
             }
 
             // sizeof unary_expr

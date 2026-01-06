@@ -608,12 +608,7 @@ impl Ast<'_> {
         };
 
         let final_ty = self.parse_postfix_declarators(base_ty)?;
-        Ok(Decl {
-            name,
-            ty: final_ty,
-            init: Vec::new(),
-            span,
-        })
+        Ok(Decl::new(name, final_ty, span))
     }
 
     // 右結合で解析
@@ -723,23 +718,13 @@ impl Ast<'_> {
 
         // abstract_declarator
         if let Some(abst_ty) = self.attempt(|s| s.abst_declarator(&base_ty)) {
-            return Ok(Decl {
-                name: String::new(), // 抽象宣言子は名前なし
-                ty: abst_ty,
-                init: Vec::new(),
-                span,
-            });
+            return Ok(Decl::new_abst(abst_ty, span));
         }
 
         // 両方失敗した場合は、型のみ（int など単純な型）として扱う
         // 次のトークンが "," か ")" なら型のみの宣言として許可
         if self.peek_punct(",") || self.peek_punct(")") {
-            return Ok(Decl {
-                name: String::new(),
-                ty: base_ty,
-                init: Vec::new(),
-                span,
-            });
+            return Ok(Decl::new_abst(base_ty, span));
         }
 
         Err(CompileError::InvalidDecl {
