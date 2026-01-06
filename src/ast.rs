@@ -128,6 +128,10 @@ impl<'a> Ast<'a> {
         self.symbol_table.pop_scope();
     }
 
+    fn get_current_token_span(&self) -> Option<(usize, usize)> {
+        self.tokens.get(self.token_pos).map(|token| token.span)
+    }
+
     fn get_prev_token_span(&self) -> Option<(usize, usize)> {
         self.token_pos
             .checked_sub(1)
