@@ -717,11 +717,14 @@ impl Ast<'_> {
         let span = self.get_current_token_span().unwrap_or((0, 0));
 
         // declarator
+        let token_pos = self.token_pos;
         if let Ok(decl) = self.declarator(&base_ty) {
             return Ok(decl);
         }
+        self.token_pos = token_pos; // バックトラック
 
         // abstract_declarator
+        let token_pos = self.token_pos;
         if let Ok(abst_ty) = self.abst_declarator(&base_ty) {
             return Ok(Decl {
                 name: String::new(), // 抽象宣言子は名前なし
@@ -730,6 +733,7 @@ impl Ast<'_> {
                 span,
             });
         }
+        self.token_pos = token_pos; // バックトラック
 
         // 両方失敗した場合は、型のみ（int など単純な型）として扱う
         // 次のトークンが "," か ")" なら型のみの宣言として許可
@@ -781,9 +785,11 @@ impl Ast<'_> {
         if ty != *base_ty {
             // ptrが適用された（*があった）場合
             // direct_abst_declaratorを試すが、失敗してもptrの結果を返す
+            let token_pos = self.token_pos;
             if let Ok(result) = self.direct_abst_declarator(&ty) {
                 return Ok(result);
             }
+            self.token_pos = token_pos; // バックトラック
             return Ok(ty);
         }
 
