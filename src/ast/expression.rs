@@ -1,6 +1,7 @@
 use super::Ast;
 use crate::errors::CompileError;
 use crate::node::{BinaryOp, Node, NodeKind, UnaryOp};
+use crate::span::Span;
 use crate::types::TypeKind;
 use core::str::FromStr;
 
@@ -761,7 +762,7 @@ impl Ast<'_> {
         &mut self,
         obj: Box<Node>,
         member_name: &str,
-        span: (usize, usize),
+        span: Span,
     ) -> Result<Box<Node>, CompileError> {
         if !obj.ty.is_struct() {
             return Err(CompileError::InvalidExpr {

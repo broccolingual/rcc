@@ -2,6 +2,7 @@ use super::Ast;
 use crate::errors::CompileError;
 use crate::function::{Func, LocalVar};
 use crate::node::{Node, NodeKind};
+use crate::span::Span;
 use crate::types::{
     Decl, DeclSpec, FuncKind, MemberDecl, StorageClassKind, TypeAttr, TypeKind, TypeQualKind,
     TypeRef, TypeSpecQual,
@@ -14,7 +15,7 @@ impl Ast<'_> {
     pub(super) fn external_decl(&mut self) -> Result<(), CompileError> {
         let specs = self.decl_specs()?;
         if specs.is_empty() {
-            let span = self.get_prev_token_span().unwrap_or((0, 0));
+            let span = self.get_prev_token_span().unwrap_or_default();
             return Err(CompileError::InvalidDecl {
                 msg: "外部宣言のパースに失敗しました。型指定子が必要です".to_string(),
                 span,
@@ -22,7 +23,7 @@ impl Ast<'_> {
         }
 
         let base_ty = TypeRef::from_ds(specs).ok_or_else(|| {
-            let span = self.get_prev_token_span().unwrap_or((0, 0));
+            let span = self.get_prev_token_span().unwrap_or_default();
             CompileError::InvalidDecl {
                 msg: "無効な型指定子です".to_string(),
                 span,
@@ -92,7 +93,7 @@ impl Ast<'_> {
                     self.get_current_func_mut()?.return_ty = *return_ty;
                     // 関数本体をパース
                     let func_body = self.compound_stmt()?.ok_or_else(|| {
-                        let span = self.get_prev_token_span().unwrap_or((0, 0));
+                        let span = self.get_prev_token_span().unwrap_or_default();
                         CompileError::InvalidDecl {
                             msg: "関数本体が必要です".to_string(),
                             span,
@@ -145,7 +146,7 @@ impl Ast<'_> {
             return Ok(None);
         }
         let base_ty = TypeRef::from_ds(specs).ok_or_else(|| {
-            let span = self.get_prev_token_span().unwrap_or((0, 0));
+            let span = self.get_prev_token_span().unwrap_or_default();
             CompileError::InvalidDecl {
                 msg: "無効な型指定子です".to_string(),
                 span,
@@ -259,7 +260,7 @@ impl Ast<'_> {
             // 無名構造体の前方宣言はエラー
             return Err(CompileError::InvalidDecl {
                 msg: "無名構造体には定義が必要です".to_string(),
-                span: self.get_prev_token_span().unwrap_or((0, 0)),
+                span: self.get_prev_token_span().unwrap_or_default(),
             });
         }
         Ok(None)
@@ -269,7 +270,7 @@ impl Ast<'_> {
     fn parse_struct_definition(
         &mut self,
         struct_name: String,
-        span: (usize, usize),
+        span: Span,
     ) -> Result<TypeKind, CompileError> {
         // メンバをパースする前に未完成型を登録
         let incomplete_ty = TypeRef::register(
@@ -357,7 +358,7 @@ impl Ast<'_> {
             return Ok(None);
         }
         let base_ty = TypeRef::from_tsq(specs).ok_or_else(|| {
-            let span = self.get_prev_token_span().unwrap_or((0, 0));
+            let span = self.get_prev_token_span().unwrap_or_default();
             CompileError::InvalidDecl {
                 msg: "無効な型指定子です".to_string(),
                 span,
@@ -418,7 +419,7 @@ impl Ast<'_> {
             // 無名列挙体の前方宣言はエラー
             return Err(CompileError::InvalidDecl {
                 msg: "無名列挙体には定義が必要です".to_string(),
-                span: self.get_prev_token_span().unwrap_or((0, 0)),
+                span: self.get_prev_token_span().unwrap_or_default(),
             });
         }
         Ok(None)
@@ -428,7 +429,7 @@ impl Ast<'_> {
     fn parse_enum_definition(
         &mut self,
         enum_name: String,
-        span: (usize, usize),
+        span: Span,
     ) -> Result<TypeKind, CompileError> {
         // タグの重複チェックと登録
         let int_ty = TypeRef::register(TypeKind::Int, TypeAttr::default(), None);
@@ -453,7 +454,7 @@ impl Ast<'_> {
     fn parse_enum_reference(
         &mut self,
         enum_name: String,
-        span: (usize, usize),
+        span: Span,
     ) -> Result<TypeKind, CompileError> {
         // 既存の列挙体タグを検索
         if let Some(tag) = self.find_tag(&enum_name) {
@@ -472,7 +473,7 @@ impl Ast<'_> {
             .enumerator()?
             .ok_or_else(|| CompileError::InvalidDecl {
                 msg: "列挙体には少なくとも1つの列挙定数が必要です".to_string(),
-                span: self.get_prev_token_span().unwrap_or((0, 0)),
+                span: self.get_prev_token_span().unwrap_or_default(),
             })?;
         variants_with_opt.push(variant);
         while self.consume_punct(",").is_some() {
@@ -486,7 +487,7 @@ impl Ast<'_> {
                 // カンマの後に識別子がない場合はエラー
                 return Err(CompileError::InvalidDecl {
                     msg: "カンマの後に識別子が必要です".to_string(),
-                    span: self.get_prev_token_span().unwrap_or((0, 0)),
+                    span: self.get_prev_token_span().unwrap_or_default(),
                 });
             }
         }
@@ -600,7 +601,7 @@ impl Ast<'_> {
             span = token.span;
             name
         } else {
-            let span = self.get_prev_token_span().unwrap_or((0, 0));
+            let span = self.get_prev_token_span().unwrap_or_default();
             return Err(CompileError::InvalidDecl {
                 msg: "識別子または括弧で囲まれた宣言子が必要です".to_string(),
                 span,
@@ -620,7 +621,7 @@ impl Ast<'_> {
                 0
             } else {
                 let assign_expr = self.assign_expr()?.ok_or_else(|| {
-                    let span = self.get_prev_token_span().unwrap_or((0, 0));
+                    let span = self.get_prev_token_span().unwrap_or_default();
                     CompileError::InvalidDecl {
                         msg: "配列のサイズが必要です".to_string(),
                         span,
@@ -694,7 +695,7 @@ impl Ast<'_> {
     fn param_decl(&mut self) -> Result<Decl, CompileError> {
         let specs = self.decl_specs()?;
         if specs.is_empty() {
-            let span = self.get_prev_token_span().unwrap_or((0, 0));
+            let span = self.get_prev_token_span().unwrap_or_default();
             return Err(CompileError::InvalidDecl {
                 msg: "パラメータ宣言には型指定子が必要です".to_string(),
                 span,
@@ -702,14 +703,14 @@ impl Ast<'_> {
         }
 
         let base_ty = TypeRef::from_ds(specs).ok_or_else(|| {
-            let span = self.get_prev_token_span().unwrap_or((0, 0));
+            let span = self.get_prev_token_span().unwrap_or_default();
             CompileError::InvalidDecl {
                 msg: "無効な型指定子です".to_string(),
                 span,
             }
         })?;
 
-        let span = self.get_current_token_span().unwrap_or((0, 0));
+        let span = self.get_current_token_span().unwrap_or_default();
 
         // declarator
         if let Some(decl) = self.attempt(|s| s.declarator(&base_ty)) {
@@ -737,14 +738,14 @@ impl Ast<'_> {
     pub(super) fn type_name(&mut self) -> Result<TypeRef, CompileError> {
         let specs = self.spec_qual_list()?;
         if specs.is_empty() {
-            let span = self.get_prev_token_span().unwrap_or((0, 0));
+            let span = self.get_prev_token_span().unwrap_or_default();
             return Err(CompileError::InvalidDecl {
                 msg: "無効な型名です".to_string(),
                 span,
             });
         }
         let base_ty = TypeRef::from_tsq(specs).ok_or_else(|| {
-            let span = self.get_prev_token_span().unwrap_or((0, 0));
+            let span = self.get_prev_token_span().unwrap_or_default();
             CompileError::InvalidDecl {
                 msg: "無効な型指定子です".to_string(),
                 span,
@@ -803,7 +804,7 @@ impl Ast<'_> {
                 0
             } else {
                 let assign_expr = self.assign_expr()?.ok_or_else(|| {
-                    let span = self.get_prev_token_span().unwrap_or((0, 0));
+                    let span = self.get_prev_token_span().unwrap_or_default();
                     CompileError::InvalidDecl {
                         msg: "配列のサイズが必要です".to_string(),
                         span,
@@ -859,7 +860,7 @@ impl Ast<'_> {
             return Ok(init_list);
         }
         Ok(vec![*self.assign_expr()?.ok_or_else(|| {
-            let span = self.get_prev_token_span().unwrap_or((0, 0));
+            let span = self.get_prev_token_span().unwrap_or_default();
             CompileError::InvalidDecl {
                 msg: "初期化式が必要です。'= 定数式' の形式で初期値を指定してください".to_string(),
                 span,

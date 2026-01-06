@@ -1,4 +1,5 @@
 use crate::errors::CompileError;
+use crate::span::Span;
 use crate::token::{KEYWORDS, PUNCTUATORS, Token, TokenKind};
 
 pub(crate) struct Lexer<'a> {
@@ -65,7 +66,7 @@ impl<'a> Lexer<'a> {
                     if candidate == *symbol {
                         tokens.push(Token::new(
                             TokenKind::Punct(symbol.to_string()),
-                            (pos, pos + symbol_len),
+                            Span::new(pos, pos + symbol_len),
                         ));
                         pos += symbol_len;
                         matched = true;
@@ -93,7 +94,7 @@ impl<'a> Lexer<'a> {
                 }
                 tokens.push(Token::new(
                     TokenKind::String(str_lit.clone()),
-                    (pos - str_lit.len() - 2, pos),
+                    Span::new(pos - str_lit.len() - 2, pos),
                 ));
                 continue;
             }
@@ -117,7 +118,7 @@ impl<'a> Lexer<'a> {
                     let val = num_str.parse::<i64>().unwrap();
                     tokens.push(Token::new(
                         TokenKind::Number(val),
-                        (pos - num_str.len(), pos),
+                        Span::new(pos - num_str.len(), pos),
                     ));
                     continue;
                 } else {
@@ -140,7 +141,7 @@ impl<'a> Lexer<'a> {
                         let val = i64::from_str_radix(&num_str, 16).unwrap();
                         tokens.push(Token::new(
                             TokenKind::Number(val),
-                            (pos - num_str.len() - 2, pos),
+                            Span::new(pos - num_str.len() - 2, pos),
                         ));
                         continue;
                     } else {
@@ -161,7 +162,7 @@ impl<'a> Lexer<'a> {
                         let val = i64::from_str_radix(&num_str, 8).unwrap();
                         tokens.push(Token::new(
                             TokenKind::Number(val),
-                            (pos - num_str.len() - 1, pos),
+                            Span::new(pos - num_str.len() - 1, pos),
                         ));
                         continue;
                     }
@@ -185,24 +186,24 @@ impl<'a> Lexer<'a> {
                     // 予約語はKeywordトークンとして扱う
                     tokens.push(Token::new(
                         TokenKind::Keyword(ident.clone()),
-                        (pos - ident.len(), pos),
+                        Span::new(pos - ident.len(), pos),
                     ));
                     continue;
                 } else {
                     // それ以外は識別子トークン
                     tokens.push(Token::new(
                         TokenKind::Ident(ident.clone()),
-                        (pos - ident.len(), pos),
+                        Span::new(pos - ident.len(), pos),
                     ));
                     continue;
                 }
             }
             return Err(CompileError::MissingToken {
                 found: c.to_string(),
-                span: (pos, pos + 1),
+                span: Span::new(pos, pos + 1),
             });
         }
-        tokens.push(Token::new(TokenKind::Eof, (pos, pos)));
+        tokens.push(Token::new(TokenKind::Eof, Span::new(pos, pos)));
         Ok(tokens)
     }
 }

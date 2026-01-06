@@ -4,6 +4,7 @@ mod statement;
 
 use crate::errors::CompileError;
 use crate::function::{Func, FuncId, LocalVar};
+use crate::span::Span;
 use crate::symbol::{ScopedTable, Symbol, SymbolId, Tag};
 use crate::token::{Token, TokenKind};
 use crate::types::{AlignUp, Decl, TypeRef};
@@ -76,7 +77,7 @@ impl<'a> Ast<'a> {
         &mut self,
         name: &str,
         value: i64,
-        span: (usize, usize),
+        span: Span,
     ) -> Result<SymbolId, CompileError> {
         // 同じスコープに同名の列挙定数が存在する場合はエラー
         if self
@@ -143,11 +144,11 @@ impl<'a> Ast<'a> {
         self.symbol_table.pop_scope();
     }
 
-    fn get_current_token_span(&self) -> Option<(usize, usize)> {
+    fn get_current_token_span(&self) -> Option<Span> {
         self.tokens.get(self.token_pos).map(|token| token.span)
     }
 
-    fn get_prev_token_span(&self) -> Option<(usize, usize)> {
+    fn get_prev_token_span(&self) -> Option<Span> {
         self.token_pos
             .checked_sub(1)
             .and_then(|pos| self.tokens.get(pos))
@@ -218,7 +219,7 @@ impl<'a> Ast<'a> {
         &mut self,
         tag_name: &str,
         ty: TypeRef,
-        span: (usize, usize),
+        span: Span,
     ) -> Result<(), CompileError> {
         if let Some(existing_tag) = self.find_tag_in_current_scope(tag_name) {
             if !existing_tag.ty.is_incomplete() {

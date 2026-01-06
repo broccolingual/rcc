@@ -9,6 +9,7 @@ pub(crate) use table::*;
 pub(crate) use type_ref::*;
 
 use crate::node::Node;
+use crate::span::Span;
 use core::fmt;
 
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
@@ -112,11 +113,11 @@ pub(crate) struct Decl {
     pub(crate) name: String,
     pub(crate) ty: TypeRef,
     pub(crate) init: Vec<Node>,
-    pub(crate) span: (usize, usize),
+    pub(crate) span: Span,
 }
 
 impl Decl {
-    pub(crate) fn new(name: String, ty: TypeRef, span: (usize, usize)) -> Self {
+    pub(crate) fn new(name: String, ty: TypeRef, span: Span) -> Self {
         Decl {
             name,
             ty,
@@ -125,7 +126,7 @@ impl Decl {
         }
     }
 
-    pub(crate) fn new_abst(ty: TypeRef, span: (usize, usize)) -> Self {
+    pub(crate) fn new_abst(ty: TypeRef, span: Span) -> Self {
         Decl {
             name: String::new(),
             ty,

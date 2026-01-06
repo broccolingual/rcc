@@ -5,6 +5,7 @@ pub(crate) use kind::*;
 pub(crate) use operator::*;
 
 use crate::errors::CompileError;
+use crate::span::Span;
 use crate::symbol::SymbolId;
 use crate::types::{TypeAttr, TypeKind, TypeRef};
 use core::fmt;
@@ -13,7 +14,7 @@ use core::fmt;
 pub(crate) struct Node {
     pub(crate) kind: NodeKind,
     pub(crate) ty: TypeRef,
-    pub(crate) span: (usize, usize), // 開始位置と終了位置
+    pub(crate) span: Span, // 開始位置と終了位置
 }
 
 impl fmt::Debug for Node {
@@ -55,13 +56,13 @@ impl Default for Node {
         Node {
             kind: NodeKind::Nop,
             ty: TypeRef::default(),
-            span: (0, 0),
+            span: Span::default(),
         }
     }
 }
 
 impl Node {
-    pub(crate) fn new(kind: NodeKind, span: (usize, usize)) -> Self {
+    pub(crate) fn new(kind: NodeKind, span: Span) -> Self {
         Node {
             kind,
             ty: TypeRef::default(),
@@ -69,12 +70,7 @@ impl Node {
         }
     }
 
-    pub(crate) fn new_call(
-        name: &str,
-        args: Vec<Node>,
-        return_ty: TypeRef,
-        span: (usize, usize),
-    ) -> Self {
+    pub(crate) fn new_call(name: &str, args: Vec<Node>, return_ty: TypeRef, span: Span) -> Self {
         Node {
             kind: NodeKind::Call {
                 name: name.to_string(),
@@ -89,7 +85,7 @@ impl Node {
         op: BinaryOp,
         lhs: Box<Node>,
         rhs: Box<Node>,
-        span: (usize, usize),
+        span: Span,
     ) -> Result<Self, CompileError> {
         let ty = match op {
             BinaryOp::Add => {
@@ -265,7 +261,7 @@ impl Node {
     pub(crate) fn new_unary(
         op: UnaryOp,
         expr: Box<Node>,
-        span: (usize, usize),
+        span: Span,
     ) -> Result<Self, CompileError> {
         let ty = match op {
             UnaryOp::BitNot => {
@@ -328,12 +324,7 @@ impl Node {
         })
     }
 
-    pub(crate) fn new_assign(
-        op: BinaryOp,
-        lhs: Box<Node>,
-        rhs: Box<Node>,
-        span: (usize, usize),
-    ) -> Self {
+    pub(crate) fn new_assign(op: BinaryOp, lhs: Box<Node>, rhs: Box<Node>, span: Span) -> Self {
         let ty = lhs.ty; // 代入演算子の型は左辺の型とする
 
         Node {
@@ -347,7 +338,7 @@ impl Node {
         lhs: Box<Node>,
         rhs: Box<Node>,
         label: usize,
-        span: (usize, usize),
+        span: Span,
     ) -> Result<Self, CompileError> {
         let lhs_ty = &lhs.ty;
         let rhs_ty = &rhs.ty;
@@ -378,7 +369,7 @@ impl Node {
         lhs: Box<Node>,
         rhs: Box<Node>,
         label: usize,
-        span: (usize, usize),
+        span: Span,
     ) -> Result<Self, CompileError> {
         let lhs_ty = &lhs.ty;
         let rhs_ty = &rhs.ty;
@@ -410,7 +401,7 @@ impl Node {
         then: Box<Node>,
         els: Box<Node>,
         label: usize,
-        span: (usize, usize),
+        span: Span,
     ) -> Result<Self, CompileError> {
         let cond_ty = cond.ty;
         let then_ty = then.ty;
@@ -458,7 +449,7 @@ impl Node {
         })
     }
 
-    pub(crate) fn new_num(val: i64, span: (usize, usize)) -> Self {
+    pub(crate) fn new_num(val: i64, span: Span) -> Self {
         Node {
             kind: NodeKind::Number { val },
             ty: TypeRef::register(TypeKind::Int, TypeAttr::default(), None),
@@ -466,7 +457,7 @@ impl Node {
         }
     }
 
-    pub(crate) fn new_var(symbol_id: SymbolId, ty: TypeRef, span: (usize, usize)) -> Self {
+    pub(crate) fn new_var(symbol_id: SymbolId, ty: TypeRef, span: Span) -> Self {
         Node {
             kind: NodeKind::Var { symbol_id },
             ty,
@@ -479,7 +470,7 @@ impl Node {
         name: &str,
         offset: usize,
         ty: TypeRef,
-        span: (usize, usize),
+        span: Span,
     ) -> Self {
         Node {
             kind: NodeKind::Member {
@@ -513,7 +504,7 @@ impl Node {
     pub(crate) fn new_scaled_add(
         lhs: Box<Node>,
         rhs: Box<Node>,
-        span: (usize, usize),
+        span: Span,
     ) -> Result<Self, CompileError> {
         // 左辺がポインタ/配列、右辺がスカラーの場合: ptr + n -> ptr + (n * sizeof(*ptr))
         if (lhs.ty.is_ptr() || lhs.ty.is_array()) && rhs.ty.is_scalar() {
@@ -546,7 +537,7 @@ impl Node {
     pub(crate) fn new_scaled_sub(
         lhs: Box<Node>,
         rhs: Box<Node>,
-        span: (usize, usize),
+        span: Span,
     ) -> Result<Self, CompileError> {
         // ポインタ同士の減算: ptr1 - ptr2 -> (ptr1 - ptr2) / sizeof(*ptr)
         if (lhs.ty.is_ptr() || lhs.ty.is_array()) && (rhs.ty.is_ptr() || rhs.ty.is_array()) {
@@ -580,7 +571,7 @@ impl Node {
     pub(crate) fn new_scaled_increment(
         expr: Box<Node>,
         is_pre: bool,
-        span: (usize, usize),
+        span: Span,
     ) -> Result<Self, CompileError> {
         if expr.ty.is_ptr() || expr.ty.is_array() {
             let base_size = expr.ty.base_type().size_of();
@@ -617,7 +608,7 @@ impl Node {
     pub(crate) fn new_scaled_decrement(
         expr: Box<Node>,
         is_pre: bool,
-        span: (usize, usize),
+        span: Span,
     ) -> Result<Self, CompileError> {
         if expr.ty.is_ptr() || expr.ty.is_array() {
             let size = expr.ty.base_type().size_of();

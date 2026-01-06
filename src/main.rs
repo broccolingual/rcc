@@ -7,6 +7,7 @@ mod errors;
 mod function;
 mod lexer;
 mod node;
+mod span;
 mod symbol;
 mod token;
 mod types;
