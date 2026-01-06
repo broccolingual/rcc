@@ -212,16 +212,36 @@ assert_inline 5 'int a = 1; { a = 5; } return a;'  # ブロック内で外側の
 assert_inline 1 'int a = 1; { int a = 2; } return a;'  # 内側で同名の変数を宣言
 
 # sizeof演算子のテスト
-assert_inline 4 'return sizeof(int);'  # int型のサイズ
-assert_inline 8 'return sizeof(int *);'  # ポインタのサイズ
-assert_inline 4 'int x; return sizeof(x);'  # 変数のサイズ
-assert_inline 8 'int *p; return sizeof(p);'  # ポインタ変数のサイズ
-assert_inline 4 'return sizeof 1;'  # リテラルのサイズ（括弧なし）
-assert_inline 32 'int a[8]; return sizeof(a);'  # 配列のサイズ（8 * 4 = 32）
+# 基本型のサイズ
 assert_inline 1 'return sizeof(char);'  # char型のサイズ
 assert_inline 2 'return sizeof(short);'  # short型のサイズ
+assert_inline 4 'return sizeof(int);'  # int型のサイズ
 assert_inline 8 'return sizeof(long);'  # long型のサイズ
-assert_inline 16 'int a[2][2]; return sizeof(a);'  # 2次元配列のサイズ
+
+# ポインタ型のサイズ（全て8バイト）
+assert_inline 8 'return sizeof(char *);'  # char型ポインタのサイズ
+assert_inline 8 'return sizeof(short *);'  # short型ポインタのサイズ
+assert_inline 8 'return sizeof(int *);'  # int型ポインタのサイズ
+assert_inline 8 'return sizeof(long *);'  # long型ポインタのサイズ
+assert_inline 8 'return sizeof(int **);'  # 二重ポインタのサイズ
+assert_inline 8 'return sizeof(int ***);'  # 三重ポインタのサイズ
+assert_inline 8 'return sizeof(char **);'  # char型二重ポインタのサイズ
+assert_inline 8 'return sizeof(int (*));'  # 括弧付きポインタ型
+
+# 配列型のサイズ
+assert_inline 40 'return sizeof(int [10]);'  # 配列型（10 * 4 = 40）
+assert_inline 20 'return sizeof(char [20]);'  # char型配列のサイズ
+assert_inline 80 'return sizeof(int [4][5]);'  # 2次元配列（4 * 5 * 4 = 80）
+
+# 変数のサイズ
+assert_inline 4 'int x; return sizeof(x);'  # 変数のサイズ
+assert_inline 8 'int *p; return sizeof(p);'  # ポインタ変数のサイズ
+assert_inline 32 'int a[8]; return sizeof(a);'  # 配列変数のサイズ（8 * 4 = 32）
+assert_inline 16 'int a[2][2]; return sizeof(a);'  # 2次元配列変数のサイズ
+
+# リテラル・式のサイズ
+assert_inline 4 'return sizeof 1;'  # リテラルのサイズ（括弧なし）
+assert_inline 4 'return sizeof(5 + 3);'  # 式のサイズ
 
 # ポインタの基本操作のテスト
 assert_inline 3 'int a; int *b; a = 3; b = &a; return *b;'  # アドレス取得と参照外し

@@ -34,6 +34,21 @@ impl<'a> Ast<'a> {
         }
     }
 
+    // パーサーの試行を行い、成功した場合は結果を返し、失敗した場合はトークンを元の位置に戻す
+    fn attempt<F, T>(&mut self, mut parser: F) -> Option<T>
+    where
+        F: FnMut(&mut Self) -> Result<T, CompileError>,
+    {
+        let saved_pos = self.token_pos;
+        match parser(self) {
+            Ok(res) => Some(res),
+            Err(_) => {
+                self.token_pos = saved_pos;
+                None
+            }
+        }
+    }
+
     pub(crate) fn get_symbols(&self) -> &Vec<Symbol> {
         self.symbol_table.get_symbols()
     }
@@ -126,6 +141,10 @@ impl<'a> Ast<'a> {
 
     fn pop_scope(&mut self) {
         self.symbol_table.pop_scope();
+    }
+
+    fn get_current_token_span(&self) -> Option<(usize, usize)> {
+        self.tokens.get(self.token_pos).map(|token| token.span)
     }
 
     fn get_prev_token_span(&self) -> Option<(usize, usize)> {

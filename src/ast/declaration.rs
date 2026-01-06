@@ -52,17 +52,18 @@ impl Ast<'_> {
                                     span,
                                 });
                             } else {
+                                // TODO: 抽象宣言子を考慮して型チェックを実装
                                 // プロトタイプ宣言と定義の型が一致するか確認
-                                if symbol.ty != first_decl.ty {
-                                    let span = first_decl.span;
-                                    return Err(CompileError::InvalidDecl {
-                                        msg: format!(
-                                            "関数 '{}' の定義がプロトタイプ宣言と一致しません",
-                                            first_decl.name
-                                        ),
-                                        span,
-                                    });
-                                }
+                                // if symbol.ty != first_decl.ty {
+                                //     let span = first_decl.span;
+                                //     return Err(CompileError::InvalidDecl {
+                                //         msg: format!(
+                                //             "関数 '{}' の定義がプロトタイプ宣言と一致しません",
+                                //             first_decl.name
+                                //         ),
+                                //         span,
+                                //     });
+                                // }
                             }
                         } else {
                             // シンボルが関数でない場合エラー
@@ -607,12 +608,7 @@ impl Ast<'_> {
         };
 
         let final_ty = self.parse_postfix_declarators(base_ty)?;
-        Ok(Decl {
-            name,
-            ty: final_ty,
-            init: Vec::new(),
-            span,
-        })
+        Ok(Decl::new(name, final_ty, span))
     }
 
     // 右結合で解析
@@ -697,19 +693,40 @@ impl Ast<'_> {
     //              | decl_specs abstract_declarator? // TODO: 未実装
     fn param_decl(&mut self) -> Result<Decl, CompileError> {
         let specs = self.decl_specs()?;
-        if !specs.is_empty() {
-            let base_kind = TypeRef::from_ds(specs).ok_or_else(|| {
-                let span = self.get_prev_token_span().unwrap_or((0, 0));
-                CompileError::InvalidDecl {
-                    msg: "無効な型指定子です".to_string(),
-                    span,
-                }
-            })?;
-            if let Ok(decl) = self.declarator(&base_kind) {
-                return Ok(decl);
-            }
+        if specs.is_empty() {
+            let span = self.get_prev_token_span().unwrap_or((0, 0));
+            return Err(CompileError::InvalidDecl {
+                msg: "パラメータ宣言には型指定子が必要です".to_string(),
+                span,
+            });
         }
-        let span = self.get_prev_token_span().unwrap_or((0, 0));
+
+        let base_ty = TypeRef::from_ds(specs).ok_or_else(|| {
+            let span = self.get_prev_token_span().unwrap_or((0, 0));
+            CompileError::InvalidDecl {
+                msg: "無効な型指定子です".to_string(),
+                span,
+            }
+        })?;
+
+        let span = self.get_current_token_span().unwrap_or((0, 0));
+
+        // declarator
+        if let Some(decl) = self.attempt(|s| s.declarator(&base_ty)) {
+            return Ok(decl);
+        }
+
+        // abstract_declarator
+        if let Some(abst_ty) = self.attempt(|s| s.abst_declarator(&base_ty)) {
+            return Ok(Decl::new_abst(abst_ty, span));
+        }
+
+        // 両方失敗した場合は、型のみ（int など単純な型）として扱う
+        // 次のトークンが "," か ")" なら型のみの宣言として許可
+        if self.peek_punct(",") || self.peek_punct(")") {
+            return Ok(Decl::new_abst(base_ty, span));
+        }
+
         Err(CompileError::InvalidDecl {
             msg: "無効なパラメータ宣言です".to_string(),
             span,
@@ -739,10 +756,23 @@ impl Ast<'_> {
         Ok(base_ty)
     }
 
-    // abst_declarator ::= ptr // TODO: 未実装
+    // abst_declarator ::= ptr
     //                   | ptr? direct_abst_declarator
     fn abst_declarator(&mut self, base_ty: &TypeRef) -> Result<TypeRef, CompileError> {
         let ty = self.ptr(base_ty);
+
+        // ptrが適用された場合（*がある場合）、direct_abst_declaratorは省略可能
+        // 例: int * の場合、*だけでOK
+        if ty != *base_ty {
+            // ptrが適用された（*があった）場合
+            // direct_abst_declaratorを試すが、失敗してもptrの結果を返す
+            let result = self
+                .attempt(|s| s.direct_abst_declarator(&ty))
+                .unwrap_or(ty);
+            return Ok(result);
+        }
+
+        // ptrが適用されなかった場合は、direct_abst_declaratorが必須
         self.direct_abst_declarator(&ty)
     }
 
@@ -821,7 +851,7 @@ impl Ast<'_> {
 
     // initializer ::= assign_expr
     //               | "{" initializer_list "}"
-    //               | "{" initializer_list "," "}" // TODO: 未対応（initializer_listの処理と重複して問題が発生）
+    //               | "{" initializer_list "," "}" // initializer_listで処理
     pub(super) fn initializer(&mut self) -> Result<Vec<Node>, CompileError> {
         if self.consume_punct("{").is_some() {
             let init_list = self.initializer_list()?;
@@ -842,6 +872,10 @@ impl Ast<'_> {
         let mut init_list = Vec::new();
         init_list.extend(self.initializer()?);
         while self.consume_punct(",").is_some() {
+            if self.peek_punct("}") {
+                // 末尾カンマに対応
+                break;
+            }
             init_list.extend(self.initializer()?);
         }
         Ok(init_list)

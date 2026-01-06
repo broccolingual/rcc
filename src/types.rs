@@ -115,6 +115,26 @@ pub(crate) struct Decl {
     pub(crate) span: (usize, usize),
 }
 
+impl Decl {
+    pub(crate) fn new(name: String, ty: TypeRef, span: (usize, usize)) -> Self {
+        Decl {
+            name,
+            ty,
+            init: Vec::new(),
+            span,
+        }
+    }
+
+    pub(crate) fn new_abst(ty: TypeRef, span: (usize, usize)) -> Self {
+        Decl {
+            name: String::new(),
+            ty,
+            init: Vec::new(),
+            span,
+        }
+    }
+}
+
 impl fmt::Debug for Decl {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:?} {}", self.ty.get(), self.name)
