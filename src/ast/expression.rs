@@ -701,14 +701,14 @@ impl Ast<'_> {
             let span = token.span;
             // sizeof ( type_name )
             if self.peek_punct("(") {
-                let token_pos = self.token_pos;
-                self.consume_punct("(");
-                if let Ok(ty) = self.type_name() {
-                    self.expect_punct(")")?;
-                    let size = ty.size_of();
+                if let Some(size) = self.attempt(|ast| {
+                    ast.expect_punct("(")?;
+                    let ty = ast.type_name()?;
+                    ast.expect_punct(")")?;
+                    Ok(ty.size_of())
+                }) {
                     return Ok(Some(Box::new(Node::new_num(size as i64, span))));
                 }
-                self.token_pos = token_pos; // 型名をパースできなかった場合、トークン位置を元に戻す
             }
 
             // sizeof unary_expr
