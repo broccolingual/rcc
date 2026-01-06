@@ -87,7 +87,7 @@ impl TypeRef {
     }
 
     pub(crate) fn is_scalar(&self) -> bool {
-        self.is_integer() || self.is_floating_point()
+        self.is_integer() || self.is_floating_point() || self.is_ptr()
     }
 
     pub(crate) fn base_type(&self) -> TypeRef {

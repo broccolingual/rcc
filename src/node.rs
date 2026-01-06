@@ -92,27 +92,82 @@ impl Node {
         span: (usize, usize),
     ) -> Result<Self, CompileError> {
         let ty = match op {
-            BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => {
+            BinaryOp::Add => {
                 let lhs_ty = lhs.ty;
                 let rhs_ty = rhs.ty;
 
-                if lhs_ty.is_scalar() && rhs_ty.is_scalar() {
-                    // 両方ともスカラー型の場合、大きい方の型に合わせる
+                if (lhs_ty.is_integer() || lhs_ty.is_floating_point())
+                    && (rhs_ty.is_integer() || rhs_ty.is_floating_point())
+                {
+                    // 整数/浮動小数点 + 整数/浮動小数点: 大きい方の型に合わせる
                     if lhs_ty.size_of() >= rhs_ty.size_of() {
                         lhs_ty
                     } else {
                         rhs_ty
                     }
-                } else if (lhs_ty.is_ptr() || lhs_ty.is_array()) && rhs_ty.is_scalar() {
-                    // 左辺がポインタ/配列型、右辺がスカラー型の場合、左辺の型を結果型とする
+                } else if (lhs_ty.is_ptr() || lhs_ty.is_array()) && rhs_ty.is_integer() {
+                    // ポインタ + 整数: ポインタ型を返す
                     lhs_ty
-                } else if lhs_ty.is_scalar() && (rhs_ty.is_ptr() || rhs_ty.is_array()) {
-                    // 右辺がポインタ/配列型、左辺がスカラー型の場合、右辺の型を結果型とする
+                } else if lhs_ty.is_integer() && (rhs_ty.is_ptr() || rhs_ty.is_array()) {
+                    // 整数 + ポインタ: ポインタ型を返す
                     rhs_ty
                 } else {
                     return Err(CompileError::InvalidExpr {
                         msg: format!(
-                            "算術演算子はスカラー型またはポインタ/配列型にのみ適用可能です: {:?} と {:?}",
+                            "加算演算子は、算術型同士、またはポインタと整数の組み合わせにのみ適用可能です: {:?} と {:?}",
+                            lhs_ty, rhs_ty
+                        ),
+                        span,
+                    });
+                }
+            }
+            BinaryOp::Sub => {
+                let lhs_ty = lhs.ty;
+                let rhs_ty = rhs.ty;
+
+                if (lhs_ty.is_ptr() || lhs_ty.is_array()) && (rhs_ty.is_ptr() || rhs_ty.is_array())
+                {
+                    // ポインタ - ポインタ: 整数型（要素数の差）を返す
+                    TypeRef::register(TypeKind::Int, TypeAttr::default(), None)
+                } else if (lhs_ty.is_ptr() || lhs_ty.is_array()) && rhs_ty.is_integer() {
+                    // ポインタ - 整数: ポインタ型を返す
+                    lhs_ty
+                } else if (lhs_ty.is_integer() || lhs_ty.is_floating_point())
+                    && (rhs_ty.is_integer() || rhs_ty.is_floating_point())
+                {
+                    // 整数/浮動小数点 - 整数/浮動小数点: 大きい方の型に合わせる
+                    if lhs_ty.size_of() >= rhs_ty.size_of() {
+                        lhs_ty
+                    } else {
+                        rhs_ty
+                    }
+                } else {
+                    return Err(CompileError::InvalidExpr {
+                        msg: format!(
+                            "減算演算子は、算術型同士、ポインタ-整数、またはポインタ同士にのみ適用可能です: {:?} と {:?}",
+                            lhs_ty, rhs_ty
+                        ),
+                        span,
+                    });
+                }
+            }
+            BinaryOp::Mul | BinaryOp::Div => {
+                let lhs_ty = lhs.ty;
+                let rhs_ty = rhs.ty;
+
+                if (lhs_ty.is_integer() || lhs_ty.is_floating_point())
+                    && (rhs_ty.is_integer() || rhs_ty.is_floating_point())
+                {
+                    // 整数/浮動小数点 * 整数/浮動小数点、整数/浮動小数点 / 整数/浮動小数点: 大きい方の型に合わせる
+                    if lhs_ty.size_of() >= rhs_ty.size_of() {
+                        lhs_ty
+                    } else {
+                        rhs_ty
+                    }
+                } else {
+                    return Err(CompileError::InvalidExpr {
+                        msg: format!(
+                            "乗算・除算演算子は整数型または浮動小数点型にのみ適用可能です: {:?} と {:?}",
                             lhs_ty, rhs_ty
                         ),
                         span,
@@ -182,15 +237,15 @@ impl Node {
                 let lhs_ty = lhs.ty;
                 let rhs_ty = rhs.ty;
 
-                if (lhs_ty.is_scalar() || lhs_ty.is_ptr() || lhs_ty.is_array())
-                    && (rhs_ty.is_scalar() || rhs_ty.is_ptr() || rhs_ty.is_array())
+                if (lhs_ty.is_scalar() || lhs_ty.is_array())
+                    && (rhs_ty.is_scalar() || rhs_ty.is_array())
                 {
                     // 結果はint型
                     TypeRef::register(TypeKind::Int, TypeAttr::default(), None)
                 } else {
                     return Err(CompileError::InvalidExpr {
                         msg: format!(
-                            "比較演算子はスカラー型またはポインタ/配列型にのみ適用可能です: {:?} と {:?}",
+                            "比較演算子はスカラー型または配列型にのみ適用可能です: {:?} と {:?}",
                             lhs_ty, rhs_ty
                         ),
                         span,
@@ -228,12 +283,12 @@ impl Node {
             UnaryOp::LogicalNot => {
                 let expr_ty = &expr.ty;
 
-                if expr_ty.is_scalar() || expr_ty.is_ptr() || expr_ty.is_array() {
+                if expr_ty.is_scalar() || expr_ty.is_array() {
                     TypeRef::register(TypeKind::Int, TypeAttr::default(), None) // 結果型はint型
                 } else {
                     return Err(CompileError::InvalidExpr {
                         msg: format!(
-                            "論理否定演算子はスカラー型またはポインタ/配列型にのみ適用可能です: {:?}",
+                            "論理否定演算子はスカラー型または配列型にのみ適用可能です: {:?}",
                             expr_ty
                         ),
                         span,
@@ -297,15 +352,15 @@ impl Node {
         let lhs_ty = &lhs.ty;
         let rhs_ty = &rhs.ty;
 
-        let ty = if lhs_ty.is_scalar() && rhs_ty.is_scalar()
-            || (lhs_ty.is_ptr() || lhs_ty.is_array()) && (rhs_ty.is_ptr() || rhs_ty.is_array())
+        let ty = if (lhs_ty.is_scalar() || lhs_ty.is_array())
+            && (rhs_ty.is_scalar() || rhs_ty.is_array())
         {
-            // 両方ともスカラー型の場合、結果型はint型とする
+            // 両方ともスカラー型または配列型の場合、結果型はint型とする
             TypeRef::register(TypeKind::Int, TypeAttr::default(), None)
         } else {
             return Err(CompileError::InvalidExpr {
                 msg: format!(
-                    "論理演算子はスカラー型またはポインタ/配列型にのみ適用可能です: {:?} と {:?}",
+                    "論理演算子はスカラー型または配列型にのみ適用可能です: {:?} と {:?}",
                     lhs_ty, rhs_ty
                 ),
                 span,
@@ -328,15 +383,15 @@ impl Node {
         let lhs_ty = &lhs.ty;
         let rhs_ty = &rhs.ty;
 
-        let ty = if lhs_ty.is_scalar() && rhs_ty.is_scalar()
-            || (lhs_ty.is_ptr() || lhs_ty.is_array()) && (rhs_ty.is_ptr() || rhs_ty.is_array())
+        let ty = if (lhs_ty.is_scalar() || lhs_ty.is_array())
+            && (rhs_ty.is_scalar() || rhs_ty.is_array())
         {
-            // 両方ともスカラー型の場合、結果型はint型とする
+            // 両方ともスカラー型または配列型の場合、結果型はint型とする
             TypeRef::register(TypeKind::Int, TypeAttr::default(), None)
         } else {
             return Err(CompileError::InvalidExpr {
                 msg: format!(
-                    "論理演算子はスカラー型またはポインタ/配列型にのみ適用可能です: {:?} と {:?}",
+                    "論理演算子はスカラー型または配列型にのみ適用可能です: {:?} と {:?}",
                     lhs_ty, rhs_ty
                 ),
                 span,
@@ -361,7 +416,7 @@ impl Node {
         let then_ty = then.ty;
         let els_ty = els.ty;
 
-        let ty = if cond_ty.is_scalar() || cond_ty.is_ptr() || cond_ty.is_array() {
+        let ty = if cond_ty.is_scalar() || cond_ty.is_array() {
             if then_ty == els_ty {
                 // then節とelse節の型が同じ場合、その型を結果型とする
                 then_ty
