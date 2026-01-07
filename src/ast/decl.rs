@@ -1,12 +1,12 @@
 use super::Ast;
+use crate::decl::{Decl, MemberDecl};
 use crate::errors::CompileError;
-use crate::function::{Func, LocalVar};
+use crate::func::{Func, LocalVar};
 use crate::node::{Node, NodeKind};
-use crate::span::Span;
 use crate::types::{
-    Decl, DeclSpec, FuncKind, MemberDecl, StorageClassKind, TypeAttr, TypeKind, TypeQualKind,
-    TypeRef, TypeSpecQual,
+    DeclSpec, FuncKind, StorageClassKind, TypeAttr, TypeKind, TypeQualKind, TypeRef, TypeSpecQual,
 };
+use crate::utils::Span;
 
 impl Ast<'_> {
     // external_decl ::= func_def | decl

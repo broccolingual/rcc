@@ -1,5 +1,16 @@
 use core::fmt;
 
+pub(crate) trait AlignUp {
+    fn align_up(&self, align: usize) -> usize;
+}
+
+impl AlignUp for usize {
+    // alignの倍数に切り上げる
+    fn align_up(&self, align: usize) -> usize {
+        (*self + align - 1) & !(align - 1)
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 pub(crate) struct Span {
     pub(crate) start: usize,

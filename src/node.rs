@@ -5,7 +5,7 @@ pub(crate) use kind::*;
 pub(crate) use operator::*;
 
 use crate::errors::CompileError;
-use crate::span::Span;
+use crate::utils::Span;
 use crate::symbol::SymbolId;
 use crate::types::{TypeAttr, TypeKind, TypeRef};
 use core::fmt;

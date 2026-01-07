@@ -1,6 +1,6 @@
 use super::Ast;
 use crate::errors::CompileError;
-use crate::function::LocalVar;
+use crate::func::LocalVar;
 use crate::node::{Node, NodeKind};
 
 impl Ast<'_> {

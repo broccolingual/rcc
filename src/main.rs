@@ -3,14 +3,15 @@ use clap_derive::Parser;
 
 mod asm_builder;
 mod ast;
+mod decl;
 mod errors;
-mod function;
+mod func;
 mod lexer;
 mod node;
-mod span;
 mod symbol;
 mod token;
 mod types;
+mod utils;
 mod x86;
 
 use crate::ast::Ast;

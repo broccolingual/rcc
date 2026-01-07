@@ -1,15 +1,15 @@
-mod expression;
-mod register;
-mod statement;
+mod expr;
+mod reg;
+mod stmt;
 
 use crate::asm_builder::AsmBuilder;
 use crate::ast::Ast;
 use crate::errors::CompileError;
-use crate::function::LocalVar;
+use crate::func::LocalVar;
 use crate::node::{Node, NodeKind, UnaryOp};
 use crate::symbol::Symbol;
 use crate::types::{TypeKind, TypeRef};
-use register::ARG_REGS;
+use reg::ARG_REGS;
 
 pub(crate) struct Generator<'a> {
     ast: &'a Ast<'a>,

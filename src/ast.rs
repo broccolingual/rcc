@@ -1,13 +1,14 @@
-mod declaration;
-mod expression;
-mod statement;
+mod decl;
+mod expr;
+mod stmt;
 
 use crate::errors::CompileError;
-use crate::function::{Func, FuncId, LocalVar};
-use crate::span::Span;
+use crate::func::{Func, FuncId, LocalVar};
 use crate::symbol::{ScopedTable, Symbol, SymbolId, Tag};
 use crate::token::{Token, TokenKind};
-use crate::types::{AlignUp, Decl, TypeRef};
+use crate::types::TypeRef;
+use crate::decl::Decl;
+use crate::utils::{AlignUp, Span};
 use std::collections::HashMap;
 
 pub(crate) struct Ast<'a> {
@@ -365,7 +366,7 @@ impl<'a> Ast<'a> {
     }
 
     fn peek_punct(&self, sym: &str) -> bool {
-        self.get_token().kind.eq(&TokenKind::Punct(sym.to_string()))
+        matches!(&self.get_token().kind, TokenKind::Punct(s) if s == sym)
     }
 
     fn at_eof(&self) -> bool {

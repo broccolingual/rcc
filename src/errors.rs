@@ -1,7 +1,7 @@
 use core::error;
 use core::fmt;
 
-use crate::span::Span;
+use crate::utils::Span;
 use crate::token::TokenKind;
 
 #[derive(Debug)]

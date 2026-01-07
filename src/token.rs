@@ -1,4 +1,4 @@
-use crate::span::Span;
+use crate::utils::Span;
 use core::fmt;
 
 pub(crate) const PUNCTUATORS: [&str; 54] = [

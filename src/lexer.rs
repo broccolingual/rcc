@@ -1,5 +1,5 @@
 use crate::errors::CompileError;
-use crate::span::Span;
+use crate::utils::Span;
 use crate::token::{KEYWORDS, PUNCTUATORS, Token, TokenKind};
 
 pub(crate) struct Lexer<'a> {

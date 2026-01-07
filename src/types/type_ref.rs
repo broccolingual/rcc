@@ -1,7 +1,8 @@
 use super::{
-    DeclSpec, MemberDecl, StorageClassKind, TypeAttr, TypeData, TypeKind, TypeQualKind,
-    TypeSpecQual, get_type_table,
+    DeclSpec, StorageClassKind, TypeAttr, TypeData, TypeKind, TypeQualKind, TypeSpecQual,
+    get_type_table,
 };
+use crate::decl::MemberDecl;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub(crate) struct TypeRef(pub usize);
