@@ -232,6 +232,12 @@ impl Generator<'_> {
     }
 
     fn gen_cast(&mut self, from: TypeRef, to: TypeRef) -> Result<(), CompileError> {
+        if to.is_void() {
+            // to が void 型の場合、スタックトップを破棄
+            self.builder.add_row("pop rax", true);
+            return Ok(());
+        }
+
         let from_size = from.size_of();
         let to_size = to.size_of();
 
