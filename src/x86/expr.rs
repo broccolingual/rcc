@@ -235,27 +235,16 @@ impl Generator<'_> {
         let from_size = from.size_of();
         let to_size = to.size_of();
 
-        if from_size < to_size {
+        if to_size >= from_size {
             return Ok(());
         }
 
         self.builder.add_row("pop rax", true);
-        if to_size < from_size {
-            // 縮小変換
-            match to_size {
-                1 => self.builder.add_row("movsx rax, al", true),
-                2 => self.builder.add_row("movsx rax, ax", true),
-                4 => self.builder.add_row("movsxd rax, eax", true),
-                _ => {}
-            }
-        } else {
-            // 拡大変換
-            match from_size {
-                1 => self.builder.add_row("movsx rax, al", true),
-                2 => self.builder.add_row("movsx rax, ax", true),
-                4 => self.builder.add_row("movsxd rax, eax", true),
-                _ => {}
-            }
+        match to_size {
+            1 => self.builder.add_row("movsx rax, al", true),
+            2 => self.builder.add_row("movsx rax, ax", true),
+            4 => self.builder.add_row("movsxd rax, eax", true),
+            _ => {}
         }
         self.builder.add_row("push rax", true);
         Ok(())
