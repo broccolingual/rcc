@@ -1,4 +1,5 @@
-use super::{Decl, MemberDecl, TypeRef};
+use super::TypeRef;
+use crate::decl::{Decl, MemberDecl};
 use core::fmt;
 
 #[derive(Clone, PartialEq, Eq)]

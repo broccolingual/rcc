@@ -2,7 +2,7 @@ mod table;
 
 pub(crate) use table::*;
 
-use crate::function::FuncId;
+use crate::func::FuncId;
 use crate::node::Node;
 use crate::types::{TypeAttr, TypeKind, TypeRef};
 use core::fmt;

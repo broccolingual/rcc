@@ -1,3 +1,4 @@
+use crate::utils::Span;
 use core::fmt;
 
 pub(crate) const PUNCTUATORS: [&str; 54] = [
@@ -27,7 +28,7 @@ pub(crate) enum TokenKind {
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct Token {
     pub(crate) kind: TokenKind,
-    pub(crate) span: (usize, usize), // トークンの開始位置と終了位置
+    pub(crate) span: Span, // トークンの開始位置と終了位置
 }
 
 impl fmt::Debug for Token {
@@ -44,7 +45,7 @@ impl fmt::Debug for Token {
 }
 
 impl Token {
-    pub(crate) fn new(kind: TokenKind, span: (usize, usize)) -> Self {
+    pub(crate) fn new(kind: TokenKind, span: Span) -> Self {
         Token { kind, span }
     }
 }

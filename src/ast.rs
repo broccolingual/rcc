@@ -1,12 +1,14 @@
-mod declaration;
-mod expression;
-mod statement;
+mod decl;
+mod expr;
+mod stmt;
 
+use crate::decl::Decl;
 use crate::errors::CompileError;
-use crate::function::{Func, FuncId, LocalVar};
+use crate::func::{Func, FuncId, LocalVar};
 use crate::symbol::{ScopedTable, Symbol, SymbolId, Tag};
 use crate::token::{Token, TokenKind};
-use crate::types::{AlignUp, Decl, TypeRef};
+use crate::types::TypeRef;
+use crate::utils::{AlignUp, Span};
 use std::collections::HashMap;
 
 pub(crate) struct Ast<'a> {
@@ -32,6 +34,14 @@ impl<'a> Ast<'a> {
             label_seq: 0,
             loop_stack: Vec::new(),
         }
+    }
+
+    // translation_unit ::= external_decl*
+    pub(crate) fn translation_unit(&mut self) -> Result<(), CompileError> {
+        while !self.at_eof() {
+            self.external_decl()?;
+        }
+        Ok(())
     }
 
     // パーサーの試行を行い、成功した場合は結果を返し、失敗した場合はトークンを元の位置に戻す
@@ -76,7 +86,7 @@ impl<'a> Ast<'a> {
         &mut self,
         name: &str,
         value: i64,
-        span: (usize, usize),
+        span: Span,
     ) -> Result<SymbolId, CompileError> {
         // 同じスコープに同名の列挙定数が存在する場合はエラー
         if self
@@ -143,17 +153,6 @@ impl<'a> Ast<'a> {
         self.symbol_table.pop_scope();
     }
 
-    fn get_current_token_span(&self) -> Option<(usize, usize)> {
-        self.tokens.get(self.token_pos).map(|token| token.span)
-    }
-
-    fn get_prev_token_span(&self) -> Option<(usize, usize)> {
-        self.token_pos
-            .checked_sub(1)
-            .and_then(|pos| self.tokens.get(pos))
-            .map(|token| token.span)
-    }
-
     fn register_string_literal(&mut self, string: &str) -> usize {
         // 既に登録されている場合はそのインデックスを返す
         if let Some(&index) = self.string_literals.get(string) {
@@ -218,7 +217,7 @@ impl<'a> Ast<'a> {
         &mut self,
         tag_name: &str,
         ty: TypeRef,
-        span: (usize, usize),
+        span: Span,
     ) -> Result<(), CompileError> {
         if let Some(existing_tag) = self.find_tag_in_current_scope(tag_name) {
             if !existing_tag.ty.is_incomplete() {
@@ -260,8 +259,12 @@ impl<'a> Ast<'a> {
     }
 
     // 現在のトークンを取得
-    fn get_token(&self) -> Option<&Token> {
-        self.tokens.get(self.token_pos)
+    fn get_token(&self) -> &Token {
+        &self.tokens[self.token_pos]
+    }
+
+    fn current_span(&self) -> Span {
+        self.get_token().span
     }
 
     // トークンを1つ進める
@@ -278,116 +281,102 @@ impl<'a> Ast<'a> {
         }
     }
 
-    fn consume(&mut self, kind: &TokenKind) -> Option<&Token> {
-        if let Some(t) = self.tokens.get(self.token_pos)
-            && &t.kind == kind
-        {
+    fn consume(&mut self, kind: &TokenKind) -> Option<Span> {
+        let token = self.tokens.get(self.token_pos)?;
+        if &token.kind == kind {
+            let span = token.span;
             self.advance_token();
-            return self.tokens.get(self.token_pos.saturating_sub(1));
+            Some(span)
+        } else {
+            None
         }
-        None
     }
 
-    fn consume_punct(&mut self, sym: &str) -> Option<&Token> {
+    fn consume_punct(&mut self, sym: &str) -> Option<Span> {
         self.consume(&TokenKind::Punct(sym.to_string()))
     }
 
-    fn consume_keyword(&mut self, word: &str) -> Option<&Token> {
+    fn consume_keyword(&mut self, word: &str) -> Option<Span> {
         self.consume(&TokenKind::Keyword(word.to_string()))
     }
 
-    fn consume_ident(&mut self) -> Option<(String, &Token)> {
-        let token_pos = self.token_pos;
+    fn consume_ident(&mut self) -> Option<(String, Span)> {
         match self.get_token() {
-            Some(Token {
+            Token {
                 kind: TokenKind::Ident(name),
-                ..
-            }) => {
-                let name_clone = name.clone();
+                span,
+            } => {
+                let result = (name.clone(), *span);
                 self.advance_token();
-                Some((name_clone, &self.tokens[token_pos]))
+                Some(result)
             }
             _ => None,
         }
     }
 
-    fn consume_string(&mut self) -> Option<(String, &Token)> {
-        let token_pos = self.token_pos;
+    fn consume_string(&mut self) -> Option<(String, Span)> {
         match self.get_token() {
-            Some(Token {
+            Token {
                 kind: TokenKind::String(s),
-                ..
-            }) => {
-                let s_clone = s.clone();
+                span,
+            } => {
+                let result = (s.clone(), *span);
                 self.advance_token();
-                Some((s_clone, &self.tokens[token_pos]))
+                Some(result)
             }
             _ => None,
         }
     }
 
-    fn consume_number(&mut self) -> Option<(i64, &Token)> {
-        let token_pos = self.token_pos;
+    fn consume_number(&mut self) -> Option<(i64, Span)> {
         match self.get_token() {
-            Some(Token {
+            Token {
                 kind: TokenKind::Number(val),
-                ..
-            }) => {
-                let val = *val;
+                span,
+            } => {
+                let result = (*val, *span);
                 self.advance_token();
-                Some((val, &self.tokens[token_pos]))
+                Some(result)
             }
             _ => None,
         }
     }
 
-    fn expect(&mut self, kind: &TokenKind) -> Result<(), CompileError> {
-        match self.get_token() {
-            Some(t) => {
-                if &t.kind == kind {
-                    self.advance_token();
-                    return Ok(());
-                }
-                Err(CompileError::UnexpectedToken {
-                    expected: kind.clone(),
-                    found: t.kind.clone(),
-                    span: t.span,
-                })
-            }
-            _ => Err(CompileError::UnexpectedEof),
+    fn expect(&mut self, kind: &TokenKind) -> Result<Span, CompileError> {
+        let token = self.get_token();
+        if &token.kind == kind {
+            let span = token.span;
+            self.advance_token();
+            Ok(span)
+        } else {
+            Err(CompileError::UnexpectedToken {
+                expected: kind.clone(),
+                found: token.kind.clone(),
+                span: token.span,
+            })
         }
     }
 
-    fn expect_punct(&mut self, sym: &str) -> Result<(), CompileError> {
+    fn expect_punct(&mut self, sym: &str) -> Result<Span, CompileError> {
         self.expect(&TokenKind::Punct(sym.to_string()))
     }
 
-    fn expect_keyword(&mut self, word: &str) -> Result<(), CompileError> {
+    fn expect_keyword(&mut self, word: &str) -> Result<Span, CompileError> {
         self.expect(&TokenKind::Keyword(word.to_string()))
     }
 
-    fn peek_punct(&mut self, sym: &str) -> bool {
-        self.get_token()
-            .map(|token| matches!(&token.kind, TokenKind::Punct(s) if s == sym))
-            .unwrap_or(false)
+    fn peek_punct(&self, sym: &str) -> bool {
+        matches!(&self.get_token().kind, TokenKind::Punct(s) if s == sym)
     }
 
-    fn at_eof(&mut self) -> bool {
+    fn at_eof(&self) -> bool {
         self.tokens.is_empty()
             || matches!(
                 self.get_token(),
-                Some(Token {
+                Token {
                     kind: TokenKind::Eof,
                     ..
-                })
+                }
             )
-    }
-
-    // translation_unit ::= external_decl*
-    pub(crate) fn translation_unit(&mut self) -> Result<(), CompileError> {
-        while !self.at_eof() {
-            self.external_decl()?;
-        }
-        Ok(())
     }
 }

@@ -2,47 +2,47 @@ use core::error;
 use core::fmt;
 
 use crate::token::TokenKind;
+use crate::utils::Span;
 
 #[derive(Debug)]
 pub(crate) enum CompileError {
     UnexpectedToken {
         expected: TokenKind,
         found: TokenKind,
-        span: (usize, usize),
+        span: Span,
     },
     MissingToken {
         found: String,
-        span: (usize, usize),
+        span: Span,
     },
     UndefinedIdent {
         name: String,
-        span: (usize, usize),
+        span: Span,
     },
     UndefinedFunc {
         name: String,
-        span: (usize, usize),
+        span: Span,
     },
     ReadOnlyLvalue {
         name: String,
-        span: (usize, usize),
+        span: Span,
     },
     Redecl {
         name: String,
-        span: (usize, usize),
+        span: Span,
     },
     InvalidExpr {
         msg: String,
-        span: (usize, usize),
+        span: Span,
     },
     InvalidStmt {
         msg: String,
-        span: (usize, usize),
+        span: Span,
     },
     InvalidDecl {
         msg: String,
-        span: (usize, usize),
+        span: Span,
     },
-    UnexpectedEof,
     InternalError {
         msg: String,
     },
@@ -102,12 +102,6 @@ impl fmt::Display for CompileError {
             CompileError::InvalidDecl { msg, .. } => {
                 write!(f, "Invalid Declaration: {}", msg)
             }
-            CompileError::UnexpectedEof => {
-                write!(
-                    f,
-                    "Unexpected End of File\n  ヒント: 閉じ括弧やセミコロンが不足している可能性があります"
-                )
-            }
             CompileError::InternalError { msg } => {
                 write!(
                     f,
@@ -141,8 +135,8 @@ impl CompileError {
         }
     }
 
-    fn format_error_with_source(&self, source: &str, span: (usize, usize)) -> String {
-        let (start, end) = span;
+    fn format_error_with_source(&self, source: &str, span: Span) -> String {
+        let (start, end) = (span.start, span.end);
         let (line_num, col_num) = self.get_line_and_column(source, start);
         let line_content = self.get_line_content(source, line_num);
 

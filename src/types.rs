@@ -1,14 +1,14 @@
 mod kind;
-mod specifier;
+mod spec;
 mod table;
 mod type_ref;
 
 pub(crate) use kind::*;
-pub(crate) use specifier::*;
+pub(crate) use spec::*;
 pub(crate) use table::*;
 pub(crate) use type_ref::*;
 
-use crate::node::Node;
+use crate::utils::AlignUp;
 use core::fmt;
 
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
@@ -104,93 +104,5 @@ impl TypeData {
             attr,
             storage_class,
         }
-    }
-}
-
-#[derive(Clone)]
-pub(crate) struct Decl {
-    pub(crate) name: String,
-    pub(crate) ty: TypeRef,
-    pub(crate) init: Vec<Node>,
-    pub(crate) span: (usize, usize),
-}
-
-impl Decl {
-    pub(crate) fn new(name: String, ty: TypeRef, span: (usize, usize)) -> Self {
-        Decl {
-            name,
-            ty,
-            init: Vec::new(),
-            span,
-        }
-    }
-
-    pub(crate) fn new_abst(ty: TypeRef, span: (usize, usize)) -> Self {
-        Decl {
-            name: String::new(),
-            ty,
-            init: Vec::new(),
-            span,
-        }
-    }
-}
-
-impl fmt::Debug for Decl {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?} {}", self.ty.get(), self.name)
-    }
-}
-
-// init と span を比較から除外
-impl PartialEq for Decl {
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name && self.ty == other.ty
-        // init と span は型の同一性に影響しない
-    }
-}
-
-impl Eq for Decl {}
-
-#[derive(Clone)]
-pub(crate) struct MemberDecl {
-    pub(crate) name: String,
-    pub(crate) ty: TypeRef,
-    pub(crate) offset: Option<usize>,
-}
-
-impl From<Decl> for MemberDecl {
-    fn from(decl: Decl) -> Self {
-        MemberDecl {
-            name: decl.name,
-            ty: decl.ty,
-            offset: None,
-        }
-    }
-}
-
-impl fmt::Debug for MemberDecl {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?} {} @{:?}", self.ty.get(), self.name, self.offset)
-    }
-}
-
-// offset を比較から除外
-impl PartialEq for MemberDecl {
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name && self.ty == other.ty
-        // offset は無視
-    }
-}
-
-impl Eq for MemberDecl {}
-
-pub(crate) trait AlignUp {
-    fn align_up(&self, align: usize) -> usize;
-}
-
-impl AlignUp for usize {
-    // alignの倍数に切り上げる
-    fn align_up(&self, align: usize) -> usize {
-        (*self + align - 1) & !(align - 1)
     }
 }
