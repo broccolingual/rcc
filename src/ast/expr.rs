@@ -580,19 +580,19 @@ impl Ast<'_> {
     //             | "(" type_name ")" cast_expr
     fn cast_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         // (type_name) cast_expr
-        if self.peek_punct("(") {
-            if let Some((to_ty, span)) = self.attempt(|ast| {
+        if self.peek_punct("(")
+            && let Some((to_ty, span)) = self.attempt(|ast| {
                 let span = ast.expect_punct("(")?;
                 let to_ty = ast.type_name()?;
                 ast.expect_punct(")")?;
                 Ok((to_ty, span))
-            }) {
-                let expr = self.cast_expr()?.ok_or_else(|| CompileError::InvalidExpr {
-                    msg: "キャスト演算子の後に式がありません".to_string(),
-                    span,
-                })?;
-                return Ok(Some(Box::new(Node::new_cast(expr, to_ty, span))));
-            }
+            })
+        {
+            let expr = self.cast_expr()?.ok_or_else(|| CompileError::InvalidExpr {
+                msg: "キャスト演算子の後に式がありません".to_string(),
+                span,
+            })?;
+            return Ok(Some(Box::new(Node::new_cast(expr, to_ty, span))));
         }
         self.unary_expr()
     }
