@@ -2,12 +2,12 @@ mod decl;
 mod expr;
 mod stmt;
 
+use crate::decl::Decl;
 use crate::errors::CompileError;
 use crate::func::{Func, FuncId, LocalVar};
 use crate::symbol::{ScopedTable, Symbol, SymbolId, Tag};
 use crate::token::{Token, TokenKind};
 use crate::types::TypeRef;
-use crate::decl::Decl;
 use crate::utils::{AlignUp, Span};
 use std::collections::HashMap;
 

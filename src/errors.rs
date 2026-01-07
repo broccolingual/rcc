@@ -1,8 +1,8 @@
 use core::error;
 use core::fmt;
 
-use crate::utils::Span;
 use crate::token::TokenKind;
+use crate::utils::Span;
 
 #[derive(Debug)]
 pub(crate) enum CompileError {

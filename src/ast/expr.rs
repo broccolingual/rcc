@@ -1,8 +1,8 @@
 use super::Ast;
 use crate::errors::CompileError;
 use crate::node::{BinaryOp, Node, NodeKind, UnaryOp};
-use crate::utils::Span;
 use crate::types::TypeKind;
+use crate::utils::Span;
 use core::str::FromStr;
 
 impl Ast<'_> {
