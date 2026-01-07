@@ -318,3 +318,38 @@ assert_inline 5 'enum Size {SIZE = 5}; int a[SIZE]; a[2] = 5; return a[2];'  # �
 assert_inline 1 'enum {ZERO, ONE, TWO}; if (ONE) return 1; return 0;'  # 列挙定数を条件式で使用
 assert_inline 3 'enum {A = 1, B = 2, C = 4}; return (A | B);'  # ビット演算で使用
 assert_inline 100 'enum {MAX = 100}; return MAX;'  # 大きな値の指定
+
+# キャスト演算子のテスト
+# 基本型間のキャスト
+assert_inline 1 'int a = 257; return (char)a;'  # int → char（257 = 0x101 → 0x01 = 1）
+assert_inline 0 'int a = 256; return (char)a;'  # int → char（256 = 0x100 → 0x00 = 0）
+assert_inline 120 'int a = 0x12345678; return (char)a;'  # int → char（下位8ビット: 0x78 = 120）
+assert_inline 255 'int a = -1; return (char)a & 255;'  # 負の値のキャスト
+assert_inline 42 'char c = 42; return (int)c;'  # char → int（符号拡張）
+assert_inline 100 'long l = 100; return (int)l;'  # long → int（縮小変換）
+assert_inline 5 'int x = 5; return (short)x;'  # int → short
+assert_inline 200 'short s = 200; return (long)s;'  # short → long（拡大変換）
+
+# 大きな値の切り捨てテスト
+assert_inline 1 'long l = 65537; return (short)l;'  # long → short（65537 = 0x10001 → 0x0001 = 1）
+assert_inline 0 'long l = 65536; return (short)l;'  # long → short（65536 = 0x10000 → 0x0000 = 0）
+assert_inline 52 'int a = 0x1234; return (char)a;'  # int → char（0x34 = 52）
+
+# ポインタとintのキャスト
+assert_inline 0 'int *p = 0; return (long)p;'  # NULLポインタを整数に
+assert_inline 8 'int a; int *p = &a; return (long)p - (long)p + 8;'  # ポインタを整数に変換して演算
+
+# ポインタ型間のキャスト
+assert_inline 4 'int a = 4; int *p = &a; return *(int *)(char *)p;'  # int* → char* → int*
+assert_inline 1 'int a = 1; void *p = &a; return *(int *)p;'  # void* → int*
+
+# キャストの式での使用
+assert_inline 2 'return (int)(5 / 2);'  # 式にキャスト
+assert_inline 7 'int a = 10; return (char)a + (char)(-3) & 255;'  # キャストを含む演算
+assert_inline 15 'int a = 5; int b = 10; return (short)(a + b);'  # 式全体をキャスト
+
+# sizeof と cast の共存確認
+assert_inline 4 'return sizeof(int);'  # sizeof(type) が正しく動作
+assert_inline 1 'return sizeof(char);'  # sizeof(type) が正しく動作
+assert_inline 42 'return (int)42;'  # cast が正しく動作
+assert_inline 1 'int x = 5; return sizeof((char)x);'  # キャストした式のsizeof

@@ -97,5 +97,8 @@ pub(crate) enum NodeKind {
         val: String,
         index: usize,
     }, // 文字列リテラル
+    Cast {
+        expr: Box<Node>,
+    }, // 型キャスト
     Nop, // 空命令
 }

@@ -91,6 +91,10 @@ impl TypeRef {
         self.is_integer() || self.is_floating_point() || self.is_ptr()
     }
 
+    pub(crate) fn is_void(&self) -> bool {
+        matches!(&self.kind(), TypeKind::Void)
+    }
+
     pub(crate) fn base_type(&self) -> TypeRef {
         match &self.kind() {
             TypeKind::Ptr { to } => *to,

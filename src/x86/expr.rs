@@ -79,6 +79,10 @@ impl Generator<'_> {
                 self.gen_expr(els)?;
                 self.builder.add_row(&format!(".L.end.{}:", label), false);
             }
+            NodeKind::Cast { expr } => {
+                self.gen_expr(expr)?;
+                self.gen_cast(expr.ty, node.ty)?;
+            }
             NodeKind::Call { name, args } => {
                 let arg_count = args.len();
 
@@ -224,6 +228,31 @@ impl Generator<'_> {
             BinaryOp::Assign => unreachable!(),
         }
         self.builder.add_row("push rax", true); // 演算結果をスタックに積む
+        Ok(())
+    }
+
+    fn gen_cast(&mut self, from: TypeRef, to: TypeRef) -> Result<(), CompileError> {
+        if to.is_void() {
+            // to が void 型の場合、スタックトップを破棄
+            self.builder.add_row("pop rax", true);
+            return Ok(());
+        }
+
+        let from_size = from.size_of();
+        let to_size = to.size_of();
+
+        if to_size >= from_size {
+            return Ok(());
+        }
+
+        self.builder.add_row("pop rax", true);
+        match to_size {
+            1 => self.builder.add_row("movsx rax, al", true),
+            2 => self.builder.add_row("movsx rax, ax", true),
+            4 => self.builder.add_row("movsxd rax, eax", true),
+            _ => {}
+        }
+        self.builder.add_row("push rax", true);
         Ok(())
     }
 }
