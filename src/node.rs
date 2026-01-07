@@ -483,6 +483,14 @@ impl Node {
         }
     }
 
+    pub(crate) fn new_cast(expr: Box<Node>, to_ty: TypeRef, span: Span) -> Self {
+        Node {
+            kind: NodeKind::Cast { expr },
+            ty: to_ty,
+            span,
+        }
+    }
+
     pub(crate) fn is_expr(&self) -> bool {
         match self.kind {
             // 値を返さない文
