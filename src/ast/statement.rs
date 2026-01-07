@@ -8,8 +8,7 @@ impl Ast<'_> {
     //                | "case" const_expr ":" stmt // TODO: 未実装
     //                | "default" ":" stmt // TODO: 未実装
     fn labeled_stmt(&mut self) -> Result<Option<Box<Node>>, CompileError> {
-        if let Some((name, token)) = self.consume_ident() {
-            let span = token.span;
+        if let Some((name, span)) = self.consume_ident() {
             if self.consume_punct(":").is_some() {
                 let expr = self.stmt()?.ok_or_else(|| CompileError::InvalidStmt {
                     msg: "ラベルの後に文がありません".to_string(),
@@ -29,8 +28,7 @@ impl Ast<'_> {
 
     // compound_stmt ::= "{" decl* stmt* "}"
     pub(super) fn compound_stmt(&mut self) -> Result<Option<Box<Node>>, CompileError> {
-        if let Some(token) = self.consume_punct("{") {
-            let span = token.span;
+        if let Some(span) = self.consume_punct("{") {
             self.push_scope(); // 新しいスコープに入る
             let mut body = Vec::new();
             while self.consume_punct("}").is_none() {
@@ -60,8 +58,7 @@ impl Ast<'_> {
     // selection_stmt ::= "if" "(" expr ")" stmt ("else" stmt)?
     //                  | "switch" "(" expr ")" stmt // TODO: 未実装
     fn selection_stmt(&mut self) -> Result<Option<Box<Node>>, CompileError> {
-        if let Some(token) = self.consume_keyword("if") {
-            let span = token.span;
+        if let Some(span) = self.consume_keyword("if") {
             let label = self.next_label();
             self.expect_punct("(")?;
             let cond = self.expr()?.ok_or_else(|| CompileError::InvalidStmt {
@@ -96,8 +93,7 @@ impl Ast<'_> {
     //                  | "for" "(" expr? ";" expr? ";" expr? ")" stmt
     //                  | "for" "(" decl expr? ";" expr? ")" stmt // TODO: 未実装
     fn iteration_stmt(&mut self) -> Result<Option<Box<Node>>, CompileError> {
-        if let Some(token) = self.consume_keyword("while") {
-            let span = token.span;
+        if let Some(span) = self.consume_keyword("while") {
             let label = self.next_label();
             self.push_loop(label);
             self.expect_punct("(")?;
@@ -117,8 +113,7 @@ impl Ast<'_> {
             ))));
         }
 
-        if let Some(token) = self.consume_keyword("do") {
-            let span = token.span;
+        if let Some(span) = self.consume_keyword("do") {
             let label = self.next_label();
             self.push_loop(label);
             let then = self.stmt()?.ok_or_else(|| CompileError::InvalidStmt {
@@ -140,8 +135,7 @@ impl Ast<'_> {
             ))));
         }
 
-        if let Some(token) = self.consume_keyword("for") {
-            let span = token.span;
+        if let Some(span) = self.consume_keyword("for") {
             let label = self.next_label();
             self.push_loop(label);
             self.expect_punct("(")?;
@@ -193,8 +187,7 @@ impl Ast<'_> {
     //             | "break" ";"
     //             | "return" expr? ";"
     fn jump_stmt(&mut self) -> Result<Option<Box<Node>>, CompileError> {
-        if let Some(token) = self.consume_keyword("goto") {
-            let span = token.span;
+        if let Some(span) = self.consume_keyword("goto") {
             let (name, _) = self.consume_ident().ok_or(CompileError::InvalidStmt {
                 msg: "goto文の後にラベル名が必要です".to_string(),
                 span,
@@ -203,8 +196,7 @@ impl Ast<'_> {
             return Ok(Some(Box::new(Node::new(NodeKind::Goto { name }, span))));
         }
 
-        if let Some(token) = self.consume_keyword("continue") {
-            let span = token.span;
+        if let Some(span) = self.consume_keyword("continue") {
             let label = self.current_loop_label().ok_or(CompileError::InvalidStmt {
                 msg: "continue文がループの外で使われています".to_string(),
                 span,
@@ -216,8 +208,7 @@ impl Ast<'_> {
             ))));
         }
 
-        if let Some(token) = self.consume_keyword("break") {
-            let span = token.span;
+        if let Some(span) = self.consume_keyword("break") {
             let label = self.current_loop_label().ok_or(CompileError::InvalidStmt {
                 msg: "break文がループの外で使われています".to_string(),
                 span,
@@ -226,8 +217,7 @@ impl Ast<'_> {
             return Ok(Some(Box::new(Node::new(NodeKind::Break { label }, span))));
         }
 
-        if let Some(token) = self.consume_keyword("return") {
-            let span = token.span;
+        if let Some(span) = self.consume_keyword("return") {
             if self.consume_punct(";").is_some() {
                 return Ok(Some(Box::new(Node::new(
                     NodeKind::Return { expr: None },
@@ -276,8 +266,7 @@ impl Ast<'_> {
 
     // expr_stmt ::= expr? ";"
     fn expr_stmt(&mut self) -> Result<Option<Box<Node>>, CompileError> {
-        if let Some(token) = self.consume_punct(";") {
-            let span = token.span;
+        if let Some(span) = self.consume_punct(";") {
             Ok(Some(Box::new(Node::new(NodeKind::Nop, span))))
         } else {
             let expr_node = self.expr()?;

@@ -43,7 +43,6 @@ pub(crate) enum CompileError {
         msg: String,
         span: Span,
     },
-    UnexpectedEof,
     InternalError {
         msg: String,
     },
@@ -102,12 +101,6 @@ impl fmt::Display for CompileError {
             }
             CompileError::InvalidDecl { msg, .. } => {
                 write!(f, "Invalid Declaration: {}", msg)
-            }
-            CompileError::UnexpectedEof => {
-                write!(
-                    f,
-                    "Unexpected End of File\n  ヒント: 閉じ括弧やセミコロンが不足している可能性があります"
-                )
             }
             CompileError::InternalError { msg } => {
                 write!(
