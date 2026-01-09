@@ -960,7 +960,7 @@ impl Ast<'_> {
             ))));
         }
 
-        if let Some((num, span)) = self.consume_number() {
+        if let Some((num, span)) = self.consume_const() {
             return Ok(Some(Box::new(Node::new_num(num, span))));
         }
 

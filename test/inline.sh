@@ -8,10 +8,16 @@ source "$SCRIPT_DIR/common.sh"
 
 setup_test
 
+
 # 基本的なリテラル値のテスト
 assert_inline 0 'return 0;'  # ゼロ
 assert_inline 42 'return 42;'  # 正の整数
 assert_inline 255 'return 255;'  # 8ビット最大値
+
+# 文字定数のテスト
+assert_inline 97 "return 'a';"  # 'a' のASCII値
+assert_inline 48 "return '0';"  # '0' のASCII値
+assert_inline 65 "return 'A';"  # 'A' のASCII値
 
 # 算術演算子の優先順位と基本演算のテスト
 assert_inline 21 'return 5 + 2 * 8;'  # 乗算が先に評価される
