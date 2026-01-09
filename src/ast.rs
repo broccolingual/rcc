@@ -181,7 +181,8 @@ impl<'a> Ast<'a> {
         if self.symbol_table.find_symbol_in_current_scope(name).is_some() {
             return Err(CompileError::Redecl { name: name.to_string(), span });
         }
-        let symbol = Symbol::new_typedef(name, ty);
+        let aliased_ty = TypeRef::register(ty.kind(), ty.attr(), None); // typedefを剥がす
+        let symbol = Symbol::new_typedef(name, aliased_ty);
         Ok(self.symbol_table.insert_symbol(name, symbol))
     }
 

@@ -222,6 +222,7 @@ impl Ast<'_> {
         if let Some(typedef_name) = self.peek_ident()
             && let Some(ty) = self.find_typedef(&typedef_name).map(|symbol| symbol.ty.kind())
         {
+            // TODO: constなどの型修飾子を考慮
             self.consume_ident(); // トークンを消費
             return Ok(Some(ty));
         }
