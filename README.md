@@ -1,4 +1,4 @@
-<!-- LOC_START --> Lines of Code: 5096 <!-- LOC_END -->
+<!-- LOC_START --> Lines of Code: 5189 <!-- LOC_END -->
 
 # モジュール構成
 
