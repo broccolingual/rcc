@@ -17,7 +17,6 @@ impl<'a> Lexer<'a> {
         sorted_puncts.sort_by_key(|a| std::cmp::Reverse(a.len()));
 
         let mut tokens = Vec::new();
-        // let chars = self.source.chars().collect::<Vec<char>>();
         let bytes = self.source.as_bytes();
         let mut pos = 0;
 
@@ -122,7 +121,10 @@ impl<'a> Lexer<'a> {
                     let hex_str = if pos > hex_start {
                         &self.source[hex_start..pos]
                     } else {
-                        "0"
+                        return Err(CompileError::InvalidExpr {
+                            msg: "16進数リテラルに数字がありません".to_string(),
+                            span: Span::new(start_pos, pos),
+                        });
                     };
                     let val = i64::from_str_radix(hex_str, 16).unwrap();
                     tokens.push(Token::new(
@@ -168,7 +170,7 @@ impl<'a> Lexer<'a> {
                 continue;
             }
             return Err(CompileError::MissingToken {
-                found: c.to_string(),
+                found: format!("{}", c as char),
                 span: Span::new(pos, pos + 1),
             });
         }
