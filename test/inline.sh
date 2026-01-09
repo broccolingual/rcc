@@ -298,6 +298,27 @@ assert_inline 70 'struct Point {int x; int y;}; struct Point p; struct Point *pt
 assert_inline 30 'struct Point {int x; int y;}; struct Point p; struct Point *ptr; p.x = 10; p.y = 20; ptr = &p; ptr->x = 30; return p.x;'  # ポインタ経由での書き込みが元の変数に反映
 assert_inline 15 'struct Point {int x; int y;}; struct Point p; struct Point *ptr; p.x = 5; p.y = 10; ptr = &p; return (*ptr).x + (*ptr).y;'  # ドット演算子での参照外し
 
+# 共用体（union）の基本操作のテスト
+assert_inline 42 'union {int i; char c;} u; u.i = 42; return u.i;'  # 匿名共用体の基本操作
+assert_inline 10 'union Data {int i; char c; long l;}; union Data d; d.i = 10; return d.i;'  # 名前付き共用体
+assert_inline 5 'union {int a; int b;} u; u.a = 5; return u.b;'  # 同じメモリ位置を共有
+assert_inline 65 'union {int i; char c;} u; u.i = 65; return u.c;'  # intの下位バイトをcharで取得（65 = 'A'）
+assert_inline 1 'union {int i; char c;} u; u.i = 257; return u.c;'  # 257 = 0x101 → 下位バイト = 1
+
+# 共用体のサイズのテスト
+assert_inline 8 'return sizeof(union {int i; long l;});'  # 最大メンバのサイズ（long = 8）
+assert_inline 4 'return sizeof(union {int i; char c; short s;});'  # 最大メンバのサイズ（int = 4）
+assert_inline 8 'union Data {int i; long l;}; return sizeof(union Data);'  # 名前付き共用体のサイズ
+
+# 共用体ポインタとアロー演算子のテスト
+assert_inline 100 'union Data {int i; long l;}; union Data d; union Data *ptr; d.i = 100; ptr = &d; return ptr->i;'  # アロー演算子でアクセス
+assert_inline 200 'union Data {int i; long l;}; union Data d; union Data *ptr; ptr = &d; ptr->i = 200; return d.i;'  # アロー演算子で書き込み
+assert_inline 50 'union Data {int i; char c;}; union Data d; union Data *ptr; ptr = &d; ptr->i = 50; return (*ptr).i;'  # ドット演算子での参照外し
+
+# 構造体と共用体の組み合わせ
+assert_inline 15 'struct S {union {int a; int b;} u; int c;}; struct S s; s.u.a = 10; s.c = 5; return s.u.a + s.c;'  # 構造体内の共用体
+assert_inline 7 'union U {struct {int x; int y;} s; long l;}; union U u; u.s.x = 3; u.s.y = 4; return u.s.x + u.s.y;'  # 共用体内の構造体
+
 # 列挙型（enum）のテスト
 assert_inline 0 'enum {RED, GREEN, BLUE}; return RED;'  # 最初の列挙定数は0
 assert_inline 1 'enum {RED, GREEN, BLUE}; return GREEN;'  # 2番目は1

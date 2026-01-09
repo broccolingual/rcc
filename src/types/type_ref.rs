@@ -60,8 +60,11 @@ impl TypeRef {
         self.kind().is_incomplete()
     }
 
-    pub(crate) fn is_struct(&self) -> bool {
-        matches!(&self.kind(), TypeKind::Struct { .. })
+    pub(crate) fn is_struct_or_union(&self) -> bool {
+        matches!(
+            &self.kind(),
+            TypeKind::Struct { .. } | TypeKind::Union { .. }
+        )
     }
 
     pub(crate) fn is_extern(&self) -> bool {
@@ -103,8 +106,8 @@ impl TypeRef {
         }
     }
 
-    pub(crate) fn find_struct_member(&self, name: &str) -> Option<MemberDecl> {
-        if let TypeKind::Struct { members, .. } = &self.kind() {
+    pub(crate) fn find_struct_or_union_member(&self, name: &str) -> Option<MemberDecl> {
+        if let TypeKind::Struct { members, .. } | TypeKind::Union { members, .. } = &self.kind() {
             for member in members {
                 if member.name == name {
                     return Some(member.clone());
@@ -194,6 +197,21 @@ impl TypeRef {
         if let TypeKind::Struct { name, .. } = kind {
             let data = TypeData::from_kind(
                 TypeKind::Struct { name, members },
+                self.attr(),
+                self.storage_class(),
+            );
+            self.set(data);
+            *self
+        } else {
+            *self
+        }
+    }
+
+    pub(crate) fn complete_union(&self, members: Vec<MemberDecl>) -> TypeRef {
+        let kind = self.kind();
+        if let TypeKind::Union { name, .. } = kind {
+            let data = TypeData::from_kind(
+                TypeKind::Union { name, members },
                 self.attr(),
                 self.storage_class(),
             );

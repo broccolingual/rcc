@@ -226,9 +226,10 @@ impl Ast<'_> {
             .find(|spec| self.consume_keyword(&spec.to_string()).is_some()))
     }
 
-    // struct_or_union_spec ::= "struct" ident? "{" struct_decl_list "}"
-    //                        | "struct" ident
+    // struct_or_union_spec ::= ("struct" | "union") ident? "{" struct_decl_list "}"
+    //                        | ("struct" | "union") ident
     fn struct_or_union_spec(&mut self) -> Result<Option<TypeKind>, CompileError> {
+        // struct
         if let Some(span) = self.consume_keyword("struct") {
             let struct_name = if let Some((name, _)) = self.consume_ident() {
                 name
@@ -248,6 +249,30 @@ impl Ast<'_> {
             // 無名構造体の前方宣言はエラー
             return Err(CompileError::InvalidDecl {
                 msg: "無名構造体には定義が必要です".to_string(),
+                span: self.current_span(),
+            });
+        }
+
+        // union
+        if let Some(span) = self.consume_keyword("union") {
+            let union_name = if let Some((name, _)) = self.consume_ident() {
+                name
+            } else {
+                String::new()
+            };
+            // 共用体定義: union ident? { ... }
+            if self.peek_punct("{") {
+                return Ok(Some(self.parse_union_definition(union_name, span)?));
+            }
+
+            // 共用体参照または前方宣言: union ident
+            if !union_name.is_empty() {
+                return Ok(Some(self.parse_union_reference(union_name)));
+            }
+
+            // 無名共用体の前方宣言はエラー
+            return Err(CompileError::InvalidDecl {
+                msg: "無名共用体には定義が必要です".to_string(),
                 span: self.current_span(),
             });
         }
@@ -327,6 +352,82 @@ impl Ast<'_> {
             None,
         );
         self.register_tag(&struct_name, incomplete_ty);
+        incomplete_ty.kind()
+    }
+
+    // 共用体定義をパース
+    fn parse_union_definition(
+        &mut self,
+        union_name: String,
+        span: Span,
+    ) -> Result<TypeKind, CompileError> {
+        // メンバをパースする前に未完成型を登録
+        let incomplete_ty = TypeRef::register(
+            TypeKind::Union {
+                name: union_name.clone(),
+                members: Vec::new(),
+            },
+            TypeAttr::default(),
+            None,
+        );
+
+        // タグの重複チェックと登録
+        if !union_name.is_empty() {
+            self.validate_and_register_tag(&union_name, incomplete_ty, span)?;
+        }
+
+        // メンバをパース
+        self.expect_punct("{")?;
+        let members = self.struct_decl_list()?;
+        self.expect_punct("}")?;
+
+        if members.is_empty() {
+            return Err(CompileError::InvalidDecl {
+                msg: "共用体には少なくとも1つのメンバが必要です".to_string(),
+                span,
+            });
+        }
+
+        // 共用体型を完成させる
+        let union_ty = if incomplete_ty.is_incomplete() {
+            incomplete_ty.complete_union(members)
+        } else {
+            // 共用体が入れ子になっている場合
+            TypeRef::register(
+                TypeKind::Union {
+                    name: union_name.clone(),
+                    members,
+                },
+                TypeAttr::default(),
+                None,
+            )
+        };
+
+        // 共用体タグを更新
+        if !union_name.is_empty() {
+            self.register_tag(&union_name, union_ty);
+        }
+
+        Ok(union_ty.kind())
+    }
+
+    // 共用体参照または前方宣言をパース
+    fn parse_union_reference(&mut self, union_name: String) -> TypeKind {
+        // 既存の共用体タグを検索
+        if let Some(tag) = self.find_tag(&union_name) {
+            return tag.ty.kind();
+        }
+
+        // 前方宣言として未完成型を登録
+        let incomplete_ty = TypeRef::register(
+            TypeKind::Union {
+                name: union_name.clone(),
+                members: Vec::new(),
+            },
+            TypeAttr::default(),
+            None,
+        );
+        self.register_tag(&union_name, incomplete_ty);
         incomplete_ty.kind()
     }
 
@@ -671,7 +772,7 @@ impl Ast<'_> {
     }
 
     // param_decl ::= decl_specs declarator
-    //              | decl_specs abstract_declarator? // TODO: 未実装
+    //              | decl_specs abstract_declarator?
     fn param_decl(&mut self) -> Result<Decl, CompileError> {
         let specs = self.decl_specs()?;
         if specs.is_empty() {
