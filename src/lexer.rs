@@ -103,7 +103,7 @@ impl<'a> Lexer<'a> {
                 let start_pos = pos;
                 if c != b'0' {
                     // 10進数
-                    while pos < bytes.len() && (bytes[pos] as char).is_ascii_digit() {
+                    while pos < bytes.len() && bytes[pos].is_ascii_digit() {
                         pos += 1;
                     }
                     let val = self.source[start_pos..pos].parse::<i64>().unwrap();
@@ -115,7 +115,7 @@ impl<'a> Lexer<'a> {
                     // 16進数
                     pos += 2;
                     let hex_start = pos;
-                    while pos < bytes.len() && (bytes[pos] as char).is_ascii_hexdigit() {
+                    while pos < bytes.len() && bytes[pos].is_ascii_hexdigit() {
                         pos += 1;
                     }
                     let hex_str = if pos > hex_start {
