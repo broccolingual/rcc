@@ -86,10 +86,6 @@ impl fmt::Display for TypeQualKind {
 
 impl TypeQualKind {
     pub(crate) fn all() -> Vec<TypeQualKind> {
-        vec![
-            TypeQualKind::Const,
-            TypeQualKind::Volatile,
-            TypeQualKind::Restrict,
-        ]
+        vec![TypeQualKind::Const, TypeQualKind::Volatile, TypeQualKind::Restrict]
     }
 }

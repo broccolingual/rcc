@@ -29,10 +29,7 @@ impl Ast<'_> {
         let token_pos = self.token_pos; // 関数定義でなかった場合にバックトラックするために保存
         if let Ok(first_decl) = self.declarator(&base_ty) {
             // 関数定義の場合: compound_stmt
-            if let TypeKind::Func {
-                params, return_ty, ..
-            } = &first_decl.ty.kind()
-            {
+            if let TypeKind::Func { params, return_ty, .. } = &first_decl.ty.kind() {
                 if self.peek_punct("{") {
                     // プロトタイプ宣言を確認
                     if let Some(symbol) = self.find_symbol_mut(&first_decl.name) {
@@ -79,19 +76,16 @@ impl Ast<'_> {
                     // 引数を登録
                     for param_decl in params {
                         let symbol_id = self.register_var(param_decl, Some(func_id))?;
-                        self.get_current_func_mut()?
-                            .params
-                            .push(LocalVar::new(symbol_id));
+                        self.get_current_func_mut()?.params.push(LocalVar::new(symbol_id));
                     }
                     // 関数の戻り値の型を設定
                     self.get_current_func_mut()?.return_ty = *return_ty;
                     // 関数本体をパース
                     let func_body =
-                        self.compound_stmt()?
-                            .ok_or_else(|| CompileError::InvalidDecl {
-                                msg: "関数本体が必要です".to_string(),
-                                span: self.current_span(),
-                            })?;
+                        self.compound_stmt()?.ok_or_else(|| CompileError::InvalidDecl {
+                            msg: "関数本体が必要です".to_string(),
+                            span: self.current_span(),
+                        })?;
                     if let NodeKind::Block { body } = func_body.kind {
                         self.get_current_func_mut()?.body = body;
                     } else {
@@ -231,25 +225,16 @@ impl Ast<'_> {
     fn struct_or_union_spec(&mut self) -> Result<Option<TypeKind>, CompileError> {
         // struct
         if let Some(span) = self.consume_keyword("struct") {
-            let struct_name = if let Some((name, _)) = self.consume_ident() {
-                name
-            } else {
-                String::new()
-            };
+            let struct_name =
+                if let Some((name, _)) = self.consume_ident() { name } else { String::new() };
             // 構造体定義: struct ident? { ... }
             if self.peek_punct("{") {
-                return Ok(Some(self.parse_struct_or_union_definition(
-                    struct_name,
-                    span,
-                    true,
-                )?));
+                return Ok(Some(self.parse_struct_or_union_definition(struct_name, span, true)?));
             }
 
             // 構造体参照または前方宣言: struct ident
             if !struct_name.is_empty() {
-                return Ok(Some(
-                    self.parse_struct_or_union_reference(struct_name, true),
-                ));
+                return Ok(Some(self.parse_struct_or_union_reference(struct_name, true)));
             }
 
             // 無名構造体の前方宣言はエラー
@@ -261,23 +246,16 @@ impl Ast<'_> {
 
         // union
         if let Some(span) = self.consume_keyword("union") {
-            let union_name = if let Some((name, _)) = self.consume_ident() {
-                name
-            } else {
-                String::new()
-            };
+            let union_name =
+                if let Some((name, _)) = self.consume_ident() { name } else { String::new() };
             // 共用体定義: union ident? { ... }
             if self.peek_punct("{") {
-                return Ok(Some(
-                    self.parse_struct_or_union_definition(union_name, span, false)?,
-                ));
+                return Ok(Some(self.parse_struct_or_union_definition(union_name, span, false)?));
             }
 
             // 共用体参照または前方宣言: union ident
             if !union_name.is_empty() {
-                return Ok(Some(
-                    self.parse_struct_or_union_reference(union_name, false),
-                ));
+                return Ok(Some(self.parse_struct_or_union_reference(union_name, false)));
             }
 
             // 無名共用体の前方宣言はエラー
@@ -299,15 +277,9 @@ impl Ast<'_> {
         // メンバをパースする前に未完成型を登録
         let incomplete_ty = TypeRef::register(
             if is_struct {
-                TypeKind::Struct {
-                    name: name.clone(),
-                    members: Vec::new(),
-                }
+                TypeKind::Struct { name: name.clone(), members: Vec::new() }
             } else {
-                TypeKind::Union {
-                    name: name.clone(),
-                    members: Vec::new(),
-                }
+                TypeKind::Union { name: name.clone(), members: Vec::new() }
             },
             TypeAttr::default(),
             None,
@@ -337,15 +309,9 @@ impl Ast<'_> {
             // 入れ子になっている場合
             TypeRef::register(
                 if is_struct {
-                    TypeKind::Struct {
-                        name: name.clone(),
-                        members,
-                    }
+                    TypeKind::Struct { name: name.clone(), members }
                 } else {
-                    TypeKind::Union {
-                        name: name.clone(),
-                        members,
-                    }
+                    TypeKind::Union { name: name.clone(), members }
                 },
                 TypeAttr::default(),
                 None,
@@ -370,15 +336,9 @@ impl Ast<'_> {
         // 前方宣言として未完成型を登録
         let incomplete_ty = TypeRef::register(
             if is_struct {
-                TypeKind::Struct {
-                    name: name.clone(),
-                    members: Vec::new(),
-                }
+                TypeKind::Struct { name: name.clone(), members: Vec::new() }
             } else {
-                TypeKind::Union {
-                    name: name.clone(),
-                    members: Vec::new(),
-                }
+                TypeKind::Union { name: name.clone(), members: Vec::new() }
             },
             TypeAttr::default(),
             None,
@@ -441,11 +401,8 @@ impl Ast<'_> {
     //             | "enum" ident
     fn enum_spec(&mut self) -> Result<Option<TypeKind>, CompileError> {
         if let Some(span) = self.consume_keyword("enum") {
-            let enum_name = if let Some((name, _)) = self.consume_ident() {
-                name
-            } else {
-                String::new()
-            };
+            let enum_name =
+                if let Some((name, _)) = self.consume_ident() { name } else { String::new() };
             // 列挙体定義: enum ident? { ... }
             if self.peek_punct("{") {
                 return Ok(Some(self.parse_enum_definition(enum_name, span)?));
@@ -509,12 +466,10 @@ impl Ast<'_> {
     // enum_list ::= enumerator ( "," enumerator )*
     fn enum_list(&mut self) -> Result<Vec<(String, i64)>, CompileError> {
         let mut variants_with_opt = Vec::new();
-        let variant = self
-            .enumerator()?
-            .ok_or_else(|| CompileError::InvalidDecl {
-                msg: "列挙体には少なくとも1つの列挙定数が必要です".to_string(),
-                span: self.current_span(),
-            })?;
+        let variant = self.enumerator()?.ok_or_else(|| CompileError::InvalidDecl {
+            msg: "列挙体には少なくとも1つの列挙定数が必要です".to_string(),
+            span: self.current_span(),
+        })?;
         variants_with_opt.push(variant);
         while self.consume_punct(",").is_some() {
             if self.peek_punct("}") {
@@ -551,11 +506,8 @@ impl Ast<'_> {
     // enumerator ::= ident ("=" const_expr)?
     fn enumerator(&mut self) -> Result<Option<(String, Option<i64>)>, CompileError> {
         if let Some((name, _)) = self.consume_ident() {
-            let value = if self.consume_punct("=").is_some() {
-                Some(self.const_expr()?)
-            } else {
-                None
-            };
+            let value =
+                if self.consume_punct("=").is_some() { Some(self.const_expr()?) } else { None };
             return Ok(Some((name, value)));
         }
         Ok(None)
@@ -590,9 +542,7 @@ impl Ast<'_> {
 
     // func_spec ::= "inline"
     fn func_spec(&mut self) -> Option<FuncKind> {
-        FuncKind::all()
-            .into_iter()
-            .find(|spec| self.consume_keyword(&spec.to_string()).is_some())
+        FuncKind::all().into_iter().find(|spec| self.consume_keyword(&spec.to_string()).is_some())
     }
 
     // type_qual_list ::= type_qual*
@@ -609,9 +559,7 @@ impl Ast<'_> {
         if self.consume_punct("*").is_some() {
             self.type_qual_list(); // 現状は型修飾子を無視
             let ptr_type = TypeRef::register(
-                TypeKind::Ptr {
-                    to: TypeRef::register(base_ty.kind(), base_ty.attr(), None),
-                },
+                TypeKind::Ptr { to: TypeRef::register(base_ty.kind(), base_ty.attr(), None) },
                 TypeAttr::default(),
                 base_ty.storage_class(),
             );
@@ -658,22 +606,17 @@ impl Ast<'_> {
             let array_size = if self.peek_punct("]") {
                 0
             } else {
-                let assign_expr = self
-                    .assign_expr()?
-                    .ok_or_else(|| CompileError::InvalidDecl {
-                        msg: "配列のサイズが必要です".to_string(),
-                        span: self.current_span(),
-                    })?;
+                let assign_expr = self.assign_expr()?.ok_or_else(|| CompileError::InvalidDecl {
+                    msg: "配列のサイズが必要です".to_string(),
+                    span: self.current_span(),
+                })?;
                 Self::eval_const_expr(&assign_expr)? as usize
             };
             self.expect_punct("]")?;
             let inner_ty = self.parse_postfix_declarators(base_ty)?;
             let elem_ty = TypeRef::register(inner_ty.kind(), inner_ty.attr(), None); // 要素型のストレージクラスはなし
             Ok(TypeRef::register(
-                TypeKind::Array {
-                    base: elem_ty,
-                    size: array_size,
-                },
+                TypeKind::Array { base: elem_ty, size: array_size },
                 TypeAttr::default(),
                 inner_ty.storage_class(),
             ))
@@ -693,11 +636,7 @@ impl Ast<'_> {
             let inner_ty = self.parse_postfix_declarators(base_ty)?;
             let return_ty = TypeRef::register(inner_ty.kind(), inner_ty.attr(), None); // 戻り値型のストレージクラスはなし
             Ok(TypeRef::register(
-                TypeKind::Func {
-                    return_ty,
-                    params,
-                    is_variadic,
-                },
+                TypeKind::Func { return_ty, params, is_variadic },
                 TypeAttr::default(),
                 inner_ty.storage_class(),
             ))
@@ -794,9 +733,7 @@ impl Ast<'_> {
         if ty != *base_ty {
             // ptrが適用された（*があった）場合
             // direct_abst_declaratorを試すが、失敗してもptrの結果を返す
-            let result = self
-                .attempt(|s| s.direct_abst_declarator(&ty))
-                .unwrap_or(ty);
+            let result = self.attempt(|s| s.direct_abst_declarator(&ty)).unwrap_or(ty);
             return Ok(result);
         }
 
@@ -830,21 +767,16 @@ impl Ast<'_> {
             let array_size = if self.peek_punct("]") {
                 0
             } else {
-                let assign_expr = self
-                    .assign_expr()?
-                    .ok_or_else(|| CompileError::InvalidDecl {
-                        msg: "配列のサイズが必要です".to_string(),
-                        span: self.current_span(),
-                    })?;
+                let assign_expr = self.assign_expr()?.ok_or_else(|| CompileError::InvalidDecl {
+                    msg: "配列のサイズが必要です".to_string(),
+                    span: self.current_span(),
+                })?;
                 Self::eval_const_expr(&assign_expr)? as usize
             };
             self.expect_punct("]")?;
             let inner_ty = self.parse_abst_postfix_declarators(base_ty)?;
             Ok(TypeRef::register(
-                TypeKind::Array {
-                    base: inner_ty,
-                    size: array_size,
-                },
+                TypeKind::Array { base: inner_ty, size: array_size },
                 TypeAttr::default(),
                 None,
             ))
@@ -863,11 +795,7 @@ impl Ast<'_> {
             };
             let inner_ty = self.parse_abst_postfix_declarators(base_ty)?;
             Ok(TypeRef::register(
-                TypeKind::Func {
-                    return_ty: inner_ty,
-                    params,
-                    is_variadic,
-                },
+                TypeKind::Func { return_ty: inner_ty, params, is_variadic },
                 TypeAttr::default(),
                 None,
             ))
@@ -885,11 +813,9 @@ impl Ast<'_> {
             self.expect_punct("}")?;
             return Ok(init_list);
         }
-        Ok(vec![*self.assign_expr()?.ok_or_else(|| {
-            CompileError::InvalidDecl {
-                msg: "初期化式が必要です。'= 定数式' の形式で初期値を指定してください".to_string(),
-                span: self.current_span(),
-            }
+        Ok(vec![*self.assign_expr()?.ok_or_else(|| CompileError::InvalidDecl {
+            msg: "初期化式が必要です。'= 定数式' の形式で初期値を指定してください".to_string(),
+            span: self.current_span(),
         })?])
     }
 

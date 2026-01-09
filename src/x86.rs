@@ -19,11 +19,7 @@ pub(crate) struct Generator<'a> {
 
 impl<'a> Generator<'a> {
     pub(crate) fn new(ast: &'a Ast<'a>) -> Self {
-        Generator {
-            ast,
-            current_func_name: "",
-            builder: AsmBuilder::new(),
-        }
+        Generator { ast, current_func_name: "", builder: AsmBuilder::new() }
     }
 
     fn test_zero(&mut self) {
@@ -49,8 +45,7 @@ impl<'a> Generator<'a> {
         self.builder.add_row(".section .rodata", true);
         for (string, i) in self.ast.string_literals.iter() {
             self.builder.add_row(&format!(".L.str.{}:", i), false);
-            self.builder
-                .add_row(&format!(".string \"{}\"", string), true);
+            self.builder.add_row(&format!(".string \"{}\"", string), true);
         }
     }
 
@@ -66,8 +61,7 @@ impl<'a> Generator<'a> {
                 });
             }
         };
-        self.builder
-            .add_row(&format!(".{} {}", directive, val), true);
+        self.builder.add_row(&format!(".{} {}", directive, val), true);
         Ok(())
     }
 
@@ -89,10 +83,8 @@ impl<'a> Generator<'a> {
 
             self.builder.add_row(&format!(".globl {}", name), true);
             self.builder.add_row(&format!(".align {}", align), true);
-            self.builder
-                .add_row(&format!(".type {}, @object", name), true);
-            self.builder
-                .add_row(&format!(".size {}, {}", name, size), true);
+            self.builder.add_row(&format!(".type {}, @object", name), true);
+            self.builder.add_row(&format!(".size {}, {}", name, size), true);
             self.builder.add_row(&format!("{}:", name), false);
             self.emit_global_init(symbol)?;
         }
@@ -102,8 +94,7 @@ impl<'a> Generator<'a> {
     fn emit_global_init(&mut self, symbol: &Symbol) -> Result<(), CompileError> {
         let inits = symbol.get_init();
         if inits.is_empty() {
-            self.builder
-                .add_row(&format!(".zero {}", symbol.ty.size_of()), true);
+            self.builder.add_row(&format!(".zero {}", symbol.ty.size_of()), true);
             return Ok(());
         }
         if let TypeKind::Array { base, size } = &symbol.ty.kind() {
@@ -111,15 +102,11 @@ impl<'a> Generator<'a> {
             let init_len = inits.len().min(*size);
             for init in inits.iter().take(init_len) {
                 match &init.kind {
-                    NodeKind::UnaryOp {
-                        op: UnaryOp::Addr,
-                        expr,
-                    } => match &expr.kind {
+                    NodeKind::UnaryOp { op: UnaryOp::Addr, expr } => match &expr.kind {
                         NodeKind::Var { symbol_id } => {
                             let symbol = self.ast.get_symbol(*symbol_id);
                             if symbol.is_global_var() {
-                                self.builder
-                                    .add_row(&format!(".quad {}", symbol.name), true);
+                                self.builder.add_row(&format!(".quad {}", symbol.name), true);
                             } else {
                                 return Err(CompileError::InvalidExpr {
                                     msg: format!(
@@ -141,8 +128,7 @@ impl<'a> Generator<'a> {
                         }
                     },
                     NodeKind::String { index, .. } => {
-                        self.builder
-                            .add_row(&format!(".quad .L.str.{}", index), true);
+                        self.builder.add_row(&format!(".quad .L.str.{}", index), true);
                     }
                     _ => {
                         let val = Ast::eval_const_expr(init)?;
@@ -152,8 +138,7 @@ impl<'a> Generator<'a> {
             }
             if inits.len() < *size {
                 let zero_fill_size = (*size - inits.len()) * base.size_of();
-                self.builder
-                    .add_row(&format!(".zero {}", zero_fill_size), true);
+                self.builder.add_row(&format!(".zero {}", zero_fill_size), true);
             }
         } else if let TypeKind::Struct { .. } | TypeKind::Union { .. } = symbol.ty.kind() {
             // TODO: 構造体/共用体の初期化式
@@ -161,15 +146,11 @@ impl<'a> Generator<'a> {
         } else if inits.len() == 1 {
             let init = &inits[0];
             match &init.kind {
-                NodeKind::UnaryOp {
-                    op: UnaryOp::Addr,
-                    expr,
-                } => match &expr.kind {
+                NodeKind::UnaryOp { op: UnaryOp::Addr, expr } => match &expr.kind {
                     NodeKind::Var { symbol_id } => {
                         let symbol = self.ast.get_symbol(*symbol_id);
                         if symbol.is_global_var() {
-                            self.builder
-                                .add_row(&format!(".quad {}", symbol.name), true);
+                            self.builder.add_row(&format!(".quad {}", symbol.name), true);
                         } else {
                             return Err(CompileError::InvalidExpr {
                                 msg: format!(
@@ -191,8 +172,7 @@ impl<'a> Generator<'a> {
                     }
                 },
                 NodeKind::String { index, .. } => {
-                    self.builder
-                        .add_row(&format!(".quad .L.str.{}", index), true);
+                    self.builder.add_row(&format!(".quad .L.str.{}", index), true);
                 }
                 _ => {
                     let val = Ast::eval_const_expr(init)?;
@@ -209,8 +189,7 @@ impl<'a> Generator<'a> {
     }
 
     fn emit_epilogue(&mut self) {
-        self.builder
-            .add_row(".section .note.GNU-stack,\"\",@progbits", true); // スタックを実行不可にする
+        self.builder.add_row(".section .note.GNU-stack,\"\",@progbits", true); // スタックを実行不可にする
     }
 
     // ASTからアセンブリコードを生成
@@ -224,14 +203,9 @@ impl<'a> Generator<'a> {
         for func in self.ast.funcs.iter() {
             self.current_func_name = &func.name;
 
-            self.builder
-                .add_row(&format!(".globl {}", self.current_func_name), true);
-            self.builder.add_row(
-                &format!(".type {}, @function", self.current_func_name),
-                true,
-            );
-            self.builder
-                .add_row(&format!("{}:", self.current_func_name), false);
+            self.builder.add_row(&format!(".globl {}", self.current_func_name), true);
+            self.builder.add_row(&format!(".type {}, @function", self.current_func_name), true);
+            self.builder.add_row(&format!("{}:", self.current_func_name), false);
 
             // 関数プロローグ
             self.builder.add_row("push rbp", true);
@@ -240,8 +214,7 @@ impl<'a> Generator<'a> {
             // 関数のローカル変数に対応するスタック領域を確保
             let stack_size = func.stack_size;
             if stack_size > 0 {
-                self.builder
-                    .add_row(&format!("sub rsp, {}", stack_size), true);
+                self.builder.add_row(&format!("sub rsp, {}", stack_size), true);
             }
 
             // 引数をレジスタからスタックへ読み出し
@@ -252,11 +225,7 @@ impl<'a> Generator<'a> {
                 let symbol = self.ast.get_symbol(param.symbol_id);
                 let param_ty_align = symbol.ty.align_of();
                 self.builder.add_row(
-                    &format!(
-                        "mov [rbp-{}], {}",
-                        param.offset,
-                        ARG_REGS[i].by_size(param_ty_align)
-                    ),
+                    &format!("mov [rbp-{}], {}", param.offset, ARG_REGS[i].by_size(param_ty_align)),
                     true,
                 );
             }
@@ -277,8 +246,7 @@ impl<'a> Generator<'a> {
             }
 
             // 関数エピローグ
-            self.builder
-                .add_row(&format!(".L.return.{}:", self.current_func_name), false);
+            self.builder.add_row(&format!(".L.return.{}:", self.current_func_name), false);
             self.builder.add_row("leave", true);
             self.builder.add_row("ret", true);
         }
@@ -301,8 +269,7 @@ impl<'a> Generator<'a> {
 
             for (i, init) in inits.iter().enumerate().take(init_len) {
                 let elem_offset = local_var.offset - i * base_size;
-                self.builder
-                    .add_row(&format!("lea rax, [rbp-{}]", elem_offset), true);
+                self.builder.add_row(&format!("lea rax, [rbp-{}]", elem_offset), true);
                 self.builder.add_row("push rax", true); // 配列要素のアドレスをスタックに積む
                 self.gen_expr(init)?; // 初期化式のコードを生成し、スタックに値を積む
                 self.store(base)?; // スタックトップの値を配列要素に格納
@@ -311,10 +278,8 @@ impl<'a> Generator<'a> {
             if inits.len() < *size {
                 let zero_fill_offset = local_var.offset - init_len * base_size;
                 let zero_fill_size = (*size - init_len) * base_size;
-                self.builder
-                    .add_row(&format!("lea rdi, [rbp-{}]", zero_fill_offset), true); // 初期化開始アドレス
-                self.builder
-                    .add_row(&format!("mov rcx, {}", zero_fill_size), true); // 初期化するバイト数
+                self.builder.add_row(&format!("lea rdi, [rbp-{}]", zero_fill_offset), true); // 初期化開始アドレス
+                self.builder.add_row(&format!("mov rcx, {}", zero_fill_size), true); // 初期化するバイト数
                 self.builder.add_row("xor rax, rax", true); // raxを0クリア
                 self.builder.add_row("rep stosb", true); // 0で初期化
             }
@@ -323,9 +288,7 @@ impl<'a> Generator<'a> {
             unimplemented!("構造体/共用体のローカル変数初期化には未対応です");
         } else if inits.len() == 1 {
             self.gen_addr(&Node {
-                kind: NodeKind::Var {
-                    symbol_id: local_var.symbol_id,
-                },
+                kind: NodeKind::Var { symbol_id: local_var.symbol_id },
                 ..Default::default()
             })?; // 変数のアドレスをスタックに積む
             self.gen_expr(&inits[0])?; // 初期化式のコードを生成し、スタックに値を積む
@@ -342,32 +305,25 @@ impl<'a> Generator<'a> {
     // 変数やデリファレンスのアドレスをスタックに積む
     fn gen_addr(&mut self, node: &Node) -> Result<(), CompileError> {
         match &node.kind {
-            NodeKind::UnaryOp {
-                op: UnaryOp::Deref,
-                expr,
-            } => {
+            NodeKind::UnaryOp { op: UnaryOp::Deref, expr } => {
                 self.gen_expr(expr)?; // ポインタの値を取得
             }
             NodeKind::Var { symbol_id } => {
                 let symbol = self.ast.get_symbol(*symbol_id);
                 if symbol.is_global_var() {
-                    self.builder
-                        .add_row(&format!("lea rax, {}[rip]", symbol.name), true);
+                    self.builder.add_row(&format!("lea rax, {}[rip]", symbol.name), true);
                 } else {
                     let func_id =
-                        symbol
-                            .get_owner()
-                            .ok_or_else(|| CompileError::InternalError {
-                                msg: "ローカル変数の所有関数が見つかりません".to_string(),
-                            })?;
+                        symbol.get_owner().ok_or_else(|| CompileError::InternalError {
+                            msg: "ローカル変数の所有関数が見つかりません".to_string(),
+                        })?;
                     let func = self.ast.get_func(func_id);
                     let local_var = func.find_local_var(*symbol_id).ok_or_else(|| {
                         CompileError::InternalError {
                             msg: "関数内の変数が見つかりません".to_string(),
                         }
                     })?;
-                    self.builder
-                        .add_row(&format!("lea rax, [rbp-{}]", local_var.offset), true);
+                    self.builder.add_row(&format!("lea rax, [rbp-{}]", local_var.offset), true);
                 }
                 self.builder.add_row("push rax", true);
             }

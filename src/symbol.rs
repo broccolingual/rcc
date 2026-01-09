@@ -24,10 +24,7 @@ impl fmt::Debug for Tag {
 
 impl Tag {
     pub(crate) fn new(name: &str, ty: TypeRef) -> Self {
-        Self {
-            name: name.to_string(),
-            ty,
-        }
+        Self { name: name.to_string(), ty }
     }
 }
 
@@ -36,17 +33,9 @@ pub(crate) struct SymbolId(pub usize);
 
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) enum SymbolKind {
-    Var {
-        owner: Option<FuncId>,
-        init: Vec<Node>,
-        is_defined: bool,
-    },
-    Func {
-        is_defined: bool,
-    },
-    EnumConst {
-        value: i64,
-    },
+    Var { owner: Option<FuncId>, init: Vec<Node>, is_defined: bool },
+    Func { is_defined: bool },
+    EnumConst { value: i64 },
 }
 
 #[derive(PartialEq, Eq)]
@@ -74,32 +63,16 @@ impl Symbol {
         init: Vec<Node>,
         is_defined: bool,
     ) -> Self {
-        Self {
-            name: name.to_string(),
-            kind: SymbolKind::Var {
-                owner,
-                init,
-                is_defined,
-            },
-            ty,
-        }
+        Self { name: name.to_string(), kind: SymbolKind::Var { owner, init, is_defined }, ty }
     }
 
     pub(crate) fn new_func(name: &str, ty: TypeRef, is_defined: bool) -> Self {
-        Self {
-            name: name.to_string(),
-            kind: SymbolKind::Func { is_defined },
-            ty,
-        }
+        Self { name: name.to_string(), kind: SymbolKind::Func { is_defined }, ty }
     }
 
     pub(crate) fn new_enum_const(name: &str, value: i64) -> Self {
         let int_ty = TypeRef::register(TypeKind::Int, TypeAttr::default(), None);
-        Self {
-            name: name.to_string(),
-            kind: SymbolKind::EnumConst { value },
-            ty: int_ty,
-        }
+        Self { name: name.to_string(), kind: SymbolKind::EnumConst { value }, ty: int_ty }
     }
 
     pub(crate) fn get_owner(&self) -> Option<FuncId> {

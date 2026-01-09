@@ -14,10 +14,7 @@ impl Ast<'_> {
                     msg: "ラベルの後に文がありません".to_string(),
                     span,
                 })?;
-                return Ok(Some(Box::new(Node::new(
-                    NodeKind::Label { name, expr },
-                    span,
-                ))));
+                return Ok(Some(Box::new(Node::new(NodeKind::Label { name, expr }, span))));
             } else {
                 // ラベル名ではなかった場合、トークンを元に戻す
                 self.retreat_token();
@@ -35,9 +32,7 @@ impl Ast<'_> {
                 if let Some(decls) = self.decl()? {
                     for decl in decls {
                         let symbol_id = self.register_var(&decl, self.current_func)?;
-                        self.get_current_func_mut()?
-                            .locals
-                            .push(LocalVar::new(symbol_id));
+                        self.get_current_func_mut()?.locals.push(LocalVar::new(symbol_id));
                     }
                     continue;
                 } else if let Some(stmt) = self.stmt()? {
@@ -70,20 +65,8 @@ impl Ast<'_> {
                 msg: "if文のthen文がありません".to_string(),
                 span,
             })?;
-            let els = if self.consume_keyword("else").is_some() {
-                self.stmt()?
-            } else {
-                None
-            };
-            return Ok(Some(Box::new(Node::new(
-                NodeKind::If {
-                    cond,
-                    then,
-                    els,
-                    label,
-                },
-                span,
-            ))));
+            let els = if self.consume_keyword("else").is_some() { self.stmt()? } else { None };
+            return Ok(Some(Box::new(Node::new(NodeKind::If { cond, then, els, label }, span))));
         }
         Ok(None)
     }
@@ -107,10 +90,7 @@ impl Ast<'_> {
                 span,
             })?;
             self.pop_loop()?;
-            return Ok(Some(Box::new(Node::new(
-                NodeKind::While { cond, then, label },
-                span,
-            ))));
+            return Ok(Some(Box::new(Node::new(NodeKind::While { cond, then, label }, span))));
         }
 
         if let Some(span) = self.consume_keyword("do") {
@@ -129,10 +109,7 @@ impl Ast<'_> {
             self.expect_punct(")")?;
             self.expect_punct(";")?;
             self.pop_loop()?;
-            return Ok(Some(Box::new(Node::new(
-                NodeKind::Do { then, cond, label },
-                span,
-            ))));
+            return Ok(Some(Box::new(Node::new(NodeKind::Do { then, cond, label }, span))));
         }
 
         if let Some(span) = self.consume_keyword("for") {
@@ -169,13 +146,7 @@ impl Ast<'_> {
             })?;
             self.pop_loop()?;
             return Ok(Some(Box::new(Node::new(
-                NodeKind::For {
-                    init,
-                    cond,
-                    inc,
-                    then,
-                    label,
-                },
+                NodeKind::For { init, cond, inc, then, label },
                 span,
             ))));
         }
@@ -202,10 +173,7 @@ impl Ast<'_> {
                 span,
             })?;
             self.expect_punct(";")?;
-            return Ok(Some(Box::new(Node::new(
-                NodeKind::Continue { label },
-                span,
-            ))));
+            return Ok(Some(Box::new(Node::new(NodeKind::Continue { label }, span))));
         }
 
         if let Some(span) = self.consume_keyword("break") {
@@ -219,17 +187,11 @@ impl Ast<'_> {
 
         if let Some(span) = self.consume_keyword("return") {
             if self.consume_punct(";").is_some() {
-                return Ok(Some(Box::new(Node::new(
-                    NodeKind::Return { expr: None },
-                    span,
-                ))));
+                return Ok(Some(Box::new(Node::new(NodeKind::Return { expr: None }, span))));
             }
             let node = self.expr()?;
             self.expect_punct(";")?;
-            return Ok(Some(Box::new(Node::new(
-                NodeKind::Return { expr: node },
-                span,
-            ))));
+            return Ok(Some(Box::new(Node::new(NodeKind::Return { expr: node }, span))));
         }
         Ok(None)
     }

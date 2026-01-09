@@ -21,10 +21,7 @@ impl AsmBuilder {
     }
 
     pub(crate) fn add_row(&mut self, row: &str, indent: bool) {
-        let elements = row
-            .split_whitespace()
-            .map(String::from)
-            .collect::<Vec<String>>();
+        let elements = row.split_whitespace().map(String::from).collect::<Vec<String>>();
         self.rows.push(Row { indent, elements });
     }
 

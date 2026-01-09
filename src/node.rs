@@ -53,32 +53,17 @@ impl fmt::Debug for Node {
 
 impl Default for Node {
     fn default() -> Self {
-        Node {
-            kind: NodeKind::Nop,
-            ty: TypeRef::default(),
-            span: Span::default(),
-        }
+        Node { kind: NodeKind::Nop, ty: TypeRef::default(), span: Span::default() }
     }
 }
 
 impl Node {
     pub(crate) fn new(kind: NodeKind, span: Span) -> Self {
-        Node {
-            kind,
-            ty: TypeRef::default(),
-            span,
-        }
+        Node { kind, ty: TypeRef::default(), span }
     }
 
     pub(crate) fn new_call(name: &str, args: Vec<Node>, return_ty: TypeRef, span: Span) -> Self {
-        Node {
-            kind: NodeKind::Call {
-                name: name.to_string(),
-                args,
-            },
-            ty: return_ty,
-            span,
-        }
+        Node { kind: NodeKind::Call { name: name.to_string(), args }, ty: return_ty, span }
     }
 
     pub(crate) fn new_binary(
@@ -96,11 +81,7 @@ impl Node {
                     && (rhs_ty.is_integer() || rhs_ty.is_floating_point())
                 {
                     // 整数/浮動小数点 + 整数/浮動小数点: 大きい方の型に合わせる
-                    if lhs_ty.size_of() >= rhs_ty.size_of() {
-                        lhs_ty
-                    } else {
-                        rhs_ty
-                    }
+                    if lhs_ty.size_of() >= rhs_ty.size_of() { lhs_ty } else { rhs_ty }
                 } else if (lhs_ty.is_ptr() || lhs_ty.is_array()) && rhs_ty.is_integer() {
                     // ポインタ + 整数: ポインタ型を返す
                     lhs_ty
@@ -132,11 +113,7 @@ impl Node {
                     && (rhs_ty.is_integer() || rhs_ty.is_floating_point())
                 {
                     // 整数/浮動小数点 - 整数/浮動小数点: 大きい方の型に合わせる
-                    if lhs_ty.size_of() >= rhs_ty.size_of() {
-                        lhs_ty
-                    } else {
-                        rhs_ty
-                    }
+                    if lhs_ty.size_of() >= rhs_ty.size_of() { lhs_ty } else { rhs_ty }
                 } else {
                     return Err(CompileError::InvalidExpr {
                         msg: format!(
@@ -155,11 +132,7 @@ impl Node {
                     && (rhs_ty.is_integer() || rhs_ty.is_floating_point())
                 {
                     // 整数/浮動小数点 * 整数/浮動小数点、整数/浮動小数点 / 整数/浮動小数点: 大きい方の型に合わせる
-                    if lhs_ty.size_of() >= rhs_ty.size_of() {
-                        lhs_ty
-                    } else {
-                        rhs_ty
-                    }
+                    if lhs_ty.size_of() >= rhs_ty.size_of() { lhs_ty } else { rhs_ty }
                 } else {
                     return Err(CompileError::InvalidExpr {
                         msg: format!(
@@ -176,11 +149,7 @@ impl Node {
 
                 if lhs_ty.is_integer() && rhs_ty.is_integer() {
                     // 両方とも整数型の場合、大きい方の型に合わせる
-                    if lhs_ty.size_of() >= rhs_ty.size_of() {
-                        lhs_ty
-                    } else {
-                        rhs_ty
-                    }
+                    if lhs_ty.size_of() >= rhs_ty.size_of() { lhs_ty } else { rhs_ty }
                 } else {
                     return Err(CompileError::InvalidExpr {
                         msg: format!(
@@ -197,11 +166,7 @@ impl Node {
 
                 if lhs_ty.is_integer() && rhs_ty.is_integer() {
                     // 両方とも整数型の場合、大きい方の型に合わせる
-                    if lhs_ty.size_of() >= rhs_ty.size_of() {
-                        lhs_ty
-                    } else {
-                        rhs_ty
-                    }
+                    if lhs_ty.size_of() >= rhs_ty.size_of() { lhs_ty } else { rhs_ty }
                 } else {
                     return Err(CompileError::InvalidExpr {
                         msg: format!(
@@ -251,11 +216,7 @@ impl Node {
             BinaryOp::Assign => lhs.ty,
         };
 
-        Ok(Node {
-            kind: NodeKind::BinaryOp { op, lhs, rhs },
-            ty,
-            span,
-        })
+        Ok(Node { kind: NodeKind::BinaryOp { op, lhs, rhs }, ty, span })
     }
 
     pub(crate) fn new_unary(
@@ -317,21 +278,13 @@ impl Node {
             }
         };
 
-        Ok(Node {
-            kind: NodeKind::UnaryOp { op, expr },
-            ty,
-            span,
-        })
+        Ok(Node { kind: NodeKind::UnaryOp { op, expr }, ty, span })
     }
 
     pub(crate) fn new_assign(op: BinaryOp, lhs: Box<Node>, rhs: Box<Node>, span: Span) -> Self {
         let ty = lhs.ty; // 代入演算子の型は左辺の型とする
 
-        Node {
-            kind: NodeKind::Assign { op, lhs, rhs },
-            ty,
-            span,
-        }
+        Node { kind: NodeKind::Assign { op, lhs, rhs }, ty, span }
     }
 
     pub(crate) fn new_logical_and(
@@ -358,11 +311,7 @@ impl Node {
             });
         };
 
-        Ok(Node {
-            kind: NodeKind::LogicalAnd { lhs, rhs, label },
-            ty,
-            span,
-        })
+        Ok(Node { kind: NodeKind::LogicalAnd { lhs, rhs, label }, ty, span })
     }
 
     pub(crate) fn new_logical_or(
@@ -389,11 +338,7 @@ impl Node {
             });
         };
 
-        Ok(Node {
-            kind: NodeKind::LogicalOr { lhs, rhs, label },
-            ty,
-            span,
-        })
+        Ok(Node { kind: NodeKind::LogicalOr { lhs, rhs, label }, ty, span })
     }
 
     pub(crate) fn new_ternary(
@@ -413,11 +358,7 @@ impl Node {
                 then_ty
             } else if then_ty.is_scalar() && els_ty.is_scalar() {
                 // 両方ともスカラー型の場合、大きい方の型に合わせる
-                if then_ty.size_of() >= els_ty.size_of() {
-                    then_ty
-                } else {
-                    els_ty
-                }
+                if then_ty.size_of() >= els_ty.size_of() { then_ty } else { els_ty }
             } else {
                 return Err(CompileError::InvalidExpr {
                     msg: format!(
@@ -429,24 +370,12 @@ impl Node {
             }
         } else {
             return Err(CompileError::InvalidExpr {
-                msg: format!(
-                    "条件演算子の条件式はスカラー型にのみ適用可能です: {:?}",
-                    cond_ty
-                ),
+                msg: format!("条件演算子の条件式はスカラー型にのみ適用可能です: {:?}", cond_ty),
                 span,
             });
         };
 
-        Ok(Node {
-            kind: NodeKind::Ternary {
-                cond,
-                then,
-                els,
-                label,
-            },
-            ty,
-            span,
-        })
+        Ok(Node { kind: NodeKind::Ternary { cond, then, els, label }, ty, span })
     }
 
     pub(crate) fn new_num(val: i64, span: Span) -> Self {
@@ -458,11 +387,7 @@ impl Node {
     }
 
     pub(crate) fn new_var(symbol_id: SymbolId, ty: TypeRef, span: Span) -> Self {
-        Node {
-            kind: NodeKind::Var { symbol_id },
-            ty,
-            span,
-        }
+        Node { kind: NodeKind::Var { symbol_id }, ty, span }
     }
 
     pub(crate) fn new_member(
@@ -472,23 +397,11 @@ impl Node {
         ty: TypeRef,
         span: Span,
     ) -> Self {
-        Node {
-            kind: NodeKind::Member {
-                obj,
-                name: name.to_string(),
-                offset,
-            },
-            ty,
-            span,
-        }
+        Node { kind: NodeKind::Member { obj, name: name.to_string(), offset }, ty, span }
     }
 
     pub(crate) fn new_cast(expr: Box<Node>, to_ty: TypeRef, span: Span) -> Self {
-        Node {
-            kind: NodeKind::Cast { expr },
-            ty: to_ty,
-            span,
-        }
+        Node { kind: NodeKind::Cast { expr }, ty: to_ty, span }
     }
 
     pub(crate) fn is_expr(&self) -> bool {
@@ -604,11 +517,7 @@ impl Node {
             }
         } else {
             // スカラー型の通常のインクリメント
-            let op = if is_pre {
-                UnaryOp::PreInc
-            } else {
-                UnaryOp::PostInc
-            };
+            let op = if is_pre { UnaryOp::PreInc } else { UnaryOp::PostInc };
             Node::new_unary(op, expr, span)
         }
     }
@@ -642,11 +551,7 @@ impl Node {
             }
         } else {
             // スカラー型の通常のデクリメント
-            let op = if is_pre {
-                UnaryOp::PreDec
-            } else {
-                UnaryOp::PostDec
-            };
+            let op = if is_pre { UnaryOp::PreDec } else { UnaryOp::PostDec };
             Node::new_unary(op, expr, span)
         }
     }

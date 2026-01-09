@@ -28,13 +28,7 @@ impl TypeTable {
     }
 
     fn register_primitive(&mut self, kind: TypeKind, size: usize, align: usize) -> TypeRef {
-        let data = TypeData {
-            kind,
-            size,
-            align,
-            attr: TypeAttr::default(),
-            storage_class: None,
-        };
+        let data = TypeData { kind, size, align, attr: TypeAttr::default(), storage_class: None };
         let id = TypeRef(self.types.len());
         self.types.push(data.clone());
         id

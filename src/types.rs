@@ -73,10 +73,7 @@ impl TypeData {
             TypeKind::Float => (4, 4),
             TypeKind::Double => (8, 8),
             TypeKind::Ptr { .. } => (8, 8),
-            TypeKind::Array {
-                base,
-                size: array_size,
-            } => {
+            TypeKind::Array { base, size: array_size } => {
                 let base_data = base.get();
                 (base_data.size * *array_size, base_data.align)
             }
@@ -113,12 +110,6 @@ impl TypeData {
             TypeKind::Func { .. } => (8, 8),
         };
 
-        TypeData {
-            kind,
-            size,
-            align,
-            attr,
-            storage_class,
-        }
+        TypeData { kind, size, align, attr, storage_class }
     }
 }

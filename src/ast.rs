@@ -89,15 +89,8 @@ impl<'a> Ast<'a> {
         span: Span,
     ) -> Result<SymbolId, CompileError> {
         // 同じスコープに同名の列挙定数が存在する場合はエラー
-        if self
-            .symbol_table
-            .find_symbol_in_current_scope(name)
-            .is_some()
-        {
-            return Err(CompileError::Redecl {
-                name: name.to_string(),
-                span,
-            });
+        if self.symbol_table.find_symbol_in_current_scope(name).is_some() {
+            return Err(CompileError::Redecl { name: name.to_string(), span });
         }
         let symbol = Symbol::new_enum_const(name, value);
         Ok(self.symbol_table.insert_symbol(name, symbol))
@@ -110,11 +103,11 @@ impl<'a> Ast<'a> {
     }
 
     fn get_current_func_mut(&mut self) -> Result<&mut Func, CompileError> {
-        self.current_func
-            .and_then(|func_id| self.funcs.get_mut(func_id.0))
-            .ok_or_else(|| CompileError::InternalError {
-                msg: "現在の関数が設定されていません".to_string(),
-            })
+        self.current_func.and_then(|func_id| self.funcs.get_mut(func_id.0)).ok_or_else(|| {
+            CompileError::InternalError {
+                msg: "現在の関数が設定されていません".to_string()
+            }
+        })
     }
 
     // 現在の関数のオフセットを計算
@@ -140,7 +133,7 @@ impl<'a> Ast<'a> {
             Ok(())
         } else {
             Err(CompileError::InternalError {
-                msg: "現在の関数が設定されていません".to_string(),
+                msg: "現在の関数が設定されていません".to_string()
             })
         }
     }
@@ -170,15 +163,8 @@ impl<'a> Ast<'a> {
         owner: Option<FuncId>,
     ) -> Result<SymbolId, CompileError> {
         // 同じスコープに同名の変数が存在する場合はエラー
-        if self
-            .symbol_table
-            .find_symbol_in_current_scope(&decl.name)
-            .is_some()
-        {
-            return Err(CompileError::Redecl {
-                name: decl.name.to_string(),
-                span: decl.span,
-            });
+        if self.symbol_table.find_symbol_in_current_scope(&decl.name).is_some() {
+            return Err(CompileError::Redecl { name: decl.name.to_string(), span: decl.span });
         }
         let is_defined = !decl.ty.is_extern();
         let symbol = Symbol::new_var(&decl.name, decl.ty, owner, decl.init.clone(), is_defined);
@@ -302,10 +288,7 @@ impl<'a> Ast<'a> {
 
     fn consume_ident(&mut self) -> Option<(String, Span)> {
         match self.get_token() {
-            Token {
-                kind: TokenKind::Ident(name),
-                span,
-            } => {
+            Token { kind: TokenKind::Ident(name), span } => {
                 let result = (name.clone(), *span);
                 self.advance_token();
                 Some(result)
@@ -316,10 +299,7 @@ impl<'a> Ast<'a> {
 
     fn consume_string(&mut self) -> Option<(String, Span)> {
         match self.get_token() {
-            Token {
-                kind: TokenKind::StrLiteral(s),
-                span,
-            } => {
+            Token { kind: TokenKind::StrLiteral(s), span } => {
                 let result = (s.clone(), *span);
                 self.advance_token();
                 Some(result)
@@ -330,10 +310,7 @@ impl<'a> Ast<'a> {
 
     fn consume_const(&mut self) -> Option<(i64, Span)> {
         match self.get_token() {
-            Token {
-                kind: TokenKind::IntConst(val) | TokenKind::CharConst(val),
-                span,
-            } => {
+            Token { kind: TokenKind::IntConst(val) | TokenKind::CharConst(val), span } => {
                 let result = (*val, *span);
                 self.advance_token();
                 Some(result)
@@ -370,13 +347,6 @@ impl<'a> Ast<'a> {
     }
 
     fn at_eof(&self) -> bool {
-        self.tokens.is_empty()
-            || matches!(
-                self.get_token(),
-                Token {
-                    kind: TokenKind::Eof,
-                    ..
-                }
-            )
+        self.tokens.is_empty() || matches!(self.get_token(), Token { kind: TokenKind::Eof, .. })
     }
 }

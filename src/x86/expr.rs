@@ -11,8 +11,7 @@ impl Generator<'_> {
                 self.builder.add_row(&format!("push {}", val), true);
             }
             NodeKind::String { index, .. } => {
-                self.builder
-                    .add_row(&format!("lea rax, .L.str.{}[rip]", index), true); // RIP相対アドレッシング
+                self.builder.add_row(&format!("lea rax, .L.str.{}[rip]", index), true); // RIP相対アドレッシング
                 self.builder.add_row("push rax", true); // 文字列リテラルのアドレスをスタックに積む
             }
             NodeKind::Var { .. } | NodeKind::Member { .. } => {
@@ -37,12 +36,10 @@ impl Generator<'_> {
             NodeKind::LogicalAnd { lhs, rhs, label } => {
                 self.gen_expr(lhs)?;
                 self.test_zero();
-                self.builder
-                    .add_row(&format!("je .L.false.{}", label), true);
+                self.builder.add_row(&format!("je .L.false.{}", label), true);
                 self.gen_expr(rhs)?;
                 self.test_zero();
-                self.builder
-                    .add_row(&format!("je .L.false.{}", label), true);
+                self.builder.add_row(&format!("je .L.false.{}", label), true);
                 self.builder.add_row("push 1", true); // true
                 self.builder.add_row(&format!("jmp .L.end.{}", label), true);
                 self.builder.add_row(&format!(".L.false.{}:", label), false);
@@ -52,24 +49,17 @@ impl Generator<'_> {
             NodeKind::LogicalOr { lhs, rhs, label } => {
                 self.gen_expr(lhs)?;
                 self.test_zero();
-                self.builder
-                    .add_row(&format!("jne .L.true.{}", label), true);
+                self.builder.add_row(&format!("jne .L.true.{}", label), true);
                 self.gen_expr(rhs)?;
                 self.test_zero();
-                self.builder
-                    .add_row(&format!("jne .L.true.{}", label), true);
+                self.builder.add_row(&format!("jne .L.true.{}", label), true);
                 self.builder.add_row("push 0", true); // false
                 self.builder.add_row(&format!("jmp .L.end.{}", label), true);
                 self.builder.add_row(&format!(".L.true.{}:", label), false);
                 self.builder.add_row("push 1", true); // true
                 self.builder.add_row(&format!(".L.end.{}:", label), false);
             }
-            NodeKind::Ternary {
-                cond,
-                then,
-                els,
-                label,
-            } => {
+            NodeKind::Ternary { cond, then, els, label } => {
                 self.gen_expr(cond)?;
                 self.test_zero();
                 self.builder.add_row(&format!("je .L.else.{}", label), true);

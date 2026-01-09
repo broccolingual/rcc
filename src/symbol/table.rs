@@ -20,18 +20,12 @@ impl ScopedTable {
         Self {
             symbols: Vec::new(),
             tags: Vec::new(),
-            scopes: vec![Scope {
-                names: HashMap::new(),
-                tags: HashMap::new(),
-            }],
+            scopes: vec![Scope { names: HashMap::new(), tags: HashMap::new() }],
         }
     }
 
     pub(crate) fn push_scope(&mut self) {
-        self.scopes.push(Scope {
-            names: HashMap::new(),
-            tags: HashMap::new(),
-        });
+        self.scopes.push(Scope { names: HashMap::new(), tags: HashMap::new() });
     }
 
     pub(crate) fn pop_scope(&mut self) {
@@ -59,20 +53,15 @@ impl ScopedTable {
     }
 
     pub(crate) fn find_symbol_id(&self, name: &str) -> Option<SymbolId> {
-        self.scopes
-            .iter()
-            .rev()
-            .find_map(|scope| scope.names.get(name).copied())
+        self.scopes.iter().rev().find_map(|scope| scope.names.get(name).copied())
     }
 
     pub(crate) fn find_symbol(&self, name: &str) -> Option<&Symbol> {
-        self.find_symbol_id(name)
-            .map(|symbol_id| self.get_symbol(symbol_id))
+        self.find_symbol_id(name).map(|symbol_id| self.get_symbol(symbol_id))
     }
 
     pub(crate) fn find_symbol_mut(&mut self, name: &str) -> Option<&mut Symbol> {
-        self.find_symbol_id(name)
-            .map(|symbol_id| self.get_symbol_mut(symbol_id))
+        self.find_symbol_id(name).map(|symbol_id| self.get_symbol_mut(symbol_id))
     }
 
     pub(crate) fn find_tag(&self, name: &str) -> Option<&Tag> {
@@ -83,12 +72,9 @@ impl ScopedTable {
     }
 
     pub(crate) fn find_symbol_in_current_scope(&self, name: &str) -> Option<&Symbol> {
-        self.scopes.last().and_then(|scope| {
-            scope
-                .names
-                .get(name)
-                .map(|&symbol_id| self.get_symbol(symbol_id))
-        })
+        self.scopes
+            .last()
+            .and_then(|scope| scope.names.get(name).map(|&symbol_id| self.get_symbol(symbol_id)))
     }
 
     pub(crate) fn find_tag_in_current_scope(&self, name: &str) -> Option<&Tag> {

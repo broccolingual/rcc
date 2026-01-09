@@ -11,26 +11,11 @@ pub(crate) enum TypeKind {
     Long,
     Float,
     Double,
-    Ptr {
-        to: TypeRef,
-    }, // to: ポインタの指す型
-    Array {
-        base: TypeRef,
-        size: usize,
-    }, // base: 配列の要素型, size: 要素数
-    Struct {
-        name: String,
-        members: Vec<MemberDecl>,
-    }, // name: 構造体名, members: メンバーリスト
-    Union {
-        name: String,
-        members: Vec<MemberDecl>,
-    }, // name: 共用体名, members: メンバーリスト
-    Func {
-        return_ty: TypeRef,
-        params: Vec<Decl>,
-        is_variadic: bool,
-    }, // return_ty: 戻り値の型, params: パラメータリスト, is_variadic: 可変長引数かどうか
+    Ptr { to: TypeRef },                               // to: ポインタの指す型
+    Array { base: TypeRef, size: usize },              // base: 配列の要素型, size: 要素数
+    Struct { name: String, members: Vec<MemberDecl> }, // name: 構造体名, members: メンバーリスト
+    Union { name: String, members: Vec<MemberDecl> },  // name: 共用体名, members: メンバーリスト
+    Func { return_ty: TypeRef, params: Vec<Decl>, is_variadic: bool }, // return_ty: 戻り値の型, params: パラメータリスト, is_variadic: 可変長引数かどうか
 }
 
 impl fmt::Debug for TypeKind {
@@ -77,11 +62,7 @@ impl fmt::Debug for TypeKind {
                 }
                 write!(f, " }}")
             }
-            TypeKind::Func {
-                return_ty,
-                params,
-                is_variadic,
-            } => {
+            TypeKind::Func { return_ty, params, is_variadic } => {
                 write!(f, "func(")?;
                 for (i, param) in params.iter().enumerate() {
                     if i > 0 {

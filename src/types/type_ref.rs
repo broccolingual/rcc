@@ -61,10 +61,7 @@ impl TypeRef {
     }
 
     pub(crate) fn is_struct_or_union(&self) -> bool {
-        matches!(
-            &self.kind(),
-            TypeKind::Struct { .. } | TypeKind::Union { .. }
-        )
+        matches!(&self.kind(), TypeKind::Struct { .. } | TypeKind::Union { .. })
     }
 
     pub(crate) fn is_extern(&self) -> bool {
@@ -80,10 +77,7 @@ impl TypeRef {
     }
 
     pub(crate) fn is_integer(&self) -> bool {
-        matches!(
-            &self.kind(),
-            TypeKind::Char | TypeKind::Short | TypeKind::Int | TypeKind::Long
-        )
+        matches!(&self.kind(), TypeKind::Char | TypeKind::Short | TypeKind::Int | TypeKind::Long)
     }
 
     pub(crate) fn is_floating_point(&self) -> bool {

@@ -74,10 +74,7 @@ impl<'a> Lexer<'a> {
                 pos += 1;
                 let char_val = bytes[pos] as i64;
                 pos += 2;
-                tokens.push(Token::new(
-                    TokenKind::CharConst(char_val),
-                    Span::new(start_pos, pos),
-                ));
+                tokens.push(Token::new(TokenKind::CharConst(char_val), Span::new(start_pos, pos)));
                 continue;
             }
 
@@ -91,10 +88,7 @@ impl<'a> Lexer<'a> {
                 }
                 let str_lit = self.source[str_start..pos].to_string();
                 pos += 1;
-                tokens.push(Token::new(
-                    TokenKind::StrLiteral(str_lit),
-                    Span::new(start_pos, pos),
-                ));
+                tokens.push(Token::new(TokenKind::StrLiteral(str_lit), Span::new(start_pos, pos)));
                 continue;
             }
 
@@ -107,10 +101,7 @@ impl<'a> Lexer<'a> {
                         pos += 1;
                     }
                     let val = self.source[start_pos..pos].parse::<i64>().unwrap();
-                    tokens.push(Token::new(
-                        TokenKind::IntConst(val),
-                        Span::new(start_pos, pos),
-                    ));
+                    tokens.push(Token::new(TokenKind::IntConst(val), Span::new(start_pos, pos)));
                 } else if pos + 1 < bytes.len() && matches!(bytes[pos + 1], b'x' | b'X') {
                     // 16進数
                     pos += 2;
@@ -127,10 +118,7 @@ impl<'a> Lexer<'a> {
                         });
                     };
                     let val = i64::from_str_radix(hex_str, 16).unwrap();
-                    tokens.push(Token::new(
-                        TokenKind::IntConst(val),
-                        Span::new(start_pos, pos),
-                    ));
+                    tokens.push(Token::new(TokenKind::IntConst(val), Span::new(start_pos, pos)));
                 } else {
                     // 8進数
                     pos += 1;
@@ -138,16 +126,9 @@ impl<'a> Lexer<'a> {
                     while pos < bytes.len() && matches!(bytes[pos], b'0'..=b'7') {
                         pos += 1;
                     }
-                    let oct_str = if pos > oct_start {
-                        &self.source[oct_start..pos]
-                    } else {
-                        "0"
-                    };
+                    let oct_str = if pos > oct_start { &self.source[oct_start..pos] } else { "0" };
                     let val = i64::from_str_radix(oct_str, 8).unwrap();
-                    tokens.push(Token::new(
-                        TokenKind::IntConst(val),
-                        Span::new(start_pos, pos),
-                    ));
+                    tokens.push(Token::new(TokenKind::IntConst(val), Span::new(start_pos, pos)));
                 }
                 continue;
             }

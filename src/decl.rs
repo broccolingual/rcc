@@ -13,21 +13,11 @@ pub(crate) struct Decl {
 
 impl Decl {
     pub(crate) fn new(name: String, ty: TypeRef, span: Span) -> Self {
-        Decl {
-            name,
-            ty,
-            init: Vec::new(),
-            span,
-        }
+        Decl { name, ty, init: Vec::new(), span }
     }
 
     pub(crate) fn new_abst(ty: TypeRef, span: Span) -> Self {
-        Decl {
-            name: String::new(),
-            ty,
-            init: Vec::new(),
-            span,
-        }
+        Decl { name: String::new(), ty, init: Vec::new(), span }
     }
 }
 
@@ -56,11 +46,7 @@ pub(crate) struct MemberDecl {
 
 impl From<Decl> for MemberDecl {
     fn from(decl: Decl) -> Self {
-        MemberDecl {
-            name: decl.name,
-            ty: decl.ty,
-            offset: None,
-        }
+        MemberDecl { name: decl.name, ty: decl.ty, offset: None }
     }
 }
 

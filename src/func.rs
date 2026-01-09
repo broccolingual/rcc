@@ -20,10 +20,7 @@ impl fmt::Debug for LocalVar {
 
 impl LocalVar {
     pub(crate) fn new(symbol_id: SymbolId) -> Self {
-        Self {
-            symbol_id,
-            offset: 0,
-        }
+        Self { symbol_id, offset: 0 }
     }
 }
 
@@ -67,9 +64,6 @@ impl Func {
     }
 
     pub(crate) fn find_local_var(&self, symbol_id: SymbolId) -> Option<&LocalVar> {
-        self.params
-            .iter()
-            .chain(self.locals.iter())
-            .find(|v| v.symbol_id == symbol_id)
+        self.params.iter().chain(self.locals.iter()).find(|v| v.symbol_id == symbol_id)
     }
 }

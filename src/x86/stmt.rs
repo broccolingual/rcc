@@ -6,12 +6,7 @@ impl Generator<'_> {
     // 文のコード生成
     pub(super) fn gen_stmt(&mut self, node: &Node) -> Result<(), CompileError> {
         match &node.kind {
-            NodeKind::If {
-                cond,
-                then,
-                els,
-                label,
-            } => {
+            NodeKind::If { cond, then, els, label } => {
                 self.gen_expr(cond)?;
                 self.test_zero();
                 if let Some(els_node) = els {
@@ -30,24 +25,15 @@ impl Generator<'_> {
                 }
             }
             NodeKind::While { cond, then, label } => {
-                self.builder
-                    .add_row(&format!(".L.continue.{}:", label), false);
+                self.builder.add_row(&format!(".L.continue.{}:", label), false);
                 self.gen_expr(cond)?;
                 self.test_zero();
-                self.builder
-                    .add_row(&format!("je .L.break.{}", label), true);
+                self.builder.add_row(&format!("je .L.break.{}", label), true);
                 self.gen_stmt(then)?;
-                self.builder
-                    .add_row(&format!("jmp .L.continue.{}", label), true);
+                self.builder.add_row(&format!("jmp .L.continue.{}", label), true);
                 self.builder.add_row(&format!(".L.break.{}:", label), false);
             }
-            NodeKind::For {
-                init,
-                cond,
-                inc,
-                then,
-                label,
-            } => {
+            NodeKind::For { init, cond, inc, then, label } => {
                 if let Some(init) = init.as_ref() {
                     if init.is_expr() {
                         self.gen_expr(init)?;
@@ -60,12 +46,10 @@ impl Generator<'_> {
                 if let Some(cond) = cond.as_ref() {
                     self.gen_expr(cond)?;
                     self.test_zero();
-                    self.builder
-                        .add_row(&format!("je .L.break.{}", label), true);
+                    self.builder.add_row(&format!("je .L.break.{}", label), true);
                 }
                 self.gen_stmt(then)?;
-                self.builder
-                    .add_row(&format!(".L.continue.{}:", label), false);
+                self.builder.add_row(&format!(".L.continue.{}:", label), false);
                 if let Some(inc) = inc.as_ref() {
                     if inc.is_expr() {
                         self.gen_expr(inc)?;
@@ -74,19 +58,16 @@ impl Generator<'_> {
                         self.gen_stmt(inc)?;
                     }
                 }
-                self.builder
-                    .add_row(&format!("jmp .L.begin.{}", label), true);
+                self.builder.add_row(&format!("jmp .L.begin.{}", label), true);
                 self.builder.add_row(&format!(".L.break.{}:", label), false);
             }
             NodeKind::Do { cond, then, label } => {
                 self.builder.add_row(&format!(".L.begin.{}:", label), false);
                 self.gen_stmt(then)?;
-                self.builder
-                    .add_row(&format!(".L.continue.{}:", label), false);
+                self.builder.add_row(&format!(".L.continue.{}:", label), false);
                 self.gen_expr(cond)?;
                 self.test_zero();
-                self.builder
-                    .add_row(&format!("jne .L.begin.{}", label), true);
+                self.builder.add_row(&format!("jne .L.begin.{}", label), true);
                 self.builder.add_row(&format!(".L.break.{}:", label), false);
             }
             NodeKind::Block { body } => {
@@ -100,24 +81,18 @@ impl Generator<'_> {
                 }
             }
             NodeKind::Break { label } => {
-                self.builder
-                    .add_row(&format!("jmp .L.break.{}", label), true);
+                self.builder.add_row(&format!("jmp .L.break.{}", label), true);
             }
             NodeKind::Continue { label } => {
-                self.builder
-                    .add_row(&format!("jmp .L.continue.{}", label), true);
+                self.builder.add_row(&format!("jmp .L.continue.{}", label), true);
             }
             NodeKind::Goto { name } => {
-                self.builder.add_row(
-                    &format!("jmp .L.label.{}.{}", self.current_func_name, name),
-                    true,
-                );
+                self.builder
+                    .add_row(&format!("jmp .L.label.{}.{}", self.current_func_name, name), true);
             }
             NodeKind::Label { name, expr } => {
-                self.builder.add_row(
-                    &format!(".L.label.{}.{}:", self.current_func_name, name),
-                    false,
-                );
+                self.builder
+                    .add_row(&format!(".L.label.{}.{}:", self.current_func_name, name), false);
                 if expr.is_expr() {
                     self.gen_expr(expr)?;
                     self.builder.add_row("pop rax", true); // ラベル付き文の結果を捨てる
@@ -130,8 +105,7 @@ impl Generator<'_> {
                     self.gen_expr(expr)?;
                     self.builder.add_row("pop rax", true);
                 }
-                self.builder
-                    .add_row(&format!("jmp .L.return.{}", self.current_func_name), true);
+                self.builder.add_row(&format!("jmp .L.return.{}", self.current_func_name), true);
             }
             NodeKind::Nop => {}
             _ => {

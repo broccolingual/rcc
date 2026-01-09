@@ -6,46 +6,16 @@ use crate::utils::Span;
 
 #[derive(Debug)]
 pub(crate) enum CompileError {
-    UnexpectedToken {
-        expected: TokenKind,
-        found: TokenKind,
-        span: Span,
-    },
-    MissingToken {
-        found: String,
-        span: Span,
-    },
-    UndefinedIdent {
-        name: String,
-        span: Span,
-    },
-    UndefinedFunc {
-        name: String,
-        span: Span,
-    },
-    ReadOnlyLvalue {
-        name: String,
-        span: Span,
-    },
-    Redecl {
-        name: String,
-        span: Span,
-    },
-    InvalidExpr {
-        msg: String,
-        span: Span,
-    },
-    InvalidStmt {
-        msg: String,
-        span: Span,
-    },
-    InvalidDecl {
-        msg: String,
-        span: Span,
-    },
-    InternalError {
-        msg: String,
-    },
+    UnexpectedToken { expected: TokenKind, found: TokenKind, span: Span },
+    MissingToken { found: String, span: Span },
+    UndefinedIdent { name: String, span: Span },
+    UndefinedFunc { name: String, span: Span },
+    ReadOnlyLvalue { name: String, span: Span },
+    Redecl { name: String, span: Span },
+    InvalidExpr { msg: String, span: Span },
+    InvalidStmt { msg: String, span: Span },
+    InvalidDecl { msg: String, span: Span },
+    InternalError { msg: String },
 }
 
 impl error::Error for CompileError {}
@@ -53,14 +23,8 @@ impl error::Error for CompileError {}
 impl fmt::Display for CompileError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            CompileError::UnexpectedToken {
-                expected, found, ..
-            } => {
-                write!(
-                    f,
-                    "Unexpected Token\n  Expected: {:?}\n  Found: {:?}",
-                    expected, found
-                )
+            CompileError::UnexpectedToken { expected, found, .. } => {
+                write!(f, "Unexpected Token\n  Expected: {:?}\n  Found: {:?}", expected, found)
             }
             CompileError::MissingToken { found, .. } => {
                 write!(f, "Missing Token: {}", found)
@@ -103,11 +67,7 @@ impl fmt::Display for CompileError {
                 write!(f, "Invalid Declaration: {}", msg)
             }
             CompileError::InternalError { msg } => {
-                write!(
-                    f,
-                    "Internal Error: {}\n  これはコンパイラのバグの可能性があります",
-                    msg
-                )
+                write!(f, "Internal Error: {}\n  これはコンパイラのバグの可能性があります", msg)
             }
         }
     }
@@ -149,30 +109,18 @@ impl CompileError {
         // ソースコード行の表示
         let line_num_width = line_num.to_string().len();
         let line_display = format!("\n{:>width$} |", "", width = line_num_width);
-        let source_line = format!(
-            "\n{:>width$} | {}",
-            line_num,
-            line_content,
-            width = line_num_width
-        );
+        let source_line =
+            format!("\n{:>width$} | {}", line_num, line_content, width = line_num_width);
 
         // エラー箇所を示す矢印
         let error_length = if end > start { end - start } else { 1 };
         let arrow_padding = " ".repeat(col_num - 1);
         let arrows =
             "^".repeat(error_length.min(line_content.len().saturating_sub(col_num - 1).max(1)));
-        let arrow_line = format!(
-            "\n{:>width$} | {}{}",
-            "",
-            arrow_padding,
-            arrows,
-            width = line_num_width
-        );
+        let arrow_line =
+            format!("\n{:>width$} | {}{}", "", arrow_padding, arrows, width = line_num_width);
 
-        format!(
-            "{}{}{}{}{}",
-            error_msg, location, line_display, source_line, arrow_line
-        )
+        format!("{}{}{}{}{}", error_msg, location, line_display, source_line, arrow_line)
     }
 
     fn get_line_and_column(&self, source: &str, pos: usize) -> (usize, usize) {
