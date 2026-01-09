@@ -192,33 +192,21 @@ impl TypeRef {
         }
     }
 
-    pub(crate) fn complete_struct(&self, members: Vec<MemberDecl>) -> TypeRef {
-        let kind = self.kind();
-        if let TypeKind::Struct { name, .. } = kind {
-            let data = TypeData::from_kind(
+    pub(crate) fn complete_struct_or_union(&self, members: Vec<MemberDecl>) -> TypeRef {
+        let data = match self.kind() {
+            TypeKind::Struct { name, .. } => TypeData::from_kind(
                 TypeKind::Struct { name, members },
                 self.attr(),
                 self.storage_class(),
-            );
-            self.set(data);
-            *self
-        } else {
-            *self
-        }
-    }
-
-    pub(crate) fn complete_union(&self, members: Vec<MemberDecl>) -> TypeRef {
-        let kind = self.kind();
-        if let TypeKind::Union { name, .. } = kind {
-            let data = TypeData::from_kind(
+            ),
+            TypeKind::Union { name, .. } => TypeData::from_kind(
                 TypeKind::Union { name, members },
                 self.attr(),
                 self.storage_class(),
-            );
-            self.set(data);
-            *self
-        } else {
-            *self
-        }
+            ),
+            _ => return *self,
+        };
+        self.set(data);
+        *self
     }
 }

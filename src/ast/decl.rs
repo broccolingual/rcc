@@ -238,12 +238,18 @@ impl Ast<'_> {
             };
             // 構造体定義: struct ident? { ... }
             if self.peek_punct("{") {
-                return Ok(Some(self.parse_struct_definition(struct_name, span)?));
+                return Ok(Some(self.parse_struct_or_union_definition(
+                    struct_name,
+                    span,
+                    true,
+                )?));
             }
 
             // 構造体参照または前方宣言: struct ident
             if !struct_name.is_empty() {
-                return Ok(Some(self.parse_struct_reference(struct_name)));
+                return Ok(Some(
+                    self.parse_struct_or_union_reference(struct_name, true),
+                ));
             }
 
             // 無名構造体の前方宣言はエラー
@@ -262,12 +268,16 @@ impl Ast<'_> {
             };
             // 共用体定義: union ident? { ... }
             if self.peek_punct("{") {
-                return Ok(Some(self.parse_union_definition(union_name, span)?));
+                return Ok(Some(
+                    self.parse_struct_or_union_definition(union_name, span, false)?,
+                ));
             }
 
             // 共用体参照または前方宣言: union ident
             if !union_name.is_empty() {
-                return Ok(Some(self.parse_union_reference(union_name)));
+                return Ok(Some(
+                    self.parse_struct_or_union_reference(union_name, false),
+                ));
             }
 
             // 無名共用体の前方宣言はエラー
@@ -279,25 +289,33 @@ impl Ast<'_> {
         Ok(None)
     }
 
-    // 構造体定義をパース
-    fn parse_struct_definition(
+    // 構造体/共用体定義をパース
+    fn parse_struct_or_union_definition(
         &mut self,
-        struct_name: String,
+        name: String,
         span: Span,
+        is_struct: bool,
     ) -> Result<TypeKind, CompileError> {
         // メンバをパースする前に未完成型を登録
         let incomplete_ty = TypeRef::register(
-            TypeKind::Struct {
-                name: struct_name.clone(),
-                members: Vec::new(),
+            if is_struct {
+                TypeKind::Struct {
+                    name: name.clone(),
+                    members: Vec::new(),
+                }
+            } else {
+                TypeKind::Union {
+                    name: name.clone(),
+                    members: Vec::new(),
+                }
             },
             TypeAttr::default(),
             None,
         );
 
         // タグの重複チェックと登録
-        if !struct_name.is_empty() {
-            self.validate_and_register_tag(&struct_name, incomplete_ty, span)?;
+        if !name.is_empty() {
+            self.validate_and_register_tag(&name, incomplete_ty, span)?;
         }
 
         // メンバをパース
@@ -307,127 +325,65 @@ impl Ast<'_> {
 
         if members.is_empty() {
             return Err(CompileError::InvalidDecl {
-                msg: "構造体には少なくとも1つのメンバが必要です".to_string(),
+                msg: "構造体/共用体には少なくとも1つのメンバが必要です".to_string(),
                 span,
             });
         }
 
-        // 構造体型を完成させる
-        let struct_ty = if incomplete_ty.is_incomplete() {
-            incomplete_ty.complete_struct(members)
+        // 型を完成させる
+        let completed_ty = if incomplete_ty.is_incomplete() {
+            incomplete_ty.complete_struct_or_union(members)
         } else {
-            // 構造体が入れ子になっている場合
+            // 入れ子になっている場合
             TypeRef::register(
-                TypeKind::Struct {
-                    name: struct_name.clone(),
-                    members,
+                if is_struct {
+                    TypeKind::Struct {
+                        name: name.clone(),
+                        members,
+                    }
+                } else {
+                    TypeKind::Union {
+                        name: name.clone(),
+                        members,
+                    }
                 },
                 TypeAttr::default(),
                 None,
             )
         };
 
-        // 構造体タグを更新
-        if !struct_name.is_empty() {
-            self.register_tag(&struct_name, struct_ty);
+        // タグを更新
+        if !name.is_empty() {
+            self.register_tag(&name, completed_ty);
         }
 
-        Ok(struct_ty.kind())
+        Ok(completed_ty.kind())
     }
 
     // 構造体参照または前方宣言をパース
-    fn parse_struct_reference(&mut self, struct_name: String) -> TypeKind {
-        // 既存の構造体タグを検索
-        if let Some(tag) = self.find_tag(&struct_name) {
+    fn parse_struct_or_union_reference(&mut self, name: String, is_struct: bool) -> TypeKind {
+        // 既存のタグを検索
+        if let Some(tag) = self.find_tag(&name) {
             return tag.ty.kind();
         }
 
         // 前方宣言として未完成型を登録
         let incomplete_ty = TypeRef::register(
-            TypeKind::Struct {
-                name: struct_name.clone(),
-                members: Vec::new(),
-            },
-            TypeAttr::default(),
-            None,
-        );
-        self.register_tag(&struct_name, incomplete_ty);
-        incomplete_ty.kind()
-    }
-
-    // 共用体定義をパース
-    fn parse_union_definition(
-        &mut self,
-        union_name: String,
-        span: Span,
-    ) -> Result<TypeKind, CompileError> {
-        // メンバをパースする前に未完成型を登録
-        let incomplete_ty = TypeRef::register(
-            TypeKind::Union {
-                name: union_name.clone(),
-                members: Vec::new(),
-            },
-            TypeAttr::default(),
-            None,
-        );
-
-        // タグの重複チェックと登録
-        if !union_name.is_empty() {
-            self.validate_and_register_tag(&union_name, incomplete_ty, span)?;
-        }
-
-        // メンバをパース
-        self.expect_punct("{")?;
-        let members = self.struct_decl_list()?;
-        self.expect_punct("}")?;
-
-        if members.is_empty() {
-            return Err(CompileError::InvalidDecl {
-                msg: "共用体には少なくとも1つのメンバが必要です".to_string(),
-                span,
-            });
-        }
-
-        // 共用体型を完成させる
-        let union_ty = if incomplete_ty.is_incomplete() {
-            incomplete_ty.complete_union(members)
-        } else {
-            // 共用体が入れ子になっている場合
-            TypeRef::register(
+            if is_struct {
+                TypeKind::Struct {
+                    name: name.clone(),
+                    members: Vec::new(),
+                }
+            } else {
                 TypeKind::Union {
-                    name: union_name.clone(),
-                    members,
-                },
-                TypeAttr::default(),
-                None,
-            )
-        };
-
-        // 共用体タグを更新
-        if !union_name.is_empty() {
-            self.register_tag(&union_name, union_ty);
-        }
-
-        Ok(union_ty.kind())
-    }
-
-    // 共用体参照または前方宣言をパース
-    fn parse_union_reference(&mut self, union_name: String) -> TypeKind {
-        // 既存の共用体タグを検索
-        if let Some(tag) = self.find_tag(&union_name) {
-            return tag.ty.kind();
-        }
-
-        // 前方宣言として未完成型を登録
-        let incomplete_ty = TypeRef::register(
-            TypeKind::Union {
-                name: union_name.clone(),
-                members: Vec::new(),
+                    name: name.clone(),
+                    members: Vec::new(),
+                }
             },
             TypeAttr::default(),
             None,
         );
-        self.register_tag(&union_name, incomplete_ty);
+        self.register_tag(&name, incomplete_ty);
         incomplete_ty.kind()
     }
 

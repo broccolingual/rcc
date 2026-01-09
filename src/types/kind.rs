@@ -67,7 +67,13 @@ impl fmt::Debug for TypeKind {
                     if i > 0 {
                         write!(f, ", ")?;
                     }
-                    write!(f, "TypeRef({}) {}", member.ty.0, member.name,)?;
+                    write!(
+                        f,
+                        "TypeRef({}) {} @{:?}",
+                        member.ty.0,
+                        member.name,
+                        member.offset.unwrap_or(0)
+                    )?;
                 }
                 write!(f, " }}")
             }
