@@ -31,8 +31,12 @@ impl Ast<'_> {
             while self.consume_punct("}").is_none() {
                 if let Some(decls) = self.decl()? {
                     for decl in decls {
-                        let symbol_id = self.register_var(&decl, self.current_func)?;
-                        self.get_current_func_mut()?.locals.push(LocalVar::new(symbol_id));
+                        if decl.ty.is_typedef() {
+                            self.register_typedef(&decl.name, decl.ty, decl.span)?;
+                        } else {
+                            let symbol_id = self.register_var(&decl, self.current_func)?;
+                            self.get_current_func_mut()?.locals.push(LocalVar::new(symbol_id));
+                        }
                     }
                     continue;
                 } else if let Some(stmt) = self.stmt()? {

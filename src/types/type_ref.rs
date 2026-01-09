@@ -68,6 +68,10 @@ impl TypeRef {
         matches!(self.storage_class(), Some(StorageClassKind::Extern))
     }
 
+    pub(crate) fn is_typedef(&self) -> bool {
+        matches!(self.storage_class(), Some(StorageClassKind::Typedef))
+    }
+
     pub(crate) fn is_ptr(&self) -> bool {
         matches!(&self.kind(), TypeKind::Ptr { .. })
     }

@@ -162,13 +162,31 @@ impl<'a> Ast<'a> {
         decl: &Decl,
         owner: Option<FuncId>,
     ) -> Result<SymbolId, CompileError> {
-        // 同じスコープに同名の変数が存在する場合はエラー
+        // 同じスコープに同名が存在する場合はエラー
         if self.symbol_table.find_symbol_in_current_scope(&decl.name).is_some() {
             return Err(CompileError::Redecl { name: decl.name.to_string(), span: decl.span });
         }
         let is_defined = !decl.ty.is_extern();
         let symbol = Symbol::new_var(&decl.name, decl.ty, owner, decl.init.clone(), is_defined);
         Ok(self.symbol_table.insert_symbol(&decl.name, symbol))
+    }
+
+    fn register_typedef(
+        &mut self,
+        name: &str,
+        ty: TypeRef,
+        span: Span,
+    ) -> Result<SymbolId, CompileError> {
+        // 同じスコープに同名が存在する場合はエラー
+        if self.symbol_table.find_symbol_in_current_scope(name).is_some() {
+            return Err(CompileError::Redecl { name: name.to_string(), span });
+        }
+        let symbol = Symbol::new_typedef(name, ty);
+        Ok(self.symbol_table.insert_symbol(name, symbol))
+    }
+
+    fn find_typedef(&self, name: &str) -> Option<&Symbol> {
+        self.symbol_table.find_symbol(name).filter(|sym| sym.is_typedef())
     }
 
     fn find_symbol_id(&self, name: &str) -> Option<SymbolId> {
@@ -344,6 +362,13 @@ impl<'a> Ast<'a> {
 
     fn peek_punct(&self, sym: &str) -> bool {
         matches!(&self.get_token().kind, TokenKind::Punct(s) if s == sym)
+    }
+
+    fn peek_ident(&self) -> Option<String> {
+        match self.get_token() {
+            Token { kind: TokenKind::Ident(name), .. } => Some(name.clone()),
+            _ => None,
+        }
     }
 
     fn at_eof(&self) -> bool {

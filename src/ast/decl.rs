@@ -121,7 +121,11 @@ impl Ast<'_> {
 
         // グローバル変数として登録
         for decl in decls {
-            self.register_var(&decl, None)?;
+            if decl.ty.is_typedef() {
+                self.register_typedef(&decl.name, decl.ty, decl.span)?;
+            } else {
+                self.register_var(&decl, None)?;
+            }
         }
         Ok(())
     }
@@ -207,13 +211,24 @@ impl Ast<'_> {
             .find(|spec| self.consume_keyword(&spec.to_string()).is_some())
     }
 
-    // type_spec ::= "void" | "char" | "short" | "int" | "long" | "float" | "double" | struct_or_union_spec | enum_spec
+    // type_spec ::= "void" | "char" | "short" | "int" | "long" | "float" | "double" | struct_or_union_spec | enum_spec | typedef_name
     fn type_spec(&mut self) -> Result<Option<TypeKind>, CompileError> {
         if let Some(ty) = self.struct_or_union_spec()? {
             return Ok(Some(ty));
         }
         if let Some(ty) = self.enum_spec()? {
             return Ok(Some(ty));
+        }
+        if let Some(typedef_name) = self.peek_ident() {
+            let symbol_ty_kind = if let Some(symbol) = self.find_typedef(&typedef_name) {
+                Some(symbol.ty.kind())
+            } else {
+                None
+            };
+            if symbol_ty_kind.is_some() {
+                self.consume_ident(); // トークンを消費
+                return Ok(symbol_ty_kind.map(|k| k));
+            }
         }
         Ok(TypeKind::all()
             .into_iter()
