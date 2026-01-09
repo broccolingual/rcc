@@ -219,16 +219,11 @@ impl Ast<'_> {
         if let Some(ty) = self.enum_spec()? {
             return Ok(Some(ty));
         }
-        if let Some(typedef_name) = self.peek_ident() {
-            let symbol_ty_kind = if let Some(symbol) = self.find_typedef(&typedef_name) {
-                Some(symbol.ty.kind())
-            } else {
-                None
-            };
-            if symbol_ty_kind.is_some() {
-                self.consume_ident(); // トークンを消費
-                return Ok(symbol_ty_kind.map(|k| k));
-            }
+        if let Some(typedef_name) = self.peek_ident()
+            && let Some(ty) = self.find_typedef(&typedef_name).map(|symbol| symbol.ty.kind())
+        {
+            self.consume_ident(); // トークンを消費
+            return Ok(Some(ty));
         }
         Ok(TypeKind::all()
             .into_iter()

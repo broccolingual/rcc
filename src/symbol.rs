@@ -122,14 +122,14 @@ impl Symbol {
     }
 
     pub(crate) fn is_typedef(&self) -> bool {
-        matches!(self.kind, SymbolKind::Typedef { .. })
+        matches!(self.kind, SymbolKind::Typedef)
     }
 
     pub(crate) fn is_defined(&self) -> bool {
         match &self.kind {
             SymbolKind::Var { is_defined, .. } => *is_defined,
             SymbolKind::Func { is_defined } => *is_defined,
-            SymbolKind::Typedef { .. } => true,
+            SymbolKind::Typedef => true,
             SymbolKind::EnumConst { .. } => true,
         }
     }
