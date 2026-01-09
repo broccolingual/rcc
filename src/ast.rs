@@ -331,18 +331,10 @@ impl<'a> Ast<'a> {
     fn consume_const(&mut self) -> Option<(i64, Span)> {
         match self.get_token() {
             Token {
-                kind: TokenKind::IntConst(val),
+                kind: TokenKind::IntConst(val) | TokenKind::CharConst(val),
                 span,
             } => {
                 let result = (*val, *span);
-                self.advance_token();
-                Some(result)
-            }
-            Token {
-                kind: TokenKind::CharConst(c),
-                span,
-            } => {
-                let result = (*c, *span);
                 self.advance_token();
                 Some(result)
             }
