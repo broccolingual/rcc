@@ -155,9 +155,9 @@ impl<'a> Generator<'a> {
                 self.builder
                     .add_row(&format!(".zero {}", zero_fill_size), true);
             }
-        } else if let TypeKind::Struct { .. } = symbol.ty.kind() {
-            // TODO: 構造体の初期化式
-            unimplemented!("構造体のグローバル変数初期化には未対応です");
+        } else if let TypeKind::Struct { .. } | TypeKind::Union { .. } = symbol.ty.kind() {
+            // TODO: 構造体/共用体の初期化式
+            unimplemented!("構造体/共用体のグローバル変数初期化には未対応です");
         } else if inits.len() == 1 {
             let init = &inits[0];
             match &init.kind {
@@ -318,9 +318,9 @@ impl<'a> Generator<'a> {
                 self.builder.add_row("xor rax, rax", true); // raxを0クリア
                 self.builder.add_row("rep stosb", true); // 0で初期化
             }
-        } else if let TypeKind::Struct { .. } = symbol.ty.kind() {
-            // TODO: 構造体の初期化式
-            unimplemented!("構造体のローカル変数初期化には未対応です");
+        } else if let TypeKind::Struct { .. } | TypeKind::Union { .. } = symbol.ty.kind() {
+            // TODO: 構造体/共用体の初期化式
+            unimplemented!("構造体/共用体のローカル変数初期化には未対応です");
         } else if inits.len() == 1 {
             self.gen_addr(&Node {
                 kind: NodeKind::Var {

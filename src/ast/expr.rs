@@ -744,17 +744,17 @@ impl Ast<'_> {
         Ok(node)
     }
 
-    // 構造体のメンバアクセスノードを作成するヘルパー関数
+    // 構造体/共用体のメンバアクセスノードを作成するヘルパー関数
     fn create_member_access_node(
         &mut self,
         obj: Box<Node>,
         member_name: &str,
         span: Span,
     ) -> Result<Box<Node>, CompileError> {
-        if !obj.ty.is_struct() {
+        if !obj.ty.is_struct_or_union() {
             return Err(CompileError::InvalidExpr {
                 msg: format!(
-                    "型 '{:?}' は構造体型ではありません。メンバアクセス演算子 '.' は構造体型にのみ使用できます",
+                    "型 '{:?}' は構造体/共用体型ではありません。メンバアクセス演算子 '.' は構造体/共用体型にのみ使用できます",
                     obj.ty
                 ),
                 span,
@@ -762,10 +762,10 @@ impl Ast<'_> {
         }
         let member_decl =
             obj.ty
-                .find_struct_member(member_name)
+                .find_struct_or_union_member(member_name)
                 .ok_or_else(|| CompileError::InvalidExpr {
                     msg: format!(
-                        "構造体のメンバ '{}' が見つかりません。利用可能なメンバを確認してください",
+                        "構造体/共用体のメンバ '{}' が見つかりません。利用可能なメンバを確認してください",
                         member_name
                     ),
                     span,
@@ -774,7 +774,7 @@ impl Ast<'_> {
             .offset
             .ok_or_else(|| CompileError::InternalError {
                 msg: format!(
-                    "構造体メンバ '{}' のオフセットが設定されていません",
+                    "構造体/共用体メンバ '{}' のオフセットが設定されていません",
                     member_name
                 ),
             })?;
@@ -851,44 +851,45 @@ impl Ast<'_> {
                     });
                 }
             } else if let Some(span) = self.consume_punct(".") {
-                // 構造体のメンバアクセス
+                // 構造体/共用体のメンバアクセス
                 node = self.resolve_ident_to_var(node)?; // 識別子を変数に割り当て
                 let (member_name, _) =
                     self.consume_ident()
                         .ok_or_else(|| CompileError::InvalidExpr {
-                            msg: "構造体メンバアクセスのメンバ名がありません".to_string(),
+                            msg: "構造体/共用体メンバアクセスのメンバ名がありません".to_string(),
                             span,
                         })?;
                 let obj = node.ok_or_else(|| CompileError::InvalidExpr {
-                    msg: "構造体オブジェクトがありません".to_string(),
+                    msg: "構造体/共用体オブジェクトがありません".to_string(),
                     span,
                 })?;
                 node = Some(self.create_member_access_node(obj, &member_name, span)?);
             } else if let Some(span) = self.consume_punct("->") {
-                // 構造体ポインタのメンバアクセス
+                // 構造体/共用体ポインタのメンバアクセス
                 // ptr->member は (*ptr).member と同等
                 node = self.resolve_ident_to_var(node)?; // 識別子を変数に割り当て
                 let (member_name, _) =
                     self.consume_ident()
                         .ok_or_else(|| CompileError::InvalidExpr {
-                            msg: "構造体ポインタメンバアクセスのメンバ名がありません".to_string(),
+                            msg: "構造体/共用体ポインタメンバアクセスのメンバ名がありません"
+                                .to_string(),
                             span,
                         })?;
                 let ptr = node.ok_or_else(|| CompileError::InvalidExpr {
-                    msg: "構造体ポインタがありません".to_string(),
+                    msg: "構造体/共用体ポインタがありません".to_string(),
                     span,
                 })?;
                 // ポインタであることを確認
                 if !(ptr.ty.is_ptr() || ptr.ty.is_array()) {
                     return Err(CompileError::InvalidExpr {
                         msg: format!(
-                            "型 '{:?}' はポインタ型または配列型ではありません。アロー演算子 '->' はポインタ型にのみ使用できます\n  ヒント: 通常の構造体変数には '.' 演算子を使用してください",
+                            "型 '{:?}' はポインタ型または配列型ではありません。アロー演算子 '->' はポインタ型にのみ使用できます\n  ヒント: 通常の構造体/共用体変数には '.' 演算子を使用してください",
                             ptr.ty
                         ),
                         span: ptr.span,
                     });
                 }
-                // デリファレンスして構造体を取得
+                // デリファレンスして構造体/共用体を取得
                 let deref_node = Box::new(Node::new_unary(UnaryOp::Deref, ptr, span)?);
                 node = Some(self.create_member_access_node(deref_node, &member_name, span)?);
             } else if let Some(span) = self.consume_punct("++") {

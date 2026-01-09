@@ -94,6 +94,22 @@ impl TypeData {
                 }
                 (offset.align_up(max_align), max_align)
             }
+            TypeKind::Union { members, .. } => {
+                let mut max_size = 0;
+                let mut max_align = 1;
+                for member in members {
+                    let member_size = member.ty.size_of();
+                    let member_align = member.ty.align_of();
+                    if member_size > max_size {
+                        max_size = member_size;
+                    }
+                    if member_align > max_align {
+                        max_align = member_align;
+                    }
+                    member.offset = Some(0); // 共用体のメンバーのオフセットは常に0
+                }
+                (max_size.align_up(max_align), max_align)
+            }
             TypeKind::Func { .. } => (8, 8),
         };
 

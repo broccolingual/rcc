@@ -22,6 +22,10 @@ pub(crate) enum TypeKind {
         name: String,
         members: Vec<MemberDecl>,
     }, // name: 構造体名, members: メンバーリスト
+    Union {
+        name: String,
+        members: Vec<MemberDecl>,
+    }, // name: 共用体名, members: メンバーリスト
     Func {
         return_ty: TypeRef,
         params: Vec<Decl>,
@@ -43,6 +47,22 @@ impl fmt::Debug for TypeKind {
             TypeKind::Array { base, size } => write!(f, "array[{}] of {:?}", size, base),
             TypeKind::Struct { name, members } => {
                 write!(f, "struct {} {{ ", name)?;
+                for (i, member) in members.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(
+                        f,
+                        "TypeRef({}) {} @{:?}",
+                        member.ty.0,
+                        member.name,
+                        member.offset.unwrap_or(0)
+                    )?;
+                }
+                write!(f, " }}")
+            }
+            TypeKind::Union { name, members } => {
+                write!(f, "union {} {{ ", name)?;
                 for (i, member) in members.iter().enumerate() {
                     if i > 0 {
                         write!(f, ", ")?;
@@ -112,6 +132,7 @@ impl TypeKind {
             TypeKind::Void => true,                                 // void は常に未完成型
             TypeKind::Array { size, .. } => *size == 0,             // サイズ不明の配列
             TypeKind::Struct { members, .. } => members.is_empty(), // メンバーが定義されていない構造体
+            TypeKind::Union { members, .. } => members.is_empty(), // メンバーが定義されていない共用体
             _ => false,
         }
     }
