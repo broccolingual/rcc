@@ -17,22 +17,22 @@ impl<'a> Lexer<'a> {
         sorted_puncts.sort_by_key(|a| std::cmp::Reverse(a.len()));
 
         let mut tokens = Vec::new();
-        let chars = self.source.chars().collect::<Vec<char>>();
+        let bytes = self.source.as_bytes();
         let mut pos = 0;
 
-        while pos < chars.len() {
-            let c = chars[pos];
+        while pos < bytes.len() {
+            let c = bytes[pos];
 
             // 空白文字をスキップ
-            if matches!(c, ' ' | '\t' | '\n' | '\r') {
+            if matches!(c, b' ' | b'\t' | b'\n' | b'\r') {
                 pos += 1;
                 continue;
             }
 
             // 行コメントをスキップ
-            if c == '/' && pos + 1 < chars.len() && chars[pos + 1] == '/' {
+            if c == b'/' && pos + 1 < bytes.len() && bytes[pos + 1] == b'/' {
                 pos += 2;
-                while pos < chars.len() && chars[pos] != '\n' {
+                while pos < bytes.len() && bytes[pos] != b'\n' {
                     pos += 1;
                 }
                 pos += 1;
@@ -40,166 +40,137 @@ impl<'a> Lexer<'a> {
             }
 
             // ブロックコメントをスキップ
-            if c == '/' && pos + 1 < chars.len() && chars[pos + 1] == '*' {
+            if c == b'/' && pos + 1 < bytes.len() && bytes[pos + 1] == b'*' {
                 pos += 2;
-                while pos + 1 < chars.len() {
-                    if chars[pos] == '*' && chars[pos + 1] == '/' {
+                while pos + 1 < bytes.len() {
+                    if bytes[pos] == b'*' && bytes[pos + 1] == b'/' {
                         pos += 2;
                         break;
                     }
                     pos += 1;
                 }
-                if pos == chars.len() - 1 {
+                if pos == bytes.len() - 1 {
                     return Err(CompileError::InternalError {
-                        msg: "unterminated block comment".to_string(),
+                        msg: "ブロックコメントが終了していません".to_string(),
                     });
                 }
                 continue;
             }
 
-            // 演算子トークン
-            let mut matched = false;
-            for symbol in &sorted_puncts {
-                let symbol_len = symbol.len();
-                if pos + symbol_len <= chars.len() {
-                    let candidate: String = chars[pos..pos + symbol_len].iter().collect();
-                    if candidate == *symbol {
-                        tokens.push(Token::new(
-                            TokenKind::Punct(symbol.to_string()),
-                            Span::new(pos, pos + symbol_len),
-                        ));
-                        pos += symbol_len;
-                        matched = true;
-                        break;
-                    }
-                }
-            }
-            if matched {
+            // 演算子
+            let remaining = &self.source[pos..];
+            if let Some(symbol) = sorted_puncts.iter().find(|s| remaining.starts_with(*s)) {
+                tokens.push(Token::new(
+                    TokenKind::Punct(symbol.to_string()),
+                    Span::new(pos, pos + symbol.len()),
+                ));
+                pos += symbol.len();
                 continue;
             }
 
-            // 文字列リテラルトークン
-            if c == '"' {
-                pos += 1; // 開始の"をスキップ
-                let mut str_lit = String::new();
-                while pos < chars.len() {
-                    let next_c = chars[pos];
-                    if next_c == '"' {
-                        pos += 1; // 終了の"をスキップ
-                        break;
-                    } else {
-                        str_lit.push(next_c);
-                        pos += 1;
-                    }
-                }
+            // 文字定数トークン
+            if c == b'\'' {
+                let start_pos = pos;
+                pos += 1;
+                let char_val = bytes[pos] as i64;
+                pos += 2;
                 tokens.push(Token::new(
-                    TokenKind::String(str_lit.clone()),
-                    Span::new(pos - str_lit.len() - 2, pos),
+                    TokenKind::CharConst(char_val),
+                    Span::new(start_pos, pos),
                 ));
                 continue;
             }
 
-            // 数字トークン
-            if c.is_ascii_digit() {
-                let mut num_str = String::new();
-                if c != '0' {
-                    // decimal constant
-                    num_str.push(c);
+            // 文字列リテラル
+            if c == b'"' {
+                let start_pos = pos;
+                pos += 1;
+                let str_start = pos;
+                while pos < bytes.len() && bytes[pos] != b'"' {
                     pos += 1;
-                    while pos < chars.len() {
-                        let next_c = chars[pos];
-                        if next_c.is_ascii_digit() {
-                            num_str.push(next_c);
-                            pos += 1;
-                        } else {
-                            break;
-                        }
-                    }
-                    let val = num_str.parse::<i64>().unwrap();
-                    tokens.push(Token::new(
-                        TokenKind::Number(val),
-                        Span::new(pos - num_str.len(), pos),
-                    ));
-                    continue;
-                } else {
-                    // hexadecimal constant or octal constant
-                    if pos < chars.len() - 1 && (chars[pos + 1] == 'x' || chars[pos + 1] == 'X') {
-                        // hexadecimal constant
-                        pos += 2; // skip '0x' or '0X'
-                        while pos < chars.len() {
-                            let next_c = chars[pos];
-                            if next_c.is_ascii_hexdigit() {
-                                num_str.push(next_c);
-                                pos += 1;
-                            } else {
-                                break;
-                            }
-                        }
-                        if num_str.is_empty() {
-                            num_str.push('0');
-                        }
-                        let val = i64::from_str_radix(&num_str, 16).unwrap();
-                        tokens.push(Token::new(
-                            TokenKind::Number(val),
-                            Span::new(pos - num_str.len() - 2, pos),
-                        ));
-                        continue;
-                    } else {
-                        // octal constant
-                        pos += 1; // skip '0'
-                        while pos < chars.len() {
-                            let next_c = chars[pos];
-                            if matches!(next_c, '0'..='7') {
-                                num_str.push(next_c);
-                                pos += 1;
-                            } else {
-                                break;
-                            }
-                        }
-                        if num_str.is_empty() {
-                            num_str.push('0');
-                        }
-                        let val = i64::from_str_radix(&num_str, 8).unwrap();
-                        tokens.push(Token::new(
-                            TokenKind::Number(val),
-                            Span::new(pos - num_str.len() - 1, pos),
-                        ));
-                        continue;
-                    }
                 }
+                let str_lit = self.source[str_start..pos].to_string();
+                pos += 1;
+                tokens.push(Token::new(
+                    TokenKind::StrLiteral(str_lit),
+                    Span::new(start_pos, pos),
+                ));
+                continue;
+            }
+
+            // 数字定数
+            if c.is_ascii_digit() {
+                let start_pos = pos;
+                if c != b'0' {
+                    // 10進数
+                    while pos < bytes.len() && bytes[pos].is_ascii_digit() {
+                        pos += 1;
+                    }
+                    let val = self.source[start_pos..pos].parse::<i64>().unwrap();
+                    tokens.push(Token::new(
+                        TokenKind::IntConst(val),
+                        Span::new(start_pos, pos),
+                    ));
+                } else if pos + 1 < bytes.len() && matches!(bytes[pos + 1], b'x' | b'X') {
+                    // 16進数
+                    pos += 2;
+                    let hex_start = pos;
+                    while pos < bytes.len() && bytes[pos].is_ascii_hexdigit() {
+                        pos += 1;
+                    }
+                    let hex_str = if pos > hex_start {
+                        &self.source[hex_start..pos]
+                    } else {
+                        return Err(CompileError::InvalidExpr {
+                            msg: "16進数リテラルに数字がありません".to_string(),
+                            span: Span::new(start_pos, pos),
+                        });
+                    };
+                    let val = i64::from_str_radix(hex_str, 16).unwrap();
+                    tokens.push(Token::new(
+                        TokenKind::IntConst(val),
+                        Span::new(start_pos, pos),
+                    ));
+                } else {
+                    // 8進数
+                    pos += 1;
+                    let oct_start = pos;
+                    while pos < bytes.len() && matches!(bytes[pos], b'0'..=b'7') {
+                        pos += 1;
+                    }
+                    let oct_str = if pos > oct_start {
+                        &self.source[oct_start..pos]
+                    } else {
+                        "0"
+                    };
+                    let val = i64::from_str_radix(oct_str, 8).unwrap();
+                    tokens.push(Token::new(
+                        TokenKind::IntConst(val),
+                        Span::new(start_pos, pos),
+                    ));
+                }
+                continue;
             }
 
             // 識別子トークン
-            if matches!(c, 'a'..='z' | 'A'..='Z' | '_') {
-                let mut ident = c.to_string();
-                pos += 1;
-                while pos < chars.len() {
-                    let next_c = chars[pos];
-                    if matches!(next_c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_') {
-                        ident.push(next_c);
-                        pos += 1;
-                    } else {
-                        break;
-                    }
+            if matches!(c, b'a'..=b'z' | b'A'..=b'Z' | b'_') {
+                let start_pos = pos;
+                while pos < bytes.len()
+                    && matches!(bytes[pos], b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'_')
+                {
+                    pos += 1;
                 }
-                if KEYWORDS.contains(&ident.as_str()) {
-                    // 予約語はKeywordトークンとして扱う
-                    tokens.push(Token::new(
-                        TokenKind::Keyword(ident.clone()),
-                        Span::new(pos - ident.len(), pos),
-                    ));
-                    continue;
+                let ident = &self.source[start_pos..pos];
+                let kind = if KEYWORDS.contains(&ident) {
+                    TokenKind::Keyword(ident.to_string())
                 } else {
-                    // それ以外は識別子トークン
-                    tokens.push(Token::new(
-                        TokenKind::Ident(ident.clone()),
-                        Span::new(pos - ident.len(), pos),
-                    ));
-                    continue;
-                }
+                    TokenKind::Ident(ident.to_string())
+                };
+                tokens.push(Token::new(kind, Span::new(start_pos, pos)));
+                continue;
             }
             return Err(CompileError::MissingToken {
-                found: c.to_string(),
+                found: format!("{}", c as char),
                 span: Span::new(pos, pos + 1),
             });
         }

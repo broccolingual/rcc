@@ -317,7 +317,7 @@ impl<'a> Ast<'a> {
     fn consume_string(&mut self) -> Option<(String, Span)> {
         match self.get_token() {
             Token {
-                kind: TokenKind::String(s),
+                kind: TokenKind::StrLiteral(s),
                 span,
             } => {
                 let result = (s.clone(), *span);
@@ -328,10 +328,10 @@ impl<'a> Ast<'a> {
         }
     }
 
-    fn consume_number(&mut self) -> Option<(i64, Span)> {
+    fn consume_const(&mut self) -> Option<(i64, Span)> {
         match self.get_token() {
             Token {
-                kind: TokenKind::Number(val),
+                kind: TokenKind::IntConst(val) | TokenKind::CharConst(val),
                 span,
             } => {
                 let result = (*val, *span);
