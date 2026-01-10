@@ -121,7 +121,11 @@ impl Ast<'_> {
 
         // グローバル変数として登録
         for decl in decls {
-            self.register_var(&decl, None)?;
+            if decl.ty.is_typedef() {
+                self.register_typedef(&decl.name, decl.ty, decl.span)?;
+            } else {
+                self.register_var(&decl, None)?;
+            }
         }
         Ok(())
     }
@@ -207,17 +211,24 @@ impl Ast<'_> {
             .find(|spec| self.consume_keyword(&spec.to_string()).is_some())
     }
 
-    // type_spec ::= "void" | "char" | "short" | "int" | "long" | "float" | "double" | struct_or_union_spec | enum_spec
-    fn type_spec(&mut self) -> Result<Option<TypeKind>, CompileError> {
-        if let Some(ty) = self.struct_or_union_spec()? {
-            return Ok(Some(ty));
+    // type_spec ::= "void" | "char" | "short" | "int" | "long" | "float" | "double" | struct_or_union_spec | enum_spec | typedef_name
+    fn type_spec(&mut self) -> Result<Option<TypeRef>, CompileError> {
+        if let Some(ty_kind) = self.struct_or_union_spec()? {
+            return Ok(Some(TypeRef::register(ty_kind, TypeAttr::default(), None)));
         }
-        if let Some(ty) = self.enum_spec()? {
+        if let Some(ty_kind) = self.enum_spec()? {
+            return Ok(Some(TypeRef::register(ty_kind, TypeAttr::default(), None)));
+        }
+        if let Some(typedef_name) = self.peek_ident()
+            && let Some(ty) = self.find_typedef(&typedef_name).map(|symbol| symbol.ty)
+        {
+            self.consume_ident(); // トークンを消費
             return Ok(Some(ty));
         }
         Ok(TypeKind::all()
             .into_iter()
-            .find(|spec| self.consume_keyword(&spec.to_string()).is_some()))
+            .find(|spec| self.consume_keyword(&spec.to_string()).is_some())
+            .map(|ty_kind| TypeRef::register(ty_kind, TypeAttr::default(), None)))
     }
 
     // struct_or_union_spec ::= ("struct" | "union") ident? "{" struct_decl_list "}"

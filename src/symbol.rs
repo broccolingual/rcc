@@ -35,6 +35,7 @@ pub(crate) struct SymbolId(pub usize);
 pub(crate) enum SymbolKind {
     Var { owner: Option<FuncId>, init: Vec<Node>, is_defined: bool },
     Func { is_defined: bool },
+    Typedef,
     EnumConst { value: i64 },
 }
 
@@ -73,6 +74,10 @@ impl Symbol {
     pub(crate) fn new_enum_const(name: &str, value: i64) -> Self {
         let int_ty = TypeRef::register(TypeKind::Int, TypeAttr::default(), None);
         Self { name: name.to_string(), kind: SymbolKind::EnumConst { value }, ty: int_ty }
+    }
+
+    pub(crate) fn new_typedef(name: &str, ty: TypeRef) -> Self {
+        Self { name: name.to_string(), kind: SymbolKind::Typedef, ty }
     }
 
     pub(crate) fn get_owner(&self) -> Option<FuncId> {
@@ -116,10 +121,15 @@ impl Symbol {
         matches!(self.kind, SymbolKind::Func { .. })
     }
 
+    pub(crate) fn is_typedef(&self) -> bool {
+        matches!(self.kind, SymbolKind::Typedef)
+    }
+
     pub(crate) fn is_defined(&self) -> bool {
         match &self.kind {
             SymbolKind::Var { is_defined, .. } => *is_defined,
             SymbolKind::Func { is_defined } => *is_defined,
+            SymbolKind::Typedef => true,
             SymbolKind::EnumConst { .. } => true,
         }
     }

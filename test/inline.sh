@@ -380,3 +380,32 @@ assert_inline 4 'return sizeof(int);'  # sizeof(type) が正しく動作
 assert_inline 1 'return sizeof(char);'  # sizeof(type) が正しく動作
 assert_inline 42 'return (int)42;'  # cast が正しく動作
 assert_inline 1 'int x = 5; return sizeof((char)x);'  # キャストした式のsizeof
+
+# typedef のテスト
+assert_inline 42 'typedef int A; A a = 42; return a;'  # 基本的なtypedef
+assert_inline 7 'typedef int A; typedef A B; B b = 7; return b;'  # typedefの多重展開
+assert_inline 3 'typedef int A; typedef A B; typedef B C; C c = 3; return c;'  # 3段階typedef
+assert_inline 1 'typedef int T; T x = 1; return x;'  # 別名型で宣言・代入
+assert_inline 5 'typedef int T; T x; x = 5; return x;'  # 別名型で代入
+assert_inline 8 'typedef int T; T x = 3; T y = 5; return x + y;'  # typedef型同士の演算
+
+# typedef ポインタ型のテスト
+assert_inline 42 'typedef int* P; int x = 42; P p = &x; return *p;'  # typedefでポインタ型
+assert_inline 7 'typedef int* P; int y = 7; P p = &y; return *p;'  # ポインタ型の多重展開
+assert_inline 5 'typedef int* P; typedef P Q; int z = 5; Q q = &z; return *q;'  # ポインタ型の多重typedef
+
+# typedef struct/union のテスト
+assert_inline 123 'struct S { int a; }; typedef struct S T; T s; s.a = 123; return s.a;'  # structのtypedef
+assert_inline 77 'typedef struct { int b; } U; U u; u.b = 77; return u.b;'  # 無名structのtypedef
+assert_inline 88 'union U { int x; char c; }; typedef union U V; V v; v.x = 88; return v.x;'  # unionのtypedef
+
+# typedef入れ子のテスト
+assert_inline 55 'typedef int T; typedef T* TP; T x = 55; TP p = &x; return *p;'  # typedefの入れ子（int→int*）
+assert_inline 66 'typedef int T; typedef T* TP; typedef TP* TPP; T x = 66; TP p = &x; TPP pp = &p; return **pp;'  # typedefの多重入れ子
+assert_inline 99 'typedef struct { int v; } S; typedef S* SP; S s; s.v = 99; SP p = &s; return p->v;'  # structポインタのtypedef
+
+# typedef型の配列・関数引数
+assert_inline 3 'typedef int T; T arr[3]; arr[0] = 1; arr[1] = 2; arr[2] = 3; return arr[2];'  # typedef型の配列
+
+# typedef型のstructメンバ
+assert_inline 42 'typedef int T; struct S { T a; }; struct S s; s.a = 42; return s.a;'  # typedef型のstructメンバ
