@@ -62,14 +62,14 @@ impl<'a> Lexer<'a> {
             // C11 6.4.4.4 - hexadecimal-escape-sequence: \x hexadecimal-digit+
             b'x' => {
                 let mut hex_len = 0;
-                let mut hex_val = 0u32;
+                let mut hex_val = 0u64;
                 while pos + 1 + hex_len < bytes.len()
                     && bytes[pos + 1 + hex_len].is_ascii_hexdigit()
                 {
                     let digit = match bytes[pos + 1 + hex_len] {
-                        b'0'..=b'9' => (bytes[pos + 1 + hex_len] - b'0') as u32,
-                        b'a'..=b'f' => (bytes[pos + 1 + hex_len] - b'a' + 10) as u32,
-                        b'A'..=b'F' => (bytes[pos + 1 + hex_len] - b'A' + 10) as u32,
+                        b'0'..=b'9' => (bytes[pos + 1 + hex_len] - b'0') as u64,
+                        b'a'..=b'f' => (bytes[pos + 1 + hex_len] - b'a' + 10) as u64,
+                        b'A'..=b'F' => (bytes[pos + 1 + hex_len] - b'A' + 10) as u64,
                         _ => unreachable!(),
                     };
                     hex_val = hex_val * 16 + digit;
