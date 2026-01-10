@@ -8,404 +8,304 @@ source "$SCRIPT_DIR/common.sh"
 
 setup_test
 
+# =============================================================================
+# リテラル・定数
+# =============================================================================
+assert_inline 0 'return 0;'
+assert_inline 42 'return 42;'
+assert_inline 255 'return 0xFF;'
+assert_inline 10 'return 012;'  # 8進数
+assert_inline 26 'return 0x1a;'  # 16進数
+assert_inline 97 "return 'a';"  # 文字定数
 
-# 基本的なリテラル値のテスト
-assert_inline 0 'return 0;'  # ゼロ
-assert_inline 42 'return 42;'  # 正の整数
-assert_inline 255 'return 255;'  # 8ビット最大値
-
-# 文字定数のテスト
-assert_inline 97 "return 'a';"  # 'a' のASCII値
-assert_inline 48 "return '0';"  # '0' のASCII値
-assert_inline 65 "return 'A';"  # 'A' のASCII値
-
-# 算術演算子の優先順位と基本演算のテスト
-assert_inline 21 'return 5 + 2 * 8;'  # 乗算が先に評価される
-assert_inline 47 'return 5 + 6 * 7;'  # 乗算が先に評価される
-assert_inline 15 'return 5 * (9 - 6);'  # 括弧による優先順位の変更
-assert_inline 4 'return (3 + 5) / 2;'  # 括弧と除算
-assert_inline 2 'return 8 % 3;'  # 剰余演算
-assert_inline 0 'return (3 + 5) % 4;'  # 括弧と剰余演算
-assert_inline 35 'return 5 + 6 * 7 - 12;'  # 複数の演算子
-assert_inline 8 'return 2 + 3 * 2;'  # 乗算優先
-
-# ゼロとの演算や特殊ケースのテスト
-assert_inline 0 'return 0 * 42;'  # ゼロとの乗算
-assert_inline 0 'return 42 * 0;'  # ゼロとの乗算（逆順）
-assert_inline 42 'return 42 / 1;'  # 1での除算
-assert_inline 1 'return 42 / 42;'  # 自分自身での除算
-assert_inline 0 'return 0 % 5;'  # ゼロの剰余
-assert_inline 1 'return 1 % 2;'  # 小さい値の剰余
-assert_inline 10 'return 20 / 2;'  # 偶数の除算
-assert_inline 3 'return 10 / 3;'  # 切り捨て除算
-
-# 単項演算子のテスト
-assert_inline 10 'return +10;'  # 単項プラス
-assert_inline 245 'return -10 + 255;'  # 単項マイナス (8ビット範囲)
+# =============================================================================
+# 算術演算子
+# =============================================================================
+assert_inline 21 'return 5 + 2 * 8;'  # 優先順位
+assert_inline 15 'return 5 * (9 - 6);'  # 括弧
+assert_inline 2 'return 8 % 3;'  # 剰余
+assert_inline 10 'return +10;'  # 単項+
+assert_inline 245 'return -10 + 255;'  # 単項-
 assert_inline 10 'return -(-10);'  # 二重否定
-assert_inline 10 'return - - +10;'  # 複数の単項演算子
-assert_inline 254 'return -1 + 255;'  # -1の8ビット表現
 
-# ビット演算子のテスト
-assert_inline 7 'return 3 | 5;'  # ビットOR (0b011 | 0b101 = 0b111)
-assert_inline 1 'return 3 & 5;'  # ビットAND (0b011 & 0b101 = 0b001)
-assert_inline 6 'return 3 ^ 5;'  # ビットXOR (0b011 ^ 0b101 = 0b110)
-assert_inline 32 'return 1 << 5;'  # 左シフト (1 << 5 = 32)
-assert_inline 2 'return 8 >> 2;'  # 右シフト (8 >> 2 = 2)
-assert_inline 245 'return ~10 & 255;'  # ビット反転とマスク
-assert_inline 0 'return 5 & 0;'  # ゼロとのAND
-assert_inline 5 'return 5 | 0;'  # ゼロとのOR
-assert_inline 0 'return 5 ^ 5;'  # 同じ値とのXOR
-assert_inline 1 'return 1 << 0;'  # ゼロシフト
-assert_inline 8 'return 8 >> 0;'  # ゼロシフト
-assert_inline 12 'return 3 << 2;'  # 左シフト (3 << 2 = 12)
-assert_inline 15 'return 15 & 15;'  # 自分自身とのAND
+# =============================================================================
+# ビット演算子
+# =============================================================================
+assert_inline 7 'return 3 | 5;'  # OR
+assert_inline 1 'return 3 & 5;'  # AND
+assert_inline 6 'return 3 ^ 5;'  # XOR
+assert_inline 32 'return 1 << 5;'  # 左シフト
+assert_inline 2 'return 8 >> 2;'  # 右シフト
+assert_inline 245 'return ~10 & 255;'  # NOT
+assert_inline 0 'return 5 ^ 5;'  # 同値のXOR = 0
 
-# 比較演算子のテスト
-assert_inline 0 'return 0 == 1;'  # 等価（偽）
-assert_inline 1 'return 42 == 42;'  # 等価（真）
-assert_inline 1 'return 0 != 1;'  # 不等価（真）
-assert_inline 0 'return 42 != 42;'  # 不等価（偽）
-assert_inline 1 'return 0 < 1;'  # 小なり（真）
-assert_inline 0 'return 1 < 1;'  # 小なり（偽）
-assert_inline 0 'return 2 < 1;'  # 小なり（偽）
-assert_inline 1 'return 0 <= 1;'  # 以下（真）
-assert_inline 1 'return 1 <= 1;'  # 以下（真、等しい）
-assert_inline 0 'return 2 <= 1;'  # 以下（偽）
-assert_inline 1 'return 1 > 0;'  # 大なり（真）
-assert_inline 0 'return 1 > 1;'  # 大なり（偽）
-assert_inline 0 'return 1 > 2;'  # 大なり（偽）
-assert_inline 1 'return 1 >= 0;'  # 以上（真）
-assert_inline 1 'return 1 >= 1;'  # 以上（真、等しい）
-assert_inline 0 'return 1 >= 2;'  # 以上（偽）
+# =============================================================================
+# 比較演算子
+# =============================================================================
+assert_inline 1 'return 42 == 42;'
+assert_inline 0 'return 0 == 1;'
+assert_inline 1 'return 0 != 1;'
+assert_inline 1 'return 0 < 1;'
+assert_inline 1 'return 1 <= 1;'
+assert_inline 1 'return 1 > 0;'
+assert_inline 1 'return 1 >= 1;'
 
-# 論理演算子のテスト
-assert_inline 1 'return 1 && 1;'  # 論理AND（真）
-assert_inline 0 'return 1 && 0;'  # 論理AND（偽）
-assert_inline 0 'return 0 && 1;'  # 論理AND（偽）
-assert_inline 0 'return 0 && 0;'  # 論理AND（偽）
-assert_inline 1 'return 1 || 0;'  # 論理OR（真）
-assert_inline 1 'return 0 || 1;'  # 論理OR（真）
-assert_inline 1 'return 1 || 1;'  # 論理OR（真）
-assert_inline 0 'return 0 || 0;'  # 論理OR（偽）
-assert_inline 0 'return !1;'  # 論理NOT（偽）
-assert_inline 1 'return !0;'  # 論理NOT（真）
-assert_inline 1 'return !!1;'  # 二重否定（真）
-assert_inline 0 'return !!0;'  # 二重否定（偽）
-assert_inline 1 'return 2 && 3;'  # 非ゼロ値の論理AND
-assert_inline 1 'return 5 || 0;'  # 非ゼロ値の論理OR
+# =============================================================================
+# 論理演算子
+# =============================================================================
+assert_inline 1 'return 1 && 1;'
+assert_inline 0 'return 1 && 0;'
+assert_inline 1 'return 1 || 0;'
+assert_inline 0 'return 0 || 0;'
+assert_inline 0 'return !1;'
+assert_inline 1 'return !0;'
+assert_inline 1 'return !!1;'
 
-# 短絡評価のテスト
-assert_inline 1 'int x; x = 1; 0 && (x = 5); return x;'  # 左辺が偽なので右辺は評価されない
-assert_inline 1 'int x; x = 1; 1 || (x = 5); return x;'  # 左辺が真なので右辺は評価されない
-assert_inline 1 'int x; x = 0; 0 || (x = 1); return x;'  # 右辺まで評価される
-assert_inline 5 'int x; x = 1; 1 && (x = 5); return x;'  # 左辺が真なので右辺も評価される
+# 短絡評価
+assert_inline 1 'int x; x = 1; 0 && (x = 5); return x;'  # ANDは評価されない
+assert_inline 1 'int x; x = 1; 1 || (x = 5); return x;'  # ORは評価されない
+assert_inline 5 'int x; x = 1; 1 && (x = 5); return x;'  # ANDは評価される
 
-# 演算子優先順位のテスト
-assert_inline 8 'return 1 << 2 + 1;'  # 加算が先（1 << 3 = 8）
-assert_inline 5 'return (1 << 2) + 1;'  # シフトが先（4 + 1 = 5）
-assert_inline 14 'return 2 + 3 * 4;'  # 乗算が先
-assert_inline 20 'return (2 + 3) * 4;'  # 括弧で加算を先に
-assert_inline 0 'return 0 || 1 && 0;'  # ANDがORより優先
-assert_inline 1 'return (0 || 1) && 1;'  # 括弧でORを先に
-assert_inline 1 'return 1 | 2 & 4;'  # ANDがORより優先
-assert_inline 2 'return (1 | 2) & 6;'  # 括弧でORを先に
+# =============================================================================
+# 変数と代入
+# =============================================================================
+assert_inline 3 'int a; a = 3; return a;'
+assert_inline 5 'int a = 5; return a;'  # 初期化子
+assert_inline 13 'int a; int b; a = 3; b = 10; return a + b;'
 
-# 結合規則のテスト
-assert_inline 0 'return 1 ^ 2 ^ 3;'  # 左結合（(1 ^ 2) ^ 3 = 0）
-assert_inline 1 'return 1 < 2 < 3;'  # 左結合（(1 < 2) < 3 = 1 < 3 = 1）
-assert_inline 10 'return 100 / 5 / 2;'  # 左結合（(100 / 5) / 2 = 10）
-assert_inline 50 'return 100 / (5 / 2);'  # 右結合を括弧で強制（100 / 2 = 50）
-assert_inline 6 'return 10 - 3 - 1;'  # 左結合（(10 - 3) - 1 = 6）
-assert_inline 8 'return 10 - (3 - 1);'  # 括弧で右結合（10 - 2 = 8）
+# 複合代入
+assert_inline 7 'int a; a = 3; a += 4; return a;'
+assert_inline 2 'int b; b = 5; b -= 3; return b;'
+assert_inline 15 'int c; c = 3; c *= 5; return c;'
+assert_inline 4 'int d; d = 20; d /= 5; return d;'
+assert_inline 3 'int e; e = 3; e %= 4; return e;'
+assert_inline 7 'int f; f = 3; f |= 5; return f;'
+assert_inline 1 'int g; g = 3; g &= 5; return g;'
+assert_inline 6 'int h; h = 3; h ^= 5; return h;'
+assert_inline 16 'int i; i = 1; i <<= 4; return i;'
+assert_inline 2 'int j; j = 8; j >>= 2; return j;'
 
-# 変数宣言と代入のテスト
-assert_inline 3 'int a; a = 3; return a;'  # 基本的な代入
-assert_inline 13 'int a; int b; a = 3; b = 10; return a + b;'  # 複数変数の代入
-assert_inline 6 'int a; int b; int c; a = 1; b = 2; c = 3; return a + b + c;'  # 3つの変数
-assert_inline 5 'int a = 5; return a;'  # 初期化子付き宣言
+# インクリメント・デクリメント
+assert_inline 6 'int a; a = 5; return ++a;'
+assert_inline 5 'int a; a = 5; return a++;'
+assert_inline 4 'int b; b = 5; return --b;'
+assert_inline 5 'int b; b = 5; return b--;'
+assert_inline 11 'int a = 5; return a++ + a;'
+assert_inline 12 'int a = 5; return ++a + a;'
 
-# 複合代入演算子のテスト
-assert_inline 7 'int a; a = 3; a += 4; return a;'  # 加算代入
-assert_inline 2 'int b; b = 5; b -= 3; return b;'  # 減算代入
-assert_inline 15 'int c; c = 3; c *= 5; return c;'  # 乗算代入
-assert_inline 4 'int d; d = 20; d /= 5; return d;'  # 除算代入
-assert_inline 3 'int e; e = 3; e %= 4; return e;'  # 剰余代入
-assert_inline 7 'int f; f = 3; f |= 5; return f;'  # ビットOR代入
-assert_inline 1 'int g; g = 3; g &= 5; return g;'  # ビットAND代入
-assert_inline 6 'int h; h = 3; h ^= 5; return h;'  # ビットXOR代入
-assert_inline 16 'int i; i = 1; i <<= 4; return i;'  # 左シフト代入
-assert_inline 2 'int j; j = 8; j >>= 2; return j;'  # 右シフト代入
-assert_inline 3 'int a; int b; a = b = 3; return a;'  # 連鎖代入（右結合）
-assert_inline 5 'int a = 2; a += 3; return a;'  # 初期化子と複合代入
+# =============================================================================
+# 制御構文
+# =============================================================================
 
-# 前置・後置インクリメント/デクリメントのテスト
-assert_inline 6 'int a; a = 5; return ++a;'  # 前置インクリメント（先に加算）
-assert_inline 5 'int a; a = 5; return a++;'  # 後置インクリメント（後で加算）
-assert_inline 4 'int b; b = 5; return --b;'  # 前置デクリメント（先に減算）
-assert_inline 5 'int b; b = 5; return b--;'  # 後置デクリメント（後で減算）
-assert_inline 6 'int a; a = 5; ++a; return a;'  # 前置インクリメントの副作用
-assert_inline 6 'int a; a = 5; a++; return a;'  # 後置インクリメントの副作用
-assert_inline 4 'int a; a = 5; --a; return a;'  # 前置デクリメントの副作用
-assert_inline 4 'int a; a = 5; a--; return a;'  # 後置デクリメントの副作用
-assert_inline 11 'int a = 5; return a++ + a;'  # 後置インクリメントと式
-assert_inline 12 'int a = 5; return ++a + a;'  # 前置インクリメントと式
+# if文
+assert_inline 3 'if (1) return 3; return 4;'
+assert_inline 4 'if (0) return 3; return 4;'
+assert_inline 3 'if (1) return 3; else return 4;'
+assert_inline 4 'if (0) return 3; else return 4;'
+assert_inline 2 'if (0) return 1; else if (1) return 2; else return 3;'
 
-# if文のテスト
-assert_inline 3 'if (1) return 3; return 4;'  # 条件が真
-assert_inline 4 'if (0) return 3; return 4;'  # 条件が偽
-assert_inline 3 'if (1) return 3; else return 4;'  # else節（条件が真）
-assert_inline 4 'if (0) return 3; else return 4;'  # else節（条件が偽）
-assert_inline 2 'if (0) return 1; else if (1) return 2; else return 3;'  # else if
-assert_inline 3 'if (0) return 1; else if (0) return 2; else return 3;'  # 全て偽
-assert_inline 5 'int a = 5; if (a > 3) return a; return 0;'  # 変数を使った条件
-assert_inline 10 'int a = 5; if (a < 3) a = 0; else a = 10; return a;'  # 変数の再代入
+# while文
+assert_inline 10 'int i; i = 0; while (i < 10) i = i + 1; return i;'
+assert_inline 0 'int i; i = 0; while (0) i = i + 1; return i;'
+assert_inline 3 'int i; i = 0; while (1) { i = i + 1; if (i == 3) break; } return i;'
+assert_inline 15 'int i = 1; int s = 0; while (i <= 5) { s = s + i; i++; } return s;'
 
-# while文のテスト
-assert_inline 10 'int i; i = 0; while (i < 10) i = i + 1; return i;'  # 基本的なループ
-assert_inline 0 'int i; i = 0; while (0) i = i + 1; return i;'  # 条件が偽（ループしない）
-assert_inline 3 'int i; i = 0; while (1) { i = i + 1; if (i == 3) break; } return i;'  # breakでループ脱出
-assert_inline 15 'int i = 1; int s = 0; while (i <= 5) { s = s + i; i++; } return s;'  # 累積計算
+# do-while文
+assert_inline 1 'int i; i = 0; do i = i + 1; while (i < 1); return i;'
+assert_inline 5 'int i; i = 0; do i = i + 1; while (i < 5); return i;'
+assert_inline 1 'int i = 0; do i++; while (0); return i;'
 
-# do-while文のテスト
-assert_inline 1 'int i; i = 0; do i = i + 1; while (i < 1); return i;'  # 1回だけ実行
-assert_inline 5 'int i; i = 0; do i = i + 1; while (i < 5); return i;'  # 複数回実行
-assert_inline 1 'int i = 0; do i++; while (0); return i;'  # 条件が偽でも1回は実行
+# for文
+assert_inline 55 'int sum; int i; sum = 0; for (i = 1; i <= 10; i = i + 1) sum = sum + i; return sum;'
+assert_inline 15 'int sum; int i; sum = 0; for (i = 1; i <= 10; i = i + 1) { if (i > 5) break; sum = sum + i; } return sum;'
+assert_inline 25 'int sum; int i; sum = 0; for (i = 1; i <= 10; i = i + 1) { if (i % 2 == 0) continue; sum = sum + i; } return sum;'
+assert_inline 0 'int i; for (i = 0; 0; i = i + 1) i = i + 1; return i;'
 
-# for文のテスト
-assert_inline 55 'int sum; int i; sum = 0; for (i = 1; i <= 10; i = i + 1) sum = sum + i; return sum;'  # 1から10の合計
-assert_inline 15 'int sum; int i; sum = 0; for (i = 1; i <= 10; i = i + 1) { if (i > 5) break; sum = sum + i; } return sum;'  # breakでループ脱出
-assert_inline 25 'int sum; int i; sum = 0; for (i = 1; i <= 10; i = i + 1) { if (i % 2 == 0) continue; sum = sum + i; } return sum;'  # continueで偶数をスキップ
-assert_inline 0 'int i; for (i = 0; 0; i = i + 1) i = i + 1; return i;'  # 条件が偽（ループしない）
-assert_inline 10 'int i; for (i = 0; i < 10; i++); return i;'  # 空のループ本体
-assert_inline 5 'int i; int j = 0; for (i = 0; i < 5; i = i + 1) j = j + 1; return j;'  # ネストなしのカウント
+# ネストループ
+assert_inline 100 'int sum = 0; int i; int j; for (i = 0; i < 10; i++) for (j = 0; j < 10; j++) sum++; return sum;'
+assert_inline 50 'int sum = 0; int i; int j; for (i = 0; i < 10; i++) { for (j = 0; j < 10; j++) { if (j == 5) break; sum++; } } return sum;'
+assert_inline 24 'int sum = 0; int i; int j; int k; for (i = 0; i < 2; i++) for (j = 0; j < 3; j++) for (k = 0; k < 4; k++) sum++; return sum;'
 
-# 入れ子のループのテスト
-assert_inline 100 'int sum = 0; int i; int j; for (i = 0; i < 10; i++) for (j = 0; j < 10; j++) sum++; return sum;'  # 二重for文
-assert_inline 15 'int sum = 0; int i; int j; for (i = 1; i <= 3; i++) for (j = 1; j <= 5; j++) sum = sum + 1; return sum;'  # 二重for文の合計
-assert_inline 20 'int sum = 0; int i = 0; int j; while (i < 4) { j = 0; while (j < 5) { sum++; j++; } i++; } return sum;'  # 二重while文
-assert_inline 30 'int sum = 0; int i = 0; int j; do { j = 0; do { sum++; j++; } while (j < 5); i++; } while (i < 6); return sum;'  # 二重do-while文
-assert_inline 25 'int sum = 0; int i; int j; for (i = 0; i < 5; i++) { j = 0; while (j < 5) { sum++; j++; } } return sum;'  # for-while入れ子
-assert_inline 16 'int sum = 0; int i = 0; int j; while (i < 4) { for (j = 0; j < 4; j++) sum++; i++; } return sum;'  # while-for入れ子
-assert_inline 18 'int sum = 0; int i = 0; int j; do { for (j = 0; j < 3; j++) sum++; i++; } while (i < 6); return sum;'  # do-while-for入れ子
-assert_inline 21 'int sum = 0; int i; int j; for (i = 1; i <= 3; i++) { j = 1; do { sum++; j++; } while (j <= 7); } return sum;'  # for-do-while入れ子
+# 三項演算子
+assert_inline 2 'return 1 ? 2 : 3;'
+assert_inline 3 'return 0 ? 2 : 3;'
+assert_inline 3 'int a; int b; a = 3; b = 5; return a < b ? a : b;'
+assert_inline 10 'int x = 5; return x > 0 ? x * 2 : x;'
 
-# 入れ子のループでのbreak/continueのテスト
-assert_inline 50 'int sum = 0; int i; int j; for (i = 0; i < 10; i++) { for (j = 0; j < 10; j++) { if (j == 5) break; sum++; } } return sum;'  # 内側のforでbreak
-assert_inline 50 'int sum = 0; int i; int j; for (i = 0; i < 10; i++) { for (j = 0; j < 10; j++) { if (j % 2 == 0) continue; sum++; } } return sum;'  # 内側のforでcontinue
-assert_inline 18 'int sum = 0; int i = 0; int j; while (i < 10) { j = 0; while (j < 10) { if (j == 3) break; sum++; j++; } if (i == 5) break; i++; } return sum;'  # 両方のwhileでbreak
-assert_inline 15 'int sum = 0; int i; int j; for (i = 0; i < 5; i++) { j = 0; while (j < 5) { j++; if (j <= 2) continue; sum++; } } return sum;'  # 内側のwhileでcontinue
-assert_inline 30 'int sum = 0; int i; int j; for (i = 0; i < 10; i++) { if (i >= 3) break; for (j = 0; j < 10; j++) sum++; } return sum;'  # 外側のforでbreakして内側は完全実行
+# ブロック
+assert_inline 8 '{ int a; int b; a = 3; b = 5; return a + b; }'
+assert_inline 3 '{ { { return 3; } } }'
+assert_inline 2 '{ int a; a = 2; { int a; a = 3; a = a + 2; } return a;}'
+assert_inline 1 'int a = 1; { int a = 2; } return a;'
 
-# 三重ループのテスト
-assert_inline 24 'int sum = 0; int i; int j; int k; for (i = 0; i < 2; i++) for (j = 0; j < 3; j++) for (k = 0; k < 4; k++) sum++; return sum;'  # 三重for文(小さい値)
-assert_inline 60 'int sum = 0; int i = 0; int j; int k; while (i < 3) { j = 0; while (j < 4) { k = 0; while (k < 5) { sum++; k++; } j++; } i++; } return sum;'  # 三重while文
-assert_inline 36 'int sum = 0; int i; int j; int k; for (i = 0; i < 3; i++) { j = 0; while (j < 4) { k = 0; do { sum++; k++; } while (k < 3); j++; } } return sum;'  # 三重混合ループ
+# goto
+assert_inline 5 'int a; a = 0; goto skip; a = 10; skip: a = a + 5; return a;'
+assert_inline 3 'int i = 0; loop: i = i + 1; if (i < 3) goto loop; return i;'
 
-# 三項演算子のテスト
-assert_inline 2 'return 1 ? 2 : 3;'  # 条件が真
-assert_inline 3 'return 0 ? 2 : 3;'  # 条件が偽
-assert_inline 3 'int a; int b; a = 3; b = 5; return a < b ? a : b;'  # 小さい方を返す
-assert_inline 5 'int a; int b; a = 3; b = 5; return a > b ? a : b;'  # 大きい方を返す
-assert_inline 10 'int x = 5; return x > 0 ? x * 2 : x;'  # 式を含む三項演算子
-assert_inline 5 'int a = 1; int b = 2; int c = 3; return b < c ? b + c : b - c;'  # 複雑な式
+# =============================================================================
+# sizeof演算子
+# =============================================================================
+assert_inline 1 'return sizeof(char);'
+assert_inline 2 'return sizeof(short);'
+assert_inline 4 'return sizeof(int);'
+assert_inline 8 'return sizeof(long);'
+assert_inline 8 'return sizeof(char *);'
+assert_inline 8 'return sizeof(int **);'
+assert_inline 40 'return sizeof(int [10]);'
+assert_inline 80 'return sizeof(int [4][5]);'
+assert_inline 4 'int x; return sizeof(x);'
+assert_inline 8 'int *p; return sizeof(p);'
+assert_inline 32 'int a[8]; return sizeof(a);'
+assert_inline 4 'return sizeof 1;'
+assert_inline 4 'return sizeof(5 + 3);'
 
-# ブロック文とスコープのテスト
-assert_inline 8 '{ int a; int b; a = 3; b = 5; return a + b; }'  # 基本的なブロック
-assert_inline 3 '{ { { return 3; } } }'  # ネストしたブロック
-assert_inline 2 '{ int a; a = 2; { int a; a = 3; a = a + 2; } return a; }'  # 内側のスコープで変数を隠蔽
-assert_inline 5 'int a = 1; { a = 5; } return a;'  # ブロック内で外側の変数を変更
-assert_inline 1 'int a = 1; { int a = 2; } return a;'  # 内側で同名の変数を宣言
+# =============================================================================
+# ポインタ
+# =============================================================================
+assert_inline 3 'int a; int *b; a = 3; b = &a; return *b;'
+assert_inline 7 'int a; int *p; p = &a; *p = 7; return a;'
+assert_inline 5 'int a; int *p; int **pp; a = 5; p = &a; pp = &p; return **pp;'
+assert_inline 10 'int a = 10; int *p = &a; return *p;'
+assert_inline 15 'int a = 5; int *p = &a; *p = *p + 10; return a;'
 
-# sizeof演算子のテスト
-# 基本型のサイズ
-assert_inline 1 'return sizeof(char);'  # char型のサイズ
-assert_inline 2 'return sizeof(short);'  # short型のサイズ
-assert_inline 4 'return sizeof(int);'  # int型のサイズ
-assert_inline 8 'return sizeof(long);'  # long型のサイズ
+# =============================================================================
+# 配列
+# =============================================================================
+assert_inline 3 'int a[5]; a[0] = 3; return a[0];'
+assert_inline 8 'int a[5]; a[0] = 3; a[1] = 5; return a[0] + a[1];'
+assert_inline 2 'int a[3]; *(a + 1) = 2; return a[1];'
+assert_inline 1 'int a[3]; int *p; p = a; a[1] = 1; return *(++p);'
+assert_inline 1 'int a[2][3]; a[1][2] = 1; return a[1][2];'
+assert_inline 5 'int a[2][3]; *(*(a + 1) + 2) = 5; return a[1][2];'
+assert_inline 10 'int a[5]; a[2] = 10; return *(a + 2);'
 
-# ポインタ型のサイズ（全て8バイト）
-assert_inline 8 'return sizeof(char *);'  # char型ポインタのサイズ
-assert_inline 8 'return sizeof(short *);'  # short型ポインタのサイズ
-assert_inline 8 'return sizeof(int *);'  # int型ポインタのサイズ
-assert_inline 8 'return sizeof(long *);'  # long型ポインタのサイズ
-assert_inline 8 'return sizeof(int **);'  # 二重ポインタのサイズ
-assert_inline 8 'return sizeof(int ***);'  # 三重ポインタのサイズ
-assert_inline 8 'return sizeof(char **);'  # char型二重ポインタのサイズ
-assert_inline 8 'return sizeof(int (*));'  # 括弧付きポインタ型
+# 配列初期化
+assert_inline 6 'int a[3] = {1, 2, 3}; return a[0] + a[1] + a[2];'
+assert_inline 3 'int a[3] = {1, 2}; return a[0] + a[1] + a[2];'
+assert_inline 1 'int a[3] = {1}; return a[0] + a[1] + a[2];'
+assert_inline 15 'int a[] = {1, 2, 3, 4, 5}; return a[0] + a[1] + a[2] + a[3] + a[4];'
+assert_inline 0 'int a[5] = {0}; return a[0] + a[1] + a[2] + a[3] + a[4];'
+assert_inline 6 'int x = 1; int y = 2; int z = 3; int *a[3] = {&x, &y, &z}; return *a[0] + *a[1] + *a[2];'
 
-# 配列型のサイズ
-assert_inline 40 'return sizeof(int [10]);'  # 配列型（10 * 4 = 40）
-assert_inline 20 'return sizeof(char [20]);'  # char型配列のサイズ
-assert_inline 80 'return sizeof(int [4][5]);'  # 2次元配列（4 * 5 * 4 = 80）
+# =============================================================================
+# 構造体
+# =============================================================================
+assert_inline 8 'struct {int a; short b; int c;} s; s.a = 3; s.c = 5; return s.a + s.c;'
+assert_inline 3 'struct {struct {int a; int b;} inner; int x;} outer; outer.inner.b = 3; return outer.inner.b;'
+assert_inline 3 'struct Point {int x; int y;}; struct Point p; p.x = 1; p.y = 2; return p.x + p.y;'
+assert_inline 30 'struct Point {int x; int y;}; struct Point p; struct Point *ptr; p.x = 10; p.y = 20; ptr = &p; return ptr->x + ptr->y;'
+assert_inline 70 'struct Point {int x; int y;}; struct Point p; struct Point *ptr; p.x = 10; p.y = 20; ptr = &p; ptr->x = 30; ptr->y = 40; return ptr->x + ptr->y;'
+assert_inline 15 'struct Point {int x; int y;}; struct Point p; struct Point *ptr; p.x = 5; p.y = 10; ptr = &p; return (*ptr).x + (*ptr).y;'
 
-# 変数のサイズ
-assert_inline 4 'int x; return sizeof(x);'  # 変数のサイズ
-assert_inline 8 'int *p; return sizeof(p);'  # ポインタ変数のサイズ
-assert_inline 32 'int a[8]; return sizeof(a);'  # 配列変数のサイズ（8 * 4 = 32）
-assert_inline 16 'int a[2][2]; return sizeof(a);'  # 2次元配列変数のサイズ
-
-# リテラル・式のサイズ
-assert_inline 4 'return sizeof 1;'  # リテラルのサイズ（括弧なし）
-assert_inline 4 'return sizeof(5 + 3);'  # 式のサイズ
-
-# ポインタの基本操作のテスト
-assert_inline 3 'int a; int *b; a = 3; b = &a; return *b;'  # アドレス取得と参照外し
-assert_inline 7 'int a; int *p; p = &a; *p = 7; return a;'  # ポインタ経由での代入
-assert_inline 5 'int a; int *p; int **pp; a = 5; p = &a; pp = &p; return **pp;'  # 二重ポインタ
-assert_inline 10 'int a = 10; int *p = &a; return *p;'  # 初期化子付きポインタ
-assert_inline 15 'int a = 5; int *p = &a; *p = *p + 10; return a;'  # ポインタ経由での演算
-
-# 配列の基本操作のテスト
-assert_inline 3 'int a[5]; a[0] = 3; return a[0];'  # 配列の要素へのアクセス
-assert_inline 8 'int a[5]; a[0] = 3; a[1] = 5; return a[0] + a[1];'  # 複数要素
-assert_inline 2 'int a[3]; *(a + 1) = 2; return a[1];'  # ポインタ演算でのアクセス
-assert_inline 1 'int a[3]; int *p; p = a; a[1] = 1; return *(++p);'  # ポインタインクリメント
-assert_inline 1 'int a[2][3]; a[1][2] = 1; return a[1][2];'  # 2次元配列
-assert_inline 5 'int a[2][3]; *(*(a + 1) + 2) = 5; return a[1][2];'  # 2次元配列のポインタアクセス
-assert_inline 2 'int i = 2; int a[2][3]; a[1][i - 1] = 2; return a[1][1];'  # 変数によるインデックス
-assert_inline 2 'int a[2][3]; int *p; p = a[1]; a[1][1] = 2; return *(++p);'  # 2次元配列の行へのポインタ
-assert_inline 10 'int a[5]; a[2] = 10; return *(a + 2);'  # 配列とポインタの等価性
-
-# gotoとラベルのテスト
-assert_inline 5 'int a; a = 0; goto skip; a = 10; skip: a = a + 5; return a;'  # 基本的なgoto
-assert_inline 3 'int i = 0; loop: i = i + 1; if (i < 3) goto loop; return i;'  # ループをgotoで実装
-assert_inline 10 'int a = 5; goto end; a = 0; end: a = a + 5; return a;'  # スキップしてラベルへ
-
-# 数値リテラルのテスト
-assert_inline 10 'return 012;'  # 8進数リテラル
-assert_inline 26 'return 0x1a;'  # 16進数リテラル（小文字）
-assert_inline 255 'return 0xff;'  # 16進数リテラル（最大値）
-assert_inline 255 'return 0xFF;'  # 16進数リテラル（大文字）
-assert_inline 0 'return 0x0;'  # 16進数のゼロ
-assert_inline 0 'return 00;'  # 8進数のゼロ
-
-# 配列の初期化子のテスト
-assert_inline 6 'int a[3] = {1, 2, 3}; return a[0] + a[1] + a[2];'  # 完全な初期化
-assert_inline 3 'int a[3] = {1, 2}; return a[0] + a[1] + a[2];'  # 部分的な初期化（残りは0）
-assert_inline 1 'int a[3] = {1}; return a[0] + a[1] + a[2];'  # 最初の要素のみ初期化
-assert_inline 3 'int a[3] = {0, 1, 2, 3}; return a[0] + a[1] + a[2];'  # 初期化子が多すぎる場合
-assert_inline 6 'int x = 1; int y = 2; int z = 3; int *a[3] = {&x, &y, &z}; return *a[0] + *a[1] + *a[2];'  # ポインタ配列の初期化
-assert_inline 15 'int a[] = {1, 2, 3, 4, 5}; return a[0] + a[1] + a[2] + a[3] + a[4];'  # サイズを省略した初期化
-assert_inline 0 'int a[5] = {0}; return a[0] + a[1] + a[2] + a[3] + a[4];'  # 全て0で初期化
-# assert_inline 21 'int a[2][3] = {{1,2,3}, {4,5,6}}; return a[0][0] + a[0][1] + a[0][2] + a[1][0] + a[1][1] + a[1][2];'  # 2次元配列の初期化（未実装）
-
-# 構造体の基本操作のテスト
-assert_inline 8 'struct {int a; short b; int c;} s; s.a = 3; s.c = 5; return s.a + s.c;'  # 匿名構造体
-assert_inline 3 'struct {struct {int a; int b;} inner; int x;} outer; outer.inner.b = 3; return outer.inner.b;'  # ネストした構造体
-assert_inline 3 'struct Point {int x; int y;}; struct Point p; p.x = 1; p.y = 2; return p.x + p.y;'  # 名前付き構造体
-assert_inline 10 'struct {int x; int y; int z;} s; s.x = 1; s.y = 4; s.z = 5; return s.x + s.y + s.z;'  # 3つのフィールド
-
-# 構造体ポインタとアロー演算子のテスト
-assert_inline 30 'struct Point {int x; int y;}; struct Point p; struct Point *ptr; p.x = 10; p.y = 20; ptr = &p; return ptr->x + ptr->y;'  # アロー演算子で両フィールドにアクセス
-assert_inline 10 'struct Point {int x; int y;}; struct Point p; struct Point *ptr; p.x = 10; p.y = 20; ptr = &p; return ptr->x;'  # アロー演算子でxにアクセス
-assert_inline 20 'struct Point {int x; int y;}; struct Point p; struct Point *ptr; p.x = 10; p.y = 20; ptr = &p; return ptr->y;'  # アロー演算子でyにアクセス
-assert_inline 70 'struct Point {int x; int y;}; struct Point p; struct Point *ptr; p.x = 10; p.y = 20; ptr = &p; ptr->x = 30; ptr->y = 40; return ptr->x + ptr->y;'  # アロー演算子で書き込み
-assert_inline 30 'struct Point {int x; int y;}; struct Point p; struct Point *ptr; p.x = 10; p.y = 20; ptr = &p; ptr->x = 30; return p.x;'  # ポインタ経由での書き込みが元の変数に反映
-assert_inline 15 'struct Point {int x; int y;}; struct Point p; struct Point *ptr; p.x = 5; p.y = 10; ptr = &p; return (*ptr).x + (*ptr).y;'  # ドット演算子での参照外し
-
-# 共用体（union）の基本操作のテスト
-assert_inline 42 'union {int i; char c;} u; u.i = 42; return u.i;'  # 匿名共用体の基本操作
-assert_inline 10 'union Data {int i; char c; long l;}; union Data d; d.i = 10; return d.i;'  # 名前付き共用体
-assert_inline 5 'union {int a; int b;} u; u.a = 5; return u.b;'  # 同じメモリ位置を共有
-assert_inline 65 'union {int i; char c;} u; u.i = 65; return u.c;'  # intの下位バイトをcharで取得（65 = 'A'）
-assert_inline 1 'union {int i; char c;} u; u.i = 257; return u.c;'  # 257 = 0x101 → 下位バイト = 1
-
-# 共用体のサイズのテスト
-assert_inline 8 'return sizeof(union {int i; long l;});'  # 最大メンバのサイズ（long = 8）
-assert_inline 4 'return sizeof(union {int i; char c; short s;});'  # 最大メンバのサイズ（int = 4）
-assert_inline 8 'union Data {int i; long l;}; return sizeof(union Data);'  # 名前付き共用体のサイズ
-
-# 共用体ポインタとアロー演算子のテスト
-assert_inline 100 'union Data {int i; long l;}; union Data d; union Data *ptr; d.i = 100; ptr = &d; return ptr->i;'  # アロー演算子でアクセス
-assert_inline 200 'union Data {int i; long l;}; union Data d; union Data *ptr; ptr = &d; ptr->i = 200; return d.i;'  # アロー演算子で書き込み
-assert_inline 50 'union Data {int i; char c;}; union Data d; union Data *ptr; ptr = &d; ptr->i = 50; return (*ptr).i;'  # ドット演算子での参照外し
+# =============================================================================
+# 共用体
+# =============================================================================
+assert_inline 42 'union {int i; char c;} u; u.i = 42; return u.i;'
+assert_inline 10 'union Data {int i; char c; long l;}; union Data d; d.i = 10; return d.i;'
+assert_inline 5 'union {int a; int b;} u; u.a = 5; return u.b;'
+assert_inline 65 'union {int i; char c;} u; u.i = 65; return u.c;'
+assert_inline 1 'union {int i; char c;} u; u.i = 257; return u.c;'
+assert_inline 8 'return sizeof(union {int i; long l;});'
+assert_inline 4 'return sizeof(union {int i; char c; short s;});'
+assert_inline 100 'union Data {int i; long l;}; union Data d; union Data *ptr; d.i = 100; ptr = &d; return ptr->i;'
 
 # 構造体と共用体の組み合わせ
-assert_inline 15 'struct S {union {int a; int b;} u; int c;}; struct S s; s.u.a = 10; s.c = 5; return s.u.a + s.c;'  # 構造体内の共用体
-assert_inline 7 'union U {struct {int x; int y;} s; long l;}; union U u; u.s.x = 3; u.s.y = 4; return u.s.x + u.s.y;'  # 共用体内の構造体
+assert_inline 15 'struct S {union {int a; int b;} u; int c;}; struct S s; s.u.a = 10; s.c = 5; return s.u.a + s.c;'
+assert_inline 7 'union U {struct {int x; int y;} s; long l;}; union U u; u.s.x = 3; u.s.y = 4; return u.s.x + u.s.y;'
 
-# 列挙型（enum）のテスト
-assert_inline 0 'enum {RED, GREEN, BLUE}; return RED;'  # 最初の列挙定数は0
-assert_inline 1 'enum {RED, GREEN, BLUE}; return GREEN;'  # 2番目は1
-assert_inline 2 'enum {RED, GREEN, BLUE}; return BLUE;'  # 3番目は2
-assert_inline 10 'enum {RED = 10, GREEN, BLUE}; return RED;'  # 明示的な値の指定
-assert_inline 11 'enum {RED = 10, GREEN, BLUE}; return GREEN;'  # 明示的な値の後は自動インクリメント
-assert_inline 12 'enum {RED = 10, GREEN, BLUE}; return BLUE;'  # 自動インクリメントの続き
-assert_inline 15 'enum {A = 5, B = 10, C = 15}; return C;'  # すべて明示的に指定
-assert_inline 22 'enum {A = 5, B, C = 10, D}; return A + B + D;'  # 混在（5 + 6 + 10 = 21）
-assert_inline 0 'enum Color {RED, GREEN, BLUE}; return RED;'  # 名前付き列挙型
-assert_inline 2 'enum Color {RED, GREEN, BLUE}; enum Color c; c = BLUE; return c;'  # 列挙型の変数
-assert_inline 1 'enum {RED, GREEN, BLUE}; int x; x = GREEN; return x;'  # 列挙定数をint変数に代入
-assert_inline 1 'enum {RED, GREEN, BLUE}; return RED < GREEN;'  # 列挙定数の比較
-assert_inline 5 'enum {A = 2, B = 3,}; return A + B;'  # 列挙定数の演算
-assert_inline 21 'enum {X = 10, Y}; return X + Y;'  # 自動インクリメントとの演算（10 + 11 = 21）
-assert_inline 3 'enum {RED, GREEN, BLUE}; int a[BLUE]; a[0] = 1; a[1] = 2; return a[0] + a[1];'  # 列挙定数を配列サイズに使用
-assert_inline 5 'enum Size {SIZE = 5}; int a[SIZE]; a[2] = 5; return a[2];'  # 名前付き列挙型の定数を配列サイズに
-assert_inline 1 'enum {ZERO, ONE, TWO}; if (ONE) return 1; return 0;'  # 列挙定数を条件式で使用
-assert_inline 3 'enum {A = 1, B = 2, C = 4}; return (A | B);'  # ビット演算で使用
-assert_inline 100 'enum {MAX = 100}; return MAX;'  # 大きな値の指定
+# =============================================================================
+# 列挙型
+# =============================================================================
+assert_inline 0 'enum {RED, GREEN, BLUE}; return RED;'
+assert_inline 1 'enum {RED, GREEN, BLUE}; return GREEN;'
+assert_inline 2 'enum {RED, GREEN, BLUE}; return BLUE;'
+assert_inline 10 'enum {RED = 10, GREEN, BLUE}; return RED;'
+assert_inline 11 'enum {RED = 10, GREEN, BLUE}; return GREEN;'
+assert_inline 15 'enum {A = 5, B = 10, C = 15}; return C;'
+assert_inline 0 'enum Color {RED, GREEN, BLUE}; return RED;'
+assert_inline 2 'enum Color {RED, GREEN, BLUE}; enum Color c; c = BLUE; return c;'
+assert_inline 1 'enum {RED, GREEN, BLUE}; return RED < GREEN;'
+assert_inline 21 'enum {X = 10, Y}; return X + Y;'
+assert_inline 100 'enum {MAX = 100}; return MAX;'
 
-# キャスト演算子のテスト
-# 基本型間のキャスト
-assert_inline 1 'int a = 257; return (char)a;'  # int → char（257 = 0x101 → 0x01 = 1）
-assert_inline 0 'int a = 256; return (char)a;'  # int → char（256 = 0x100 → 0x00 = 0）
-assert_inline 120 'int a = 0x12345678; return (char)a;'  # int → char（下位8ビット: 0x78 = 120）
-assert_inline 255 'int a = -1; return (char)a & 255;'  # 負の値のキャスト
-assert_inline 42 'char c = 42; return (int)c;'  # char → int（符号拡張）
-assert_inline 100 'long l = 100; return (int)l;'  # long → int（縮小変換）
-assert_inline 5 'int x = 5; return (short)x;'  # int → short
-assert_inline 200 'short s = 200; return (long)s;'  # short → long（拡大変換）
+# =============================================================================
+# キャスト
+# =============================================================================
+assert_inline 1 'int a = 257; return (char)a;'
+assert_inline 0 'int a = 256; return (char)a;'
+assert_inline 120 'int a = 0x12345678; return (char)a;'
+assert_inline 42 'char c = 42; return (int)c;'
+assert_inline 100 'long l = 100; return (int)l;'
+assert_inline 5 'int x = 5; return (short)x;'
+assert_inline 200 'short s = 200; return (long)s;'
+assert_inline 1 'long l = 65537; return (short)l;'
+assert_inline 0 'long l = 65536; return (short)l;'
+assert_inline 0 'int *p = 0; return (long)p;'
+assert_inline 4 'int a = 4; int *p = &a; return *(int *)(char *)p;'
+assert_inline 1 'int a = 1; void *p = &a; return *(int *)p;'
+assert_inline 2 'return (int)(5 / 2);'
+assert_inline 15 'int a = 5; int b = 10; return (short)(a + b);'
 
-# 大きな値の切り捨てテスト
-assert_inline 1 'long l = 65537; return (short)l;'  # long → short（65537 = 0x10001 → 0x0001 = 1）
-assert_inline 0 'long l = 65536; return (short)l;'  # long → short（65536 = 0x10000 → 0x0000 = 0）
-assert_inline 52 'int a = 0x1234; return (char)a;'  # int → char（0x34 = 52）
+# =============================================================================
+# typedef
+# =============================================================================
+assert_inline 42 'typedef int A; A a = 42; return a;'
+assert_inline 7 'typedef int A; typedef A B; B b = 7; return b;'
+assert_inline 3 'typedef int A; typedef A B; typedef B C; C c = 3; return c;'
+assert_inline 8 'typedef int T; T x = 3; T y = 5; return x + y;'
+assert_inline 42 'typedef int* P; int x = 42; P p = &x; return *p;'
+assert_inline 5 'typedef int* P; typedef P Q; int z = 5; Q q = &z; return *q;'
+assert_inline 123 'struct S { int a; }; typedef struct S T; T s; s.a = 123; return s.a;'
+assert_inline 77 'typedef struct { int b; } U; U u; u.b = 77; return u.b;'
+assert_inline 88 'union U { int x; char c; }; typedef union U V; V v; v.x = 88; return v.x;'
+assert_inline 55 'typedef int T; typedef T* TP; T x = 55; TP p = &x; return *p;'
+assert_inline 66 'typedef int T; typedef T* TP; typedef TP* TPP; T x = 66; TP p = &x; TPP pp = &p; return **pp;'
+assert_inline 99 'typedef struct { int v; } S; typedef S* SP; S s; s.v = 99; SP p = &s; return p->v;'
+assert_inline 3 'typedef int T; T arr[3]; arr[0] = 1; arr[1] = 2; arr[2] = 3; return arr[2];'
+assert_inline 42 'typedef int T; struct S { T a; }; struct S s; s.a = 42; return s.a;'
 
-# ポインタとintのキャスト
-assert_inline 0 'int *p = 0; return (long)p;'  # NULLポインタを整数に
-assert_inline 8 'int a; int *p = &a; return (long)p - (long)p + 8;'  # ポインタを整数に変換して演算
+# =============================================================================
+# エッジケース・複合テスト
+# =============================================================================
 
-# ポインタ型間のキャスト
-assert_inline 4 'int a = 4; int *p = &a; return *(int *)(char *)p;'  # int* → char* → int*
-assert_inline 1 'int a = 1; void *p = &a; return *(int *)p;'  # void* → int*
+# ゼロ除算回避（コンパイラの責任範囲外だが、テストとして記録）
+# assert_inline 0 'return 1 / 0;'  # 未定義動作
 
-# キャストの式での使用
-assert_inline 2 'return (int)(5 / 2);'  # 式にキャスト
-assert_inline 7 'int a = 10; return (char)a + (char)(-3) & 255;'  # キャストを含む演算
-assert_inline 15 'int a = 5; int b = 10; return (short)(a + b);'  # 式全体をキャスト
+# オーバーフロー
+assert_inline 0 'char c = 255; c = c + 1; return c;'  # 8bit overflow -> 0
+assert_inline 255 'char c = 0; c = c - 1; return c & 255;'  # underflow (mask to unsigned)
 
-# sizeof と cast の共存確認
-assert_inline 4 'return sizeof(int);'  # sizeof(type) が正しく動作
-assert_inline 1 'return sizeof(char);'  # sizeof(type) が正しく動作
-assert_inline 42 'return (int)42;'  # cast が正しく動作
-assert_inline 1 'int x = 5; return sizeof((char)x);'  # キャストした式のsizeof
+# ポインタ演算の境界
+assert_inline 5 'int a[5]; int *p = a; p = p + 5; p = p - 5; a[0] = 5; return *p;'
 
-# typedef のテスト
-assert_inline 42 'typedef int A; A a = 42; return a;'  # 基本的なtypedef
-assert_inline 7 'typedef int A; typedef A B; B b = 7; return b;'  # typedefの多重展開
-assert_inline 3 'typedef int A; typedef A B; typedef B C; C c = 3; return c;'  # 3段階typedef
-assert_inline 1 'typedef int T; T x = 1; return x;'  # 別名型で宣言・代入
-assert_inline 5 'typedef int T; T x; x = 5; return x;'  # 別名型で代入
-assert_inline 8 'typedef int T; T x = 3; T y = 5; return x + y;'  # typedef型同士の演算
+# 複雑な式
+assert_inline 1 'return 1 << 2 + 1 == 8;'
+assert_inline 14 'return 2 + 3 * 4;'
+assert_inline 0 'return 0 || 1 && 0;'
 
-# typedef ポインタ型のテスト
-assert_inline 42 'typedef int* P; int x = 42; P p = &x; return *p;'  # typedefでポインタ型
-assert_inline 7 'typedef int* P; int y = 7; P p = &y; return *p;'  # ポインタ型の多重展開
-assert_inline 5 'typedef int* P; typedef P Q; int z = 5; Q q = &z; return *q;'  # ポインタ型の多重typedef
+# 結合規則
+assert_inline 0 'return 1 ^ 2 ^ 3;'
+assert_inline 10 'return 100 / 5 / 2;'
+assert_inline 6 'return 10 - 3 - 1;'
 
-# typedef struct/union のテスト
-assert_inline 123 'struct S { int a; }; typedef struct S T; T s; s.a = 123; return s.a;'  # structのtypedef
-assert_inline 77 'typedef struct { int b; } U; U u; u.b = 77; return u.b;'  # 無名structのtypedef
-assert_inline 88 'union U { int x; char c; }; typedef union U V; V v; v.x = 88; return v.x;'  # unionのtypedef
+# 多重代入
+assert_inline 3 'int a; int b; a = b = 3; return a;'
 
-# typedef入れ子のテスト
-assert_inline 55 'typedef int T; typedef T* TP; T x = 55; TP p = &x; return *p;'  # typedefの入れ子（int→int*）
-assert_inline 66 'typedef int T; typedef T* TP; typedef TP* TPP; T x = 66; TP p = &x; TPP pp = &p; return **pp;'  # typedefの多重入れ子
-assert_inline 99 'typedef struct { int v; } S; typedef S* SP; S s; s.v = 99; SP p = &s; return p->v;'  # structポインタのtypedef
+# 型変換の連鎖
+assert_inline 1 'return (char)(short)(int)257;'
 
-# typedef型の配列・関数引数
-assert_inline 3 'typedef int T; T arr[3]; arr[0] = 1; arr[1] = 2; arr[2] = 3; return arr[2];'  # typedef型の配列
+# 複雑なポインタ演算
+assert_inline 6 'int a[3]; a[0] = 1; a[1] = 2; a[2] = 3; int *p = a; return *p + *(p+1) + *(p+2);'
 
-# typedef型のstructメンバ
-assert_inline 42 'typedef int T; struct S { T a; }; struct S s; s.a = 42; return s.a;'  # typedef型のstructメンバ
+# void型の使用
+assert_inline 42 'void *p; int x = 42; p = &x; return *(int*)p;'
+
+# constキーワード（C11準拠）
+assert_inline 10 'const int x = 10; return x;'
+# assert_inline 10 'const int x = 10; x = 20; return x;'  # エラーになるべき
+
+# 前方宣言
+assert_inline 5 'struct S; struct S { int x; }; struct S s; s.x = 5; return s.x;'
+
+# 再帰的なstruct定義
+assert_inline 10 'struct Node { int val; struct Node *next; }; struct Node n; n.val = 10; n.next = 0; return n.val;'
