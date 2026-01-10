@@ -1,17 +1,17 @@
-use super::TypeKind;
+use super::TypeRef;
 use core::fmt;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum DeclSpec {
     StorageClassSpec(StorageClassKind),
-    TypeSpec(TypeKind),
+    TypeSpec(TypeRef),
     TypeQual(TypeQualKind),
     FuncSpec(FuncKind),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum TypeSpecQual {
-    TypeSpec(TypeKind),
+    TypeSpec(TypeRef),
     TypeQual(TypeQualKind),
 }
 

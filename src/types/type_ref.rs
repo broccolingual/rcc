@@ -116,22 +116,21 @@ impl TypeRef {
     }
 
     pub(crate) fn from_ds(decl_specs: Vec<DeclSpec>) -> Option<Self> {
-        let mut ty = TypeData::default();
-        let mut has_type_spec = false;
+        let mut attr = TypeAttr::default();
+        let mut ty_ref: Option<TypeRef> = None;
         let mut storage_class = None;
         for spec in decl_specs {
             match spec {
                 DeclSpec::TypeQual(tq_kind) => match tq_kind {
-                    TypeQualKind::Const => ty.attr.is_const = true,
-                    TypeQualKind::Volatile => ty.attr.is_volatile = true,
-                    TypeQualKind::Restrict => ty.attr.is_restrict = true,
+                    TypeQualKind::Const => attr.is_const = true,
+                    TypeQualKind::Volatile => attr.is_volatile = true,
+                    TypeQualKind::Restrict => attr.is_restrict = true,
                 },
-                DeclSpec::TypeSpec(ty_kind) => {
-                    if has_type_spec {
+                DeclSpec::TypeSpec(ty) => {
+                    if ty_ref.is_some() {
                         return None; // すでに型指定子があった場合は無効
                     }
-                    ty = TypeData::from_kind(ty_kind, ty.attr, None);
-                    has_type_spec = true;
+                    ty_ref = Some(ty);
                 }
                 DeclSpec::StorageClassSpec(sc_kind) => {
                     if storage_class.is_some() {
@@ -142,35 +141,45 @@ impl TypeRef {
                 DeclSpec::FuncSpec(_) => {}
             }
         }
-        if has_type_spec {
-            ty.storage_class = storage_class;
-            Some(TypeRef::register(ty.kind, ty.attr, ty.storage_class))
+        if let Some(ty) = ty_ref {
+            // 型修飾子を既存の型に追加
+            let merged_attr = TypeAttr {
+                is_const: attr.is_const || ty.attr().is_const,
+                is_volatile: attr.is_volatile || ty.attr().is_volatile,
+                is_restrict: attr.is_restrict || ty.attr().is_restrict,
+            };
+            Some(TypeRef::register(ty.kind(), merged_attr, storage_class))
         } else {
             None
         }
     }
 
     pub(crate) fn from_tsq(type_spec_quals: Vec<TypeSpecQual>) -> Option<Self> {
-        let mut ty = TypeData::default();
-        let mut has_type_spec = false;
+        let mut attr = TypeAttr::default();
+        let mut ty_ref: Option<TypeRef> = None;
         for spec in type_spec_quals {
             match spec {
                 TypeSpecQual::TypeQual(tq_kind) => match tq_kind {
-                    TypeQualKind::Const => ty.attr.is_const = true,
-                    TypeQualKind::Volatile => ty.attr.is_volatile = true,
-                    TypeQualKind::Restrict => ty.attr.is_restrict = true,
+                    TypeQualKind::Const => attr.is_const = true,
+                    TypeQualKind::Volatile => attr.is_volatile = true,
+                    TypeQualKind::Restrict => attr.is_restrict = true,
                 },
-                TypeSpecQual::TypeSpec(ty_kind) => {
-                    if has_type_spec {
+                TypeSpecQual::TypeSpec(ty) => {
+                    if ty_ref.is_some() {
                         return None; // すでに型指定子があった場合は無効
                     }
-                    ty = TypeData::from_kind(ty_kind, ty.attr, None);
-                    has_type_spec = true;
+                    ty_ref = Some(ty);
                 }
             }
         }
-        if has_type_spec {
-            Some(TypeRef::register(ty.kind, ty.attr, ty.storage_class))
+        if let Some(ty) = ty_ref {
+            // 型修飾子を既存の型に追加
+            let merged_attr = TypeAttr {
+                is_const: attr.is_const || ty.attr().is_const,
+                is_volatile: attr.is_volatile || ty.attr().is_volatile,
+                is_restrict: attr.is_restrict || ty.attr().is_restrict,
+            };
+            Some(TypeRef::register(ty.kind(), merged_attr, None))
         } else {
             None
         }
