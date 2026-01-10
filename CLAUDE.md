@@ -37,8 +37,8 @@ cargo build --release    # Release build
 bash test/inline.sh && bash test/file.sh && bash test/func.sh
 
 # Run individual test suites
-bash test/inline.sh      # 218 inline tests - quick unit tests for language features
-bash test/file.sh        # 10 comprehensive integration tests
+bash test/inline.sh      # quick unit tests for language features
+bash test/file.sh        # integration tests
 bash test/func.sh        # External function linking tests
 
 # Compile and run a single test manually
