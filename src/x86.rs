@@ -38,6 +38,28 @@ impl<'a> Generator<'a> {
         self.builder.add_row(".text", true);
     }
 
+    /// 文字列をアセンブリのエスケープ形式に変換
+    fn escape_string_for_asm(s: &str) -> String {
+        let mut result = String::new();
+        for byte in s.bytes() {
+            match byte {
+                b'\n' => result.push_str("\\n"),
+                b'\t' => result.push_str("\\t"),
+                b'\r' => result.push_str("\\r"),
+                b'\0' => result.push_str("\\0"),
+                b'\\' => result.push_str("\\\\"),
+                b'"' => result.push_str("\\\""),
+                b'\x07' => result.push_str("\\a"),
+                b'\x08' => result.push_str("\\b"),
+                b'\x0C' => result.push_str("\\f"),
+                b'\x0B' => result.push_str("\\v"),
+                0x20..=0x7E => result.push(byte as char), // 印字可能なASCII
+                _ => result.push_str(&format!("\\{:03o}", byte)), // その他は8進エスケープ
+            }
+        }
+        result
+    }
+
     fn emit_rodata(&mut self) {
         if self.ast.string_literals.is_empty() {
             return;
@@ -45,7 +67,8 @@ impl<'a> Generator<'a> {
         self.builder.add_row(".section .rodata", true);
         for (string, i) in self.ast.string_literals.iter() {
             self.builder.add_row(&format!(".L.str.{}:", i), false);
-            self.builder.add_row(&format!(".string \"{}\"", string), true);
+            let escaped = Self::escape_string_for_asm(string);
+            self.builder.add_row(&format!(".string \"{}\"", escaped), true);
         }
     }
 

@@ -309,3 +309,50 @@ assert_inline 5 'struct S; struct S { int x; }; struct S s; s.x = 5; return s.x;
 
 # 再帰的なstruct定義
 assert_inline 10 'struct Node { int val; struct Node *next; }; struct Node n; n.val = 10; n.next = 0; return n.val;'
+
+# =============================================================================
+# エスケープシーケンス（C11準拠）
+# =============================================================================
+# 文字定数のエスケープシーケンス
+assert_inline 10 "return '\n';"  # newline
+assert_inline 9 "return '\t';"  # tab
+assert_inline 13 "return '\r';"  # carriage return
+assert_inline 0 "return '\0';"  # null
+assert_inline 92 "return '\\\\';"  # backslash
+assert_inline 39 "return '\'';"  # single quote
+assert_inline 34 'return '\''"'\'';'  # double quote
+assert_inline 7 "return '\a';"  # alert/bell
+assert_inline 8 "return '\b';"  # backspace
+assert_inline 12 "return '\f';"  # form feed
+assert_inline 11 "return '\v';"  # vertical tab
+assert_inline 63 "return '\?';"  # question mark
+
+# 8進エスケープシーケンス
+assert_inline 0 "return '\0';"  # \0
+assert_inline 7 "return '\7';"  # \7
+assert_inline 65 "return '\101';"  # \101 = 'A'
+assert_inline 255 "return '\377';"  # \377 = 最大値
+
+# 16進エスケープシーケンス
+assert_inline 0 "return '\x00';"  # \x00
+assert_inline 10 "return '\x0a';"  # \x0a = '\n'
+assert_inline 65 "return '\x41';"  # \x41 = 'A'
+assert_inline 255 "return '\xff';"  # \xff = 最大値
+assert_inline 255 "return '\xFF';"  # 大文字も可
+
+# 文字列リテラルのエスケープシーケンス
+assert_inline 10 'char *s = "Hello\nWorld"; return s[5];'  # \n in string
+assert_inline 9 'char *s = "Hello\tWorld"; return s[5];'  # \t in string
+assert_inline 0 'char *s = "test\0end"; return s[4];'  # \0 in string
+assert_inline 92 'char *s = "test\\end"; return s[4];'  # \\ in string
+assert_inline 34 'char *s = "say \"hi\""; return s[4];'  # \" in string
+
+# 複数のエスケープシーケンス
+assert_inline 65 'char *s = "\x41\x42\x43"; return s[0];'  # ABC
+assert_inline 66 'char *s = "\x41\x42\x43"; return s[1];'
+assert_inline 67 'char *s = "\x41\x42\x43"; return s[2];'
+
+# 8進と16進の混在
+assert_inline 65 'char *s = "\101\x42\103"; return s[0];'  # A
+assert_inline 66 'char *s = "\101\x42\103"; return s[1];'  # B
+assert_inline 67 'char *s = "\101\x42\103"; return s[2];'  # C
