@@ -115,7 +115,7 @@ impl TypeRef {
         None
     }
 
-    pub(crate) fn from_ds(decl_specs: Vec<DeclSpec>) -> Option<Self> {
+    pub(crate) fn from_ds(decl_specs: &[DeclSpec]) -> Option<Self> {
         let mut attr = TypeAttr::default();
         let mut ty_ref: Option<TypeRef> = None;
         let mut storage_class = None;
@@ -130,7 +130,7 @@ impl TypeRef {
                     if ty_ref.is_some() {
                         return None; // すでに型指定子があった場合は無効
                     }
-                    ty_ref = Some(ty);
+                    ty_ref = Some(*ty);
                 }
                 DeclSpec::StorageClassSpec(sc_kind) => {
                     if storage_class.is_some() {
@@ -148,13 +148,13 @@ impl TypeRef {
                 is_volatile: attr.is_volatile || ty.attr().is_volatile,
                 is_restrict: attr.is_restrict || ty.attr().is_restrict,
             };
-            Some(TypeRef::register(ty.kind(), merged_attr, storage_class))
+            Some(TypeRef::register(ty.kind(), merged_attr, storage_class.cloned()))
         } else {
             None
         }
     }
 
-    pub(crate) fn from_tsq(type_spec_quals: Vec<TypeSpecQual>) -> Option<Self> {
+    pub(crate) fn from_tsq(type_spec_quals: &[TypeSpecQual]) -> Option<Self> {
         let mut attr = TypeAttr::default();
         let mut ty_ref: Option<TypeRef> = None;
         for spec in type_spec_quals {
@@ -168,7 +168,7 @@ impl TypeRef {
                     if ty_ref.is_some() {
                         return None; // すでに型指定子があった場合は無効
                     }
-                    ty_ref = Some(ty);
+                    ty_ref = Some(*ty);
                 }
             }
         }
@@ -215,5 +215,39 @@ impl TypeRef {
         };
         self.set(data);
         *self
+    }
+
+    /// 型の中の特定の型を別の型で置き換える
+    ///
+    /// 宣言子パースで使用される。括弧で囲まれた宣言子の場合、
+    /// プレースホルダー型で内側をパースした後、このメソッドで
+    /// プレースホルダーを実際の型に置き換える。
+    pub(crate) fn replace_type(self, target: TypeRef, replacement: TypeRef) -> TypeRef {
+        if self == target {
+            return replacement;
+        }
+        match self.kind() {
+            TypeKind::Ptr { to } => {
+                let new_to = to.replace_type(target, replacement);
+                TypeRef::register(TypeKind::Ptr { to: new_to }, self.attr(), self.storage_class())
+            }
+            TypeKind::Array { base, size } => {
+                let new_base = base.replace_type(target, replacement);
+                TypeRef::register(
+                    TypeKind::Array { base: new_base, size },
+                    self.attr(),
+                    self.storage_class(),
+                )
+            }
+            TypeKind::Func { return_ty, params, is_variadic } => {
+                let new_return = return_ty.replace_type(target, replacement);
+                TypeRef::register(
+                    TypeKind::Func { return_ty: new_return, params, is_variadic },
+                    self.attr(),
+                    self.storage_class(),
+                )
+            }
+            _ => self,
+        }
     }
 }

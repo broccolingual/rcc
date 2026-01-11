@@ -34,6 +34,16 @@ impl fmt::Debug for TypeAttr {
     }
 }
 
+impl TypeAttr {
+    pub(crate) fn from_type_quals(quals: &[TypeQualKind]) -> Self {
+        TypeAttr {
+            is_const: quals.contains(&TypeQualKind::Const),
+            is_volatile: quals.contains(&TypeQualKind::Volatile),
+            is_restrict: quals.contains(&TypeQualKind::Restrict),
+        }
+    }
+}
+
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct TypeData {
     kind: TypeKind,

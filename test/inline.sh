@@ -356,3 +356,38 @@ assert_inline 67 'char *s = "\x41\x42\x43"; return s[2];'
 assert_inline 65 'char *s = "\101\x42\103"; return s[0];'  # A
 assert_inline 66 'char *s = "\101\x42\103"; return s[1];'  # B
 assert_inline 67 'char *s = "\101\x42\103"; return s[2];'  # C
+
+# =============================================================================
+# 関数ポインタ
+# =============================================================================
+
+# 基本的な関数ポインタの宣言
+assert_inline 0 'int (*fp)(int, int); return 0;'
+
+# 関数ポインタを返す関数の宣言
+assert_inline 0 'int (*get_func(int x))(int, int); return 0;'
+
+# 関数ポインタを返す関数ポインタの宣言
+assert_inline 0 'int (*(*fp)(int))(double); return 0;'
+
+# 関数ポインタの配列の宣言
+assert_inline 0 'int (*arr[5])(int, int); return 0;'
+
+# 複雑な関数ポインタ宣言
+assert_inline 0 'int (*(*(*p)[10])(int))(double); return 0;'
+
+# =============================================================================
+# 抽象宣言子（Abstract Declarator）の関数ポインタ
+# =============================================================================
+
+# sizeof演算子で抽象宣言子を使用
+assert_inline 8 'return sizeof(int (*)(int, int));'
+
+# 関数ポインタを返す関数の型のサイズ
+assert_inline 8 'return sizeof(int (*(*)(int))(double));'
+
+# 関数ポインタの配列の型のサイズ
+assert_inline 40 'return sizeof(int (*[5])(int, int));'
+
+# キャストで抽象宣言子を使用（型チェックのみ）
+assert_inline 0 'int (*fp)(int, int); fp = (int (*)(int, int))0; return 0;'
