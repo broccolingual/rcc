@@ -31,7 +31,7 @@ impl Ast<'_> {
             // 関数定義または関数プロトタイプ宣言の場合
             if let TypeKind::Func { .. } = &decl.ty.kind() {
                 if self.peek_punct("{") {
-                    return self.parse_func_def(decl); // 関数定義をパース
+                    return self.func_def(decl); // 関数定義をパース
                 } else if self.consume_punct(";").is_some() {
                     self.register_func_symbol(&decl.name, decl.ty, false); // プロトタイプ宣言を登録
                     return Ok(());
@@ -61,7 +61,7 @@ impl Ast<'_> {
     }
 
     // 関数定義をパース
-    fn parse_func_def(&mut self, decl: Decl) -> Result<(), CompileError> {
+    fn func_def(&mut self, decl: Decl) -> Result<(), CompileError> {
         let TypeKind::Func { params, return_ty, .. } = &decl.ty.kind() else {
             return Err(CompileError::InvalidDecl {
                 msg: "関数型が必要です".to_string(),
@@ -598,23 +598,25 @@ impl Ast<'_> {
     //                     | direct_declarator "[" type_qual_list? assign_expr? "]"
     //                     | direct_declarator "(" param_type_list ")"
     fn direct_declarator(&mut self, base_ty: &TypeRef) -> Result<Decl, CompileError> {
-        let span;
-        let name = if let Some(paren_span) = self.consume_punct("(") {
-            span = paren_span;
-            let inner_var = self.declarator(base_ty)?;
+        if let Some(paren_span) = self.consume_punct("(") {
+            // 括弧で囲まれた宣言子の場合、プレースホルダーを使って内側の型を一時的に表現
+            let placeholder = TypeRef::default();
+            let inner_decl = self.declarator(&placeholder)?;
             self.expect_punct(")")?;
-            inner_var.name
-        } else if let Some((name, ident_span)) = self.consume_ident() {
-            span = ident_span;
-            name
+            let suffix_ty = self.direct_declarator_suffix(base_ty)?; // 外側のsuffixを先にパース
+            // プレースホルダーをsuffix_tyで置き換え
+            let final_ty = inner_decl.ty.replace_type(placeholder, suffix_ty);
+            Ok(Decl::new(inner_decl.name, final_ty, paren_span))
+        } else if let Some((ident_name, ident_span)) = self.consume_ident() {
+            // 識別子の場合は普通にsuffixを適用
+            let final_ty = self.direct_declarator_suffix(base_ty)?;
+            Ok(Decl::new(ident_name, final_ty, ident_span))
         } else {
-            return Err(CompileError::InvalidDecl {
+            Err(CompileError::InvalidDecl {
                 msg: "識別子または括弧で囲まれた宣言子が必要です".to_string(),
                 span: self.current_span(),
-            });
-        };
-        let final_ty = self.direct_declarator_suffix(base_ty)?;
-        Ok(Decl::new(name, final_ty, span))
+            })
+        }
     }
 
     // 右結合で解析

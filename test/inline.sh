@@ -356,3 +356,13 @@ assert_inline 67 'char *s = "\x41\x42\x43"; return s[2];'
 assert_inline 65 'char *s = "\101\x42\103"; return s[0];'  # A
 assert_inline 66 'char *s = "\101\x42\103"; return s[1];'  # B
 assert_inline 67 'char *s = "\101\x42\103"; return s[2];'  # C
+
+# =============================================================================
+# 関数ポインタ
+# =============================================================================
+
+assert_inline 0 'int (*fp)(int, int); return 0;'
+assert_inline 0 'int (*get_func(int x))(int, int); return 0;'
+assert_inline 0 'int (*(*fp)(int))(double); return 0;'
+assert_inline 0 'int (*arr[5])(int, int); return 0;'
+assert_inline 0 'int (*(*(*p)[10])(int))(double); return 0;'
