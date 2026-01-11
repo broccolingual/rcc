@@ -115,7 +115,7 @@ impl TypeRef {
         None
     }
 
-    pub(crate) fn from_ds(decl_specs: Vec<DeclSpec>) -> Option<Self> {
+    pub(crate) fn from_ds(decl_specs: &[DeclSpec]) -> Option<Self> {
         let mut attr = TypeAttr::default();
         let mut ty_ref: Option<TypeRef> = None;
         let mut storage_class = None;
@@ -130,7 +130,7 @@ impl TypeRef {
                     if ty_ref.is_some() {
                         return None; // すでに型指定子があった場合は無効
                     }
-                    ty_ref = Some(ty);
+                    ty_ref = Some(*ty);
                 }
                 DeclSpec::StorageClassSpec(sc_kind) => {
                     if storage_class.is_some() {
@@ -148,13 +148,13 @@ impl TypeRef {
                 is_volatile: attr.is_volatile || ty.attr().is_volatile,
                 is_restrict: attr.is_restrict || ty.attr().is_restrict,
             };
-            Some(TypeRef::register(ty.kind(), merged_attr, storage_class))
+            Some(TypeRef::register(ty.kind(), merged_attr, storage_class.cloned()))
         } else {
             None
         }
     }
 
-    pub(crate) fn from_tsq(type_spec_quals: Vec<TypeSpecQual>) -> Option<Self> {
+    pub(crate) fn from_tsq(type_spec_quals: &[TypeSpecQual]) -> Option<Self> {
         let mut attr = TypeAttr::default();
         let mut ty_ref: Option<TypeRef> = None;
         for spec in type_spec_quals {
@@ -168,7 +168,7 @@ impl TypeRef {
                     if ty_ref.is_some() {
                         return None; // すでに型指定子があった場合は無効
                     }
-                    ty_ref = Some(ty);
+                    ty_ref = Some(*ty);
                 }
             }
         }

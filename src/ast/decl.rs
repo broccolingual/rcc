@@ -13,16 +13,16 @@ impl Ast<'_> {
     // func_def      ::= decl_specs declarator compound_stmt
     // decl          ::= decl_specs init_declarator_list? ";"
     pub(super) fn external_decl(&mut self) -> Result<(), CompileError> {
-        let specs = self.decl_specs()?;
-        if specs.is_empty() {
+        let decl_specs = self.decl_specs()?;
+        if decl_specs.is_empty() {
             return Err(CompileError::InvalidDecl {
                 msg: "外部宣言のパースに失敗しました。型指定子が必要です".to_string(),
                 span: self.current_span(),
             });
         }
 
-        let base_ty = TypeRef::from_ds(specs).ok_or_else(|| CompileError::InvalidDecl {
-            msg: "無効な型指定子です".to_string(),
+        let base_ty = TypeRef::from_ds(&decl_specs).ok_or_else(|| CompileError::InvalidDecl {
+            msg: format!("無効な型指定子です: {:?}", decl_specs),
             span: self.current_span(),
         })?;
 
@@ -132,12 +132,12 @@ impl Ast<'_> {
 
     // decl ::= decl_specs init_declarator_list? ";"
     pub(super) fn decl(&mut self) -> Result<Option<Vec<Decl>>, CompileError> {
-        let specs = self.decl_specs()?;
-        if specs.is_empty() {
+        let decl_specs = self.decl_specs()?;
+        if decl_specs.is_empty() {
             return Ok(None);
         }
-        let base_ty = TypeRef::from_ds(specs).ok_or_else(|| CompileError::InvalidDecl {
-            msg: "無効な型指定子です".to_string(),
+        let base_ty = TypeRef::from_ds(&decl_specs).ok_or_else(|| CompileError::InvalidDecl {
+            msg: format!("無効な型指定子です: {:?}", decl_specs),
             span: self.current_span(),
         })?;
         let decls = self.init_declarator_list(&base_ty)?;
@@ -147,11 +147,11 @@ impl Ast<'_> {
 
     // decl_specs ::= decl_spec+
     pub(super) fn decl_specs(&mut self) -> Result<Vec<DeclSpec>, CompileError> {
-        let mut specs = Vec::new();
-        while let Some(spec) = self.decl_spec()? {
-            specs.push(spec);
+        let mut decl_specs = Vec::new();
+        while let Some(decl_spec) = self.decl_spec()? {
+            decl_specs.push(decl_spec);
         }
-        Ok(specs)
+        Ok(decl_specs)
     }
 
     // decl_spec ::= storage_class_spec | type_spec | type_qual | func_spec
@@ -369,14 +369,15 @@ impl Ast<'_> {
 
     // struct_decl ::= spec_qual_list struct_declarator_list? ";"
     fn struct_decl(&mut self) -> Result<Option<Vec<MemberDecl>>, CompileError> {
-        let specs = self.spec_qual_list()?;
-        if specs.is_empty() {
+        let type_spec_quals = self.spec_qual_list()?;
+        if type_spec_quals.is_empty() {
             return Ok(None);
         }
-        let base_ty = TypeRef::from_tsq(specs).ok_or_else(|| CompileError::InvalidDecl {
-            msg: "無効な型指定子です".to_string(),
-            span: self.current_span(),
-        })?;
+        let base_ty =
+            TypeRef::from_tsq(&type_spec_quals).ok_or_else(|| CompileError::InvalidDecl {
+                msg: format!("無効な型指定子です: {:?}", type_spec_quals),
+                span: self.current_span(),
+            })?;
         let members = self.struct_declarator_list(&base_ty)?;
         self.expect_punct(";")?;
         Ok(Some(members))
@@ -466,12 +467,13 @@ impl Ast<'_> {
     ) -> Result<TypeKind, CompileError> {
         // 既存の列挙体タグを検索
         if let Some(tag) = self.find_tag(&enum_name) {
-            return Ok(tag.ty.kind());
+            Ok(tag.ty.kind())
+        } else {
+            Err(CompileError::InvalidDecl {
+                msg: format!("列挙体 '{}' が見つかりません", enum_name),
+                span,
+            })
         }
-        Err(CompileError::InvalidDecl {
-            msg: format!("列挙体 '{}' が見つかりません", enum_name),
-            span,
-        })
     }
 
     // enum_list ::= enumerator ( "," enumerator )*
@@ -526,11 +528,11 @@ impl Ast<'_> {
 
     // spec_qual_list ::= type_spec_qual+
     fn spec_qual_list(&mut self) -> Result<Vec<TypeSpecQual>, CompileError> {
-        let mut specs = Vec::new();
-        while let Some(spec) = self.type_spec_qual()? {
-            specs.push(spec);
+        let mut type_spec_quals = Vec::new();
+        while let Some(type_spec_qual) = self.type_spec_qual()? {
+            type_spec_quals.push(type_spec_qual);
         }
-        Ok(specs)
+        Ok(type_spec_quals)
     }
 
     // type_spec_qual ::= type_spec | type_qual
@@ -538,8 +540,8 @@ impl Ast<'_> {
         if let Some(spec) = self.type_spec()? {
             return Ok(Some(TypeSpecQual::TypeSpec(spec)));
         }
-        if let Some(qual) = self.type_qual() {
-            return Ok(Some(TypeSpecQual::TypeQual(qual)));
+        if let Some(type_qual) = self.type_qual() {
+            return Ok(Some(TypeSpecQual::TypeQual(type_qual)));
         }
         Ok(None)
     }
@@ -548,7 +550,7 @@ impl Ast<'_> {
     fn type_qual(&mut self) -> Option<TypeQualKind> {
         TypeQualKind::all()
             .into_iter()
-            .find(|qual| self.consume_keyword(&qual.to_string()).is_some())
+            .find(|type_qual| self.consume_keyword(&type_qual.to_string()).is_some())
     }
 
     // func_spec ::= "inline"
@@ -558,25 +560,25 @@ impl Ast<'_> {
 
     // type_qual_list ::= type_qual*
     fn type_qual_list(&mut self) -> Vec<TypeQualKind> {
-        let mut quals = Vec::new();
-        while let Some(qual) = self.type_qual() {
-            quals.push(qual);
+        let mut type_quals = Vec::new();
+        while let Some(type_qual) = self.type_qual() {
+            type_quals.push(type_qual);
         }
-        quals
+        type_quals
     }
 
     // ptr ::= "*" type_qual_list? ptr?
     fn ptr(&mut self, base_ty: &TypeRef) -> TypeRef {
-        if self.consume_punct("*").is_some() {
-            self.type_qual_list(); // 現状は型修飾子を無視
-            let ptr_type = TypeRef::register(
-                TypeKind::Ptr { to: TypeRef::register(base_ty.kind(), base_ty.attr(), None) },
-                TypeAttr::default(),
-                base_ty.storage_class(),
+        let mut current_ty = *base_ty;
+        while self.consume_punct("*").is_some() {
+            let type_quals = self.type_qual_list();
+            current_ty = TypeRef::register(
+                TypeKind::Ptr { to: TypeRef::register(current_ty.kind(), current_ty.attr(), None) },
+                TypeAttr::from_type_quals(&type_quals),
+                current_ty.storage_class(),
             );
-            return self.ptr(&ptr_type);
         }
-        *base_ty
+        current_ty
     }
 
     // declarator ::= ptr? direct_declarator
@@ -605,15 +607,15 @@ impl Ast<'_> {
                 span: self.current_span(),
             });
         };
-        let final_ty = self.parse_postfix_declarators(base_ty)?;
+        let final_ty = self.direct_declarator_suffix(base_ty)?;
         Ok(Decl::new(name, final_ty, span))
     }
 
     // 右結合で解析
-    fn parse_postfix_declarators(&mut self, base_ty: &TypeRef) -> Result<TypeRef, CompileError> {
+    fn direct_declarator_suffix(&mut self, base_ty: &TypeRef) -> Result<TypeRef, CompileError> {
         // "[" type_qual_list? assign_expr? "]"
         if self.consume_punct("[").is_some() {
-            self.type_qual_list(); // 現状は型修飾子を無視
+            let type_quals = self.type_qual_list();
             let array_size = if self.peek_punct("]") {
                 0
             } else {
@@ -624,11 +626,11 @@ impl Ast<'_> {
                 Self::eval_const_expr(&assign_expr)? as usize
             };
             self.expect_punct("]")?;
-            let inner_ty = self.parse_postfix_declarators(base_ty)?;
+            let inner_ty = self.direct_declarator_suffix(base_ty)?;
             let elem_ty = TypeRef::register(inner_ty.kind(), inner_ty.attr(), None); // 要素型のストレージクラスはなし
             Ok(TypeRef::register(
                 TypeKind::Array { base: elem_ty, size: array_size },
-                TypeAttr::default(),
+                TypeAttr::from_type_quals(&type_quals),
                 inner_ty.storage_class(),
             ))
         }
@@ -644,8 +646,8 @@ impl Ast<'_> {
                 self.expect_punct(")")?;
                 result
             };
-            let inner_ty = self.parse_postfix_declarators(base_ty)?;
-            let return_ty = TypeRef::register(inner_ty.kind(), inner_ty.attr(), None); // 戻り値型のストレージクラスはなし
+            let inner_ty = self.direct_declarator_suffix(base_ty)?;
+            let return_ty = TypeRef::register(inner_ty.kind(), inner_ty.attr(), None); // 戻り値型にストレージクラスは付けられない
             Ok(TypeRef::register(
                 TypeKind::Func { return_ty, params, is_variadic },
                 TypeAttr::default(),
@@ -680,16 +682,16 @@ impl Ast<'_> {
     // param_decl ::= decl_specs declarator
     //              | decl_specs abstract_declarator?
     fn param_decl(&mut self) -> Result<Decl, CompileError> {
-        let specs = self.decl_specs()?;
-        if specs.is_empty() {
+        let decl_specs = self.decl_specs()?;
+        if decl_specs.is_empty() {
             return Err(CompileError::InvalidDecl {
                 msg: "パラメータ宣言には型指定子が必要です".to_string(),
                 span: self.current_span(),
             });
         }
 
-        let base_ty = TypeRef::from_ds(specs).ok_or_else(|| CompileError::InvalidDecl {
-            msg: "無効な型指定子です".to_string(),
+        let base_ty = TypeRef::from_ds(&decl_specs).ok_or_else(|| CompileError::InvalidDecl {
+            msg: format!("無効な型指定子です: {:?}", decl_specs),
             span: self.current_span(),
         })?;
 
@@ -717,17 +719,18 @@ impl Ast<'_> {
 
     // type_name ::= spec_qual_list abst_declarator?
     pub(super) fn type_name(&mut self) -> Result<TypeRef, CompileError> {
-        let specs = self.spec_qual_list()?;
-        if specs.is_empty() {
+        let type_spec_quals = self.spec_qual_list()?;
+        if type_spec_quals.is_empty() {
             return Err(CompileError::InvalidDecl {
                 msg: "無効な型名です".to_string(),
                 span: self.current_span(),
             });
         }
-        let base_ty = TypeRef::from_tsq(specs).ok_or_else(|| CompileError::InvalidDecl {
-            msg: "無効な型指定子です".to_string(),
-            span: self.current_span(),
-        })?;
+        let base_ty =
+            TypeRef::from_tsq(&type_spec_quals).ok_or_else(|| CompileError::InvalidDecl {
+                msg: format!("無効な型指定子です: {:?}", type_spec_quals),
+                span: self.current_span(),
+            })?;
         if let Ok(abst_ty) = self.abst_declarator(&base_ty) {
             return Ok(abst_ty);
         }
@@ -756,25 +759,24 @@ impl Ast<'_> {
     //                          | direct_abst_declarator "[" type_qual_list? assign_expr? "]"
     //                          | direct_abst_declarator "(" param_type_list ")"
     fn direct_abst_declarator(&mut self, base_ty: &TypeRef) -> Result<TypeRef, CompileError> {
-        let mut current_ty = if self.consume_punct("(").is_some() {
+        let current_ty = if self.consume_punct("(").is_some() {
             let inner_ty = self.abst_declarator(base_ty)?;
             self.expect_punct(")")?;
             inner_ty
         } else {
             *base_ty
         };
-        current_ty = self.parse_abst_postfix_declarators(&current_ty)?;
-        Ok(current_ty)
+        self.direct_abst_declarator_suffix(&current_ty)
     }
 
     // 右結合で解析
-    fn parse_abst_postfix_declarators(
+    fn direct_abst_declarator_suffix(
         &mut self,
         base_ty: &TypeRef,
     ) -> Result<TypeRef, CompileError> {
         // "[" type_qual_list? assign_expr? "]"
         if self.consume_punct("[").is_some() {
-            self.type_qual_list(); // 現状は型修飾子を無視
+            let type_quals = self.type_qual_list();
             let array_size = if self.peek_punct("]") {
                 0
             } else {
@@ -785,10 +787,10 @@ impl Ast<'_> {
                 Self::eval_const_expr(&assign_expr)? as usize
             };
             self.expect_punct("]")?;
-            let inner_ty = self.parse_abst_postfix_declarators(base_ty)?;
+            let inner_ty = self.direct_abst_declarator_suffix(base_ty)?;
             Ok(TypeRef::register(
                 TypeKind::Array { base: inner_ty, size: array_size },
-                TypeAttr::default(),
+                TypeAttr::from_type_quals(&type_quals),
                 None,
             ))
         }
@@ -804,7 +806,7 @@ impl Ast<'_> {
                 self.expect_punct(")")?;
                 result
             };
-            let inner_ty = self.parse_abst_postfix_declarators(base_ty)?;
+            let inner_ty = self.direct_abst_declarator_suffix(base_ty)?;
             Ok(TypeRef::register(
                 TypeKind::Func { return_ty: inner_ty, params, is_variadic },
                 TypeAttr::default(),
