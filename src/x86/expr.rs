@@ -59,6 +59,12 @@ impl Generator<'_> {
                 self.builder.add_row("push 1", true); // true
                 self.builder.add_row(&format!(".L.end.{}:", label), false);
             }
+            NodeKind::Comma { lhs, rhs } => {
+                // カンマ演算子: 左辺を評価して結果を捨て、右辺を評価して返す
+                self.gen_expr(lhs)?;
+                self.builder.add_row("pop rax", true); // 左辺の結果を捨てる
+                self.gen_expr(rhs)?;
+            }
             NodeKind::Ternary { cond, then, els, label } => {
                 self.gen_expr(cond)?;
                 self.test_zero();
@@ -215,6 +221,8 @@ impl Generator<'_> {
             BinaryOp::Ne => self.gen_compare("setne"),
             BinaryOp::Lt => self.gen_compare("setl"),
             BinaryOp::Le => self.gen_compare("setle"),
+            BinaryOp::Gt => self.gen_compare("setg"),
+            BinaryOp::Ge => self.gen_compare("setge"),
             BinaryOp::Assign => unreachable!(),
         }
         self.builder.add_row("push rax", true); // 演算結果をスタックに積む

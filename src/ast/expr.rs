@@ -6,6 +6,76 @@ use crate::utils::Span;
 use core::str::FromStr;
 
 impl Ast<'_> {
+    // 二項演算子の共通パース処理を行うヘルパー関数
+    // next_parser: 次の優先度の式をパースする関数
+    // operators: パース対象の演算子のリスト ("演算子文字列", ノード生成関数)
+    fn parse_binary_op<F>(
+        &mut self,
+        mut next_parser: F,
+        operators: &[(&str, &dyn Fn(Box<Node>, Box<Node>, Span) -> Result<Node, CompileError>)],
+    ) -> Result<Option<Box<Node>>, CompileError>
+    where
+        F: FnMut(&mut Self) -> Result<Option<Box<Node>>, CompileError>,
+    {
+        let mut node = next_parser(self)?;
+
+        loop {
+            let mut matched = false;
+            for (op_str, constructor) in operators {
+                if let Some(span) = self.consume_punct(op_str) {
+                    let lhs = node.ok_or_else(|| CompileError::InvalidExpr {
+                        msg: format!("'{}'演算子の左辺値がありません", op_str),
+                        span,
+                    })?;
+                    let rhs = next_parser(self)?.ok_or_else(|| CompileError::InvalidExpr {
+                        msg: format!("'{}'演算子の右辺値がありません", op_str),
+                        span,
+                    })?;
+                    node = Some(Box::new(constructor(lhs, rhs, span)?));
+                    matched = true;
+                    break;
+                }
+            }
+            if !matched {
+                return Ok(node);
+            }
+        }
+    }
+
+    // 論理演算子の共通パース処理を行うヘルパー関数（ラベル付き）
+    // next_parser: 次の優先度の式をパースする関数
+    // op_str: 演算子文字列
+    // constructor: ノード生成関数（lhs, rhs, label, span を受け取る）
+    fn parse_logical_op<F, C>(
+        &mut self,
+        mut next_parser: F,
+        op_str: &str,
+        constructor: C,
+    ) -> Result<Option<Box<Node>>, CompileError>
+    where
+        F: FnMut(&mut Self) -> Result<Option<Box<Node>>, CompileError>,
+        C: Fn(Box<Node>, Box<Node>, usize, Span) -> Result<Node, CompileError>,
+    {
+        let mut node = next_parser(self)?;
+
+        loop {
+            if let Some(span) = self.consume_punct(op_str) {
+                let label = self.next_label();
+                let lhs = node.ok_or_else(|| CompileError::InvalidExpr {
+                    msg: format!("'{}'演算子の左辺値がありません", op_str),
+                    span,
+                })?;
+                let rhs = next_parser(self)?.ok_or_else(|| CompileError::InvalidExpr {
+                    msg: format!("'{}'演算子の右辺値がありません", op_str),
+                    span,
+                })?;
+                node = Some(Box::new(constructor(lhs, rhs, label, span)?));
+            } else {
+                return Ok(node);
+            }
+        }
+    }
+
     // const_expr ::= cond_expr
     #[allow(dead_code)]
     pub(super) fn const_expr(&mut self) -> Result<i64, CompileError> {
@@ -122,11 +192,14 @@ impl Ast<'_> {
 
     // Original BNF:
     // expr ::= assign_expr
-    //        | expr "," assign_expr // TODO: 未実装
+    //        | expr "," assign_expr
     // Fixed BNF (left recursion removed):
     // expr ::= assign_expr ("," assign_expr)*
     pub(super) fn expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
-        self.assign_expr()
+        self.parse_binary_op(
+            |ast| ast.assign_expr(),
+            &[(",", &|l, r, s| Ok(Node::new_comma(l, r, s)))],
+        )
     }
 
     // Original BNF:
@@ -193,25 +266,7 @@ impl Ast<'_> {
     // Fixed BNF (left recursion removed):
     // logical_or_expr ::= logical_and_expr ("||" logical_and_expr)*
     fn logical_or_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
-        let mut node = self.logical_and_expr()?;
-
-        loop {
-            if let Some(span) = self.consume_punct("||") {
-                let label = self.next_label();
-                // logical or
-                let lhs = node.ok_or_else(|| CompileError::InvalidExpr {
-                    msg: "'||'演算子の左辺値がありません".to_string(),
-                    span,
-                })?;
-                let rhs = self.logical_and_expr()?.ok_or_else(|| CompileError::InvalidExpr {
-                    msg: "'||'演算子の右辺値がありません".to_string(),
-                    span,
-                })?;
-                node = Some(Box::new(Node::new_logical_or(lhs, rhs, label, span)?));
-            } else {
-                return Ok(node);
-            }
-        }
+        self.parse_logical_op(|ast| ast.logical_and_expr(), "||", Node::new_logical_or)
     }
 
     // Original BNF:
@@ -220,25 +275,7 @@ impl Ast<'_> {
     // Fixed BNF (left recursion removed):
     // logical_and_expr ::= inclusive_or_expr ("&&" inclusive_or_expr)*
     fn logical_and_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
-        let mut node = self.inclusive_or_expr()?;
-
-        loop {
-            if let Some(span) = self.consume_punct("&&") {
-                let label = self.next_label();
-                // logical and
-                let lhs = node.ok_or_else(|| CompileError::InvalidExpr {
-                    msg: "'&&'演算子の左辺値がありません".to_string(),
-                    span,
-                })?;
-                let rhs = self.inclusive_or_expr()?.ok_or_else(|| CompileError::InvalidExpr {
-                    msg: "'&&'演算子の右辺値がありません".to_string(),
-                    span,
-                })?;
-                node = Some(Box::new(Node::new_logical_and(lhs, rhs, label, span)?));
-            } else {
-                return Ok(node);
-            }
-        }
+        self.parse_logical_op(|ast| ast.inclusive_or_expr(), "&&", Node::new_logical_and)
     }
 
     // Original BNF:
@@ -247,24 +284,10 @@ impl Ast<'_> {
     // Fixed BNF (left recursion removed):
     // inclusive_or_expr ::= exclusive_or_expr ("|" exclusive_or_expr)*
     fn inclusive_or_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
-        let mut node = self.exclusive_or_expr()?;
-
-        loop {
-            if let Some(span) = self.consume_punct("|") {
-                // bitwise or
-                let lhs = node.ok_or_else(|| CompileError::InvalidExpr {
-                    msg: "'|'演算子の左辺値がありません".to_string(),
-                    span,
-                })?;
-                let rhs = self.exclusive_or_expr()?.ok_or_else(|| CompileError::InvalidExpr {
-                    msg: "'|'演算子の右辺値がありません".to_string(),
-                    span,
-                })?;
-                node = Some(Box::new(Node::new_binary(BinaryOp::BitOr, lhs, rhs, span)?));
-            } else {
-                return Ok(node);
-            }
-        }
+        self.parse_binary_op(
+            |ast| ast.exclusive_or_expr(),
+            &[("|", &|l, r, s| Node::new_binary(BinaryOp::BitOr, l, r, s))],
+        )
     }
 
     // Original BNF:
@@ -273,24 +296,10 @@ impl Ast<'_> {
     // Fixed BNF (left recursion removed):
     // exclusive_or_expr ::= and_expr ("^" and_expr)*
     fn exclusive_or_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
-        let mut node = self.and_expr()?;
-
-        loop {
-            if let Some(span) = self.consume_punct("^") {
-                // bitwise xor
-                let lhs = node.ok_or_else(|| CompileError::InvalidExpr {
-                    msg: "'^'演算子の左辺値がありません".to_string(),
-                    span,
-                })?;
-                let rhs = self.and_expr()?.ok_or_else(|| CompileError::InvalidExpr {
-                    msg: "'^'演算子の右辺値がありません".to_string(),
-                    span,
-                })?;
-                node = Some(Box::new(Node::new_binary(BinaryOp::BitXor, lhs, rhs, span)?));
-            } else {
-                return Ok(node);
-            }
-        }
+        self.parse_binary_op(
+            |ast| ast.and_expr(),
+            &[("^", &|l, r, s| Node::new_binary(BinaryOp::BitXor, l, r, s))],
+        )
     }
 
     // Original BNF:
@@ -299,24 +308,10 @@ impl Ast<'_> {
     // Fixed BNF (left recursion removed):
     // and_expr ::= equality_expr ("&" equality_expr)*
     fn and_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
-        let mut node = self.equality_expr()?;
-
-        loop {
-            if let Some(span) = self.consume_punct("&") {
-                //bitwise and
-                let lhs = node.ok_or_else(|| CompileError::InvalidExpr {
-                    msg: "'&'演算子の左辺値がありません".to_string(),
-                    span,
-                })?;
-                let rhs = self.equality_expr()?.ok_or_else(|| CompileError::InvalidExpr {
-                    msg: "'&'演算子の右辺値がありません".to_string(),
-                    span,
-                })?;
-                node = Some(Box::new(Node::new_binary(BinaryOp::BitAnd, lhs, rhs, span)?));
-            } else {
-                return Ok(node);
-            }
-        }
+        self.parse_binary_op(
+            |ast| ast.equality_expr(),
+            &[("&", &|l, r, s| Node::new_binary(BinaryOp::BitAnd, l, r, s))],
+        )
     }
 
     // Original BNF:
@@ -325,35 +320,13 @@ impl Ast<'_> {
     // Fixed BNF (left recursion removed):
     // equality_expr ::= relational_expr (("==" | "!=") relational_expr)*
     fn equality_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
-        let mut node = self.relational_expr()?;
-
-        loop {
-            if let Some(span) = self.consume_punct("==") {
-                // equal
-                let lhs = node.ok_or_else(|| CompileError::InvalidExpr {
-                    msg: "'=='演算子の左辺値がありません".to_string(),
-                    span,
-                })?;
-                let rhs = self.relational_expr()?.ok_or_else(|| CompileError::InvalidExpr {
-                    msg: "'=='演算子の右辺値がありません".to_string(),
-                    span,
-                })?;
-                node = Some(Box::new(Node::new_binary(BinaryOp::Eq, lhs, rhs, span)?));
-            } else if let Some(span) = self.consume_punct("!=") {
-                // not equal
-                let lhs = node.ok_or_else(|| CompileError::InvalidExpr {
-                    msg: "'!='演算子の左辺値がありません".to_string(),
-                    span,
-                })?;
-                let rhs = self.relational_expr()?.ok_or_else(|| CompileError::InvalidExpr {
-                    msg: "'!='演算子の右辺値がありません".to_string(),
-                    span,
-                })?;
-                node = Some(Box::new(Node::new_binary(BinaryOp::Ne, lhs, rhs, span)?));
-            } else {
-                return Ok(node);
-            }
-        }
+        self.parse_binary_op(
+            |ast| ast.relational_expr(),
+            &[
+                ("==", &|l, r, s| Node::new_binary(BinaryOp::Eq, l, r, s)),
+                ("!=", &|l, r, s| Node::new_binary(BinaryOp::Ne, l, r, s)),
+            ],
+        )
     }
 
     // Original BNF:
@@ -362,57 +335,15 @@ impl Ast<'_> {
     // Fixed BNF (left recursion removed):
     // relational_expr ::= shift_expr (("<" | "<=" | ">" | ">=") shift_expr)*
     fn relational_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
-        let mut node = self.shift_expr()?;
-
-        loop {
-            if let Some(span) = self.consume_punct("<") {
-                // less than
-                let lhs = node.ok_or_else(|| CompileError::InvalidExpr {
-                    msg: "'<'演算子の左辺値がありません".to_string(),
-                    span,
-                })?;
-                let rhs = self.shift_expr()?.ok_or_else(|| CompileError::InvalidExpr {
-                    msg: "'<'演算子の右辺値がありません".to_string(),
-                    span,
-                })?;
-                node = Some(Box::new(Node::new_binary(BinaryOp::Lt, lhs, rhs, span)?));
-            } else if let Some(span) = self.consume_punct("<=") {
-                // less than or equal
-                let lhs = node.ok_or_else(|| CompileError::InvalidExpr {
-                    msg: "'<='演算子の左辺値がありません".to_string(),
-                    span,
-                })?;
-                let rhs = self.shift_expr()?.ok_or_else(|| CompileError::InvalidExpr {
-                    msg: "'<='演算子の右辺値がありません".to_string(),
-                    span,
-                })?;
-                node = Some(Box::new(Node::new_binary(BinaryOp::Le, lhs, rhs, span)?));
-            } else if let Some(span) = self.consume_punct(">") {
-                // greater than
-                let lhs = self.shift_expr()?.ok_or_else(|| CompileError::InvalidExpr {
-                    msg: "'>'演算子の右辺値がありません".to_string(),
-                    span,
-                })?;
-                let rhs = node.ok_or_else(|| CompileError::InvalidExpr {
-                    msg: "'>'演算子の左辺値がありません".to_string(),
-                    span,
-                })?;
-                node = Some(Box::new(Node::new_binary(BinaryOp::Lt, lhs, rhs, span)?));
-            } else if let Some(span) = self.consume_punct(">=") {
-                // greater than or equal
-                let lhs = self.shift_expr()?.ok_or_else(|| CompileError::InvalidExpr {
-                    msg: "'>='演算子の右辺値がありません".to_string(),
-                    span,
-                })?;
-                let rhs = node.ok_or_else(|| CompileError::InvalidExpr {
-                    msg: "'>='演算子の左辺値がありません".to_string(),
-                    span,
-                })?;
-                node = Some(Box::new(Node::new_binary(BinaryOp::Le, lhs, rhs, span)?));
-            } else {
-                return Ok(node);
-            }
-        }
+        self.parse_binary_op(
+            |ast| ast.shift_expr(),
+            &[
+                ("<", &|l, r, s| Node::new_binary(BinaryOp::Lt, l, r, s)),
+                ("<=", &|l, r, s| Node::new_binary(BinaryOp::Le, l, r, s)),
+                (">", &|l, r, s| Node::new_binary(BinaryOp::Gt, l, r, s)),
+                (">=", &|l, r, s| Node::new_binary(BinaryOp::Ge, l, r, s)),
+            ],
+        )
     }
 
     // Original BNF:
@@ -421,35 +352,13 @@ impl Ast<'_> {
     // Fixed BNF (left recursion removed):
     // shift_expr ::= add_expr (("<<" | ">>") add_expr)*
     fn shift_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
-        let mut node = self.add_expr()?;
-
-        loop {
-            if let Some(span) = self.consume_punct("<<") {
-                // left shift
-                let lhs = node.ok_or_else(|| CompileError::InvalidExpr {
-                    msg: "'<<'演算子の左辺値がありません".to_string(),
-                    span,
-                })?;
-                let rhs = self.add_expr()?.ok_or_else(|| CompileError::InvalidExpr {
-                    msg: "'<<'演算子の右辺値がありません".to_string(),
-                    span,
-                })?;
-                node = Some(Box::new(Node::new_binary(BinaryOp::Shl, lhs, rhs, span)?));
-            } else if let Some(span) = self.consume_punct(">>") {
-                // right shift
-                let lhs = node.ok_or_else(|| CompileError::InvalidExpr {
-                    msg: "'>>'演算子の左辺値がありません".to_string(),
-                    span,
-                })?;
-                let rhs = self.add_expr()?.ok_or_else(|| CompileError::InvalidExpr {
-                    msg: "'>>'演算子の右辺値がありません".to_string(),
-                    span,
-                })?;
-                node = Some(Box::new(Node::new_binary(BinaryOp::Shr, lhs, rhs, span)?));
-            } else {
-                return Ok(node);
-            }
-        }
+        self.parse_binary_op(
+            |ast| ast.add_expr(),
+            &[
+                ("<<", &|l, r, s| Node::new_binary(BinaryOp::Shl, l, r, s)),
+                (">>", &|l, r, s| Node::new_binary(BinaryOp::Shr, l, r, s)),
+            ],
+        )
     }
 
     // Original BNF:
@@ -458,31 +367,13 @@ impl Ast<'_> {
     // Fixed BNF (left recursion removed):
     // add_expr ::= mul_expr (("+" | "-") mul_expr)*
     fn add_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
-        let mut node = self.mul_expr()?;
-
-        loop {
-            if let Some(span) = self.consume_punct("+") {
-                // addition
-                if let Some(n) = node.take() {
-                    let rhs = self.mul_expr()?.ok_or_else(|| CompileError::InvalidExpr {
-                        msg: "'+'演算子の右辺値がありません".to_string(),
-                        span,
-                    })?;
-                    node = Some(Box::new(Node::new_scaled_add(n, rhs, span)?));
-                }
-            } else if let Some(span) = self.consume_punct("-") {
-                // subtraction
-                if let Some(n) = node.take() {
-                    let rhs = self.mul_expr()?.ok_or_else(|| CompileError::InvalidExpr {
-                        msg: "'-'演算子の右辺値がありません".to_string(),
-                        span,
-                    })?;
-                    node = Some(Box::new(Node::new_scaled_sub(n, rhs, span)?));
-                }
-            } else {
-                return Ok(node);
-            }
-        }
+        self.parse_binary_op(
+            |ast| ast.mul_expr(),
+            &[
+                ("+", &|l, r, s| Node::new_scaled_add(l, r, s)),
+                ("-", &|l, r, s| Node::new_scaled_sub(l, r, s)),
+            ],
+        )
     }
 
     // Original BNF:
@@ -491,46 +382,14 @@ impl Ast<'_> {
     // Fixed BNF (left recursion removed):
     // mul_expr ::= cast_expr (("*" | "/" | "%") cast_expr)*
     fn mul_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
-        let mut node = self.cast_expr()?;
-
-        loop {
-            if let Some(span) = self.consume_punct("*") {
-                // multiplication
-                let lhs = node.ok_or_else(|| CompileError::InvalidExpr {
-                    msg: "'*'演算子の左辺値がありません".to_string(),
-                    span,
-                })?;
-                let rhs = self.cast_expr()?.ok_or_else(|| CompileError::InvalidExpr {
-                    msg: "'*'演算子の右辺値がありません".to_string(),
-                    span,
-                })?;
-                node = Some(Box::new(Node::new_binary(BinaryOp::Mul, lhs, rhs, span)?));
-            } else if let Some(span) = self.consume_punct("/") {
-                // division
-                let lhs = node.ok_or_else(|| CompileError::InvalidExpr {
-                    msg: "'/'演算子の左辺値がありません".to_string(),
-                    span,
-                })?;
-                let rhs = self.cast_expr()?.ok_or_else(|| CompileError::InvalidExpr {
-                    msg: "'/'演算子の右辺値がありません".to_string(),
-                    span,
-                })?;
-                node = Some(Box::new(Node::new_binary(BinaryOp::Div, lhs, rhs, span)?));
-            } else if let Some(span) = self.consume_punct("%") {
-                // remainder
-                let lhs = node.ok_or_else(|| CompileError::InvalidExpr {
-                    msg: "'%'演算子の左辺値がありません".to_string(),
-                    span,
-                })?;
-                let rhs = self.cast_expr()?.ok_or_else(|| CompileError::InvalidExpr {
-                    msg: "'%'演算子の右辺値がありません".to_string(),
-                    span,
-                })?;
-                node = Some(Box::new(Node::new_binary(BinaryOp::Rem, lhs, rhs, span)?));
-            } else {
-                return Ok(node);
-            }
-        }
+        self.parse_binary_op(
+            |ast| ast.cast_expr(),
+            &[
+                ("*", &|l, r, s| Node::new_binary(BinaryOp::Mul, l, r, s)),
+                ("/", &|l, r, s| Node::new_binary(BinaryOp::Div, l, r, s)),
+                ("%", &|l, r, s| Node::new_binary(BinaryOp::Rem, l, r, s)),
+            ],
+        )
     }
 
     // cast_expr ::= unary_expr

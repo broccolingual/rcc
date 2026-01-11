@@ -17,6 +17,8 @@ pub(crate) enum BinaryOp {
     Ne,     // !=
     Lt,     // <
     Le,     // <=
+    Gt,     // >
+    Ge,     // >=
 }
 
 impl FromStr for BinaryOp {

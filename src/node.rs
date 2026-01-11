@@ -45,6 +45,9 @@ impl fmt::Debug for Node {
                 write!(f, ", name: {}", name)?;
                 write!(f, ", expr: {:?}", expr)?;
             }
+            NodeKind::Comma { lhs, rhs } => {
+                write!(f, ", lhs: {:?}, rhs: {:?}", lhs, rhs)?;
+            }
             _ => {}
         }
         write!(f, " }}")
@@ -194,7 +197,12 @@ impl Node {
                     });
                 }
             }
-            BinaryOp::Eq | BinaryOp::Ne | BinaryOp::Lt | BinaryOp::Le => {
+            BinaryOp::Eq
+            | BinaryOp::Ne
+            | BinaryOp::Lt
+            | BinaryOp::Le
+            | BinaryOp::Gt
+            | BinaryOp::Ge => {
                 let lhs_ty = lhs.ty;
                 let rhs_ty = rhs.ty;
 
@@ -339,6 +347,12 @@ impl Node {
         };
 
         Ok(Node { kind: NodeKind::LogicalOr { lhs, rhs, label }, ty, span })
+    }
+
+    pub(crate) fn new_comma(lhs: Box<Node>, rhs: Box<Node>, span: Span) -> Self {
+        // カンマ演算子の型は右辺の型とする
+        let ty = rhs.ty;
+        Node { kind: NodeKind::Comma { lhs, rhs }, ty, span }
     }
 
     pub(crate) fn new_ternary(
