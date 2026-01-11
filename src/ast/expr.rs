@@ -22,23 +22,19 @@ impl Ast<'_> {
         let mut node = next_parser(self)?;
 
         loop {
-            let mut matched = false;
-            for (op_str, constructor) in operators {
-                if let Some(span) = self.consume_punct(op_str) {
-                    let lhs = node.ok_or_else(|| CompileError::InvalidExpr {
-                        msg: format!("'{}'演算子の左辺値がありません", op_str),
-                        span,
-                    })?;
-                    let rhs = next_parser(self)?.ok_or_else(|| CompileError::InvalidExpr {
-                        msg: format!("'{}'演算子の右辺値がありません", op_str),
-                        span,
-                    })?;
-                    node = Some(Box::new(constructor(lhs, rhs, span)?));
-                    matched = true;
-                    break;
-                }
-            }
-            if !matched {
+            if let Some((op_str, constructor)) = operators.iter().find(|(s, _)| self.peek_punct(s))
+            {
+                let span = self.consume_punct(op_str).unwrap(); // peek_punctで確認済みのため安全
+                let lhs = node.ok_or_else(|| CompileError::InvalidExpr {
+                    msg: format!("'{}'演算子の左辺値がありません", op_str),
+                    span,
+                })?;
+                let rhs = next_parser(self)?.ok_or_else(|| CompileError::InvalidExpr {
+                    msg: format!("'{}'演算子の右辺値がありません", op_str),
+                    span,
+                })?;
+                node = Some(Box::new(constructor(lhs, rhs, span)?));
+            } else {
                 return Ok(node);
             }
         }
