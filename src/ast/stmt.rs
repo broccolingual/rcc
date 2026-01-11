@@ -82,77 +82,80 @@ impl Ast<'_> {
     fn iteration_stmt(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         if let Some(span) = self.consume_keyword("while") {
             let label = self.next_label();
-            self.push_loop(label);
-            self.expect_punct("(")?;
-            let cond = self.expr()?.ok_or_else(|| CompileError::InvalidStmt {
-                msg: "while文の条件式がありません".to_string(),
-                span,
+            let node = self.with_loop_scope(label, |this| {
+                this.expect_punct("(")?;
+                let cond = this.expr()?.ok_or_else(|| CompileError::InvalidStmt {
+                    msg: "while文の条件式がありません".to_string(),
+                    span,
+                })?;
+                this.expect_punct(")")?;
+                let then = this.stmt()?.ok_or_else(|| CompileError::InvalidStmt {
+                    msg: "while文のthen文がありません".to_string(),
+                    span,
+                })?;
+                Ok(Box::new(Node::new(NodeKind::While { cond, then, label }, span)))
             })?;
-            self.expect_punct(")")?;
-            let then = self.stmt()?.ok_or_else(|| CompileError::InvalidStmt {
-                msg: "while文のthen文がありません".to_string(),
-                span,
-            })?;
-            self.pop_loop()?;
-            return Ok(Some(Box::new(Node::new(NodeKind::While { cond, then, label }, span))));
+            return Ok(Some(node));
         }
 
         if let Some(span) = self.consume_keyword("do") {
             let label = self.next_label();
-            self.push_loop(label);
-            let then = self.stmt()?.ok_or_else(|| CompileError::InvalidStmt {
-                msg: "do-while文のthen文がありません".to_string(),
-                span,
+            let node = self.with_loop_scope(label, |this| {
+                let then = this.stmt()?.ok_or_else(|| CompileError::InvalidStmt {
+                    msg: "do-while文のthen文がありません".to_string(),
+                    span,
+                })?;
+                this.expect_keyword("while")?;
+                this.expect_punct("(")?;
+                let cond = this.expr()?.ok_or_else(|| CompileError::InvalidStmt {
+                    msg: "do-while文の条件式がありません".to_string(),
+                    span,
+                })?;
+                this.expect_punct(")")?;
+                this.expect_punct(";")?;
+                Ok(Box::new(Node::new(NodeKind::Do { then, cond, label }, span)))
             })?;
-            self.expect_keyword("while")?;
-            self.expect_punct("(")?;
-            let cond = self.expr()?.ok_or_else(|| CompileError::InvalidStmt {
-                msg: "do-while文の条件式がありません".to_string(),
-                span,
-            })?;
-            self.expect_punct(")")?;
-            self.expect_punct(";")?;
-            self.pop_loop()?;
-            return Ok(Some(Box::new(Node::new(NodeKind::Do { then, cond, label }, span))));
+            return Ok(Some(node));
         }
 
         if let Some(span) = self.consume_keyword("for") {
             let label = self.next_label();
-            self.push_loop(label);
-            self.expect_punct("(")?;
-            // 初期化式
-            let init = if self.consume_punct(";").is_none() {
-                let expr = self.expr()?;
-                self.expect_punct(";")?;
-                expr
-            } else {
-                None
-            };
-            // 条件式
-            let cond = if self.consume_punct(";").is_none() {
-                let expr = self.expr()?;
-                self.expect_punct(";")?;
-                expr
-            } else {
-                None
-            };
-            // 更新式
-            let inc = if self.consume_punct(")").is_none() {
-                let expr = self.expr()?;
-                self.expect_punct(")")?;
-                expr
-            } else {
-                None
-            };
-            let then = self.stmt()?.ok_or_else(|| CompileError::InvalidStmt {
-                msg: "for文のthen文がありません".to_string(),
-                span,
+            let node = self.with_loop_scope(label, |this| {
+                this.expect_punct("(")?;
+                // 初期化式
+                let init = if this.consume_punct(";").is_none() {
+                    let expr = this.expr()?;
+                    this.expect_punct(";")?;
+                    expr
+                } else {
+                    None
+                };
+                // 条件式
+                let cond = if this.consume_punct(";").is_none() {
+                    let expr = this.expr()?;
+                    this.expect_punct(";")?;
+                    expr
+                } else {
+                    None
+                };
+                // 更新式
+                let inc = if this.consume_punct(")").is_none() {
+                    let expr = this.expr()?;
+                    this.expect_punct(")")?;
+                    expr
+                } else {
+                    None
+                };
+                let then = this.stmt()?.ok_or_else(|| CompileError::InvalidStmt {
+                    msg: "for文のthen文がありません".to_string(),
+                    span,
+                })?;
+                Ok(Box::new(Node::new(
+                    NodeKind::For { init, cond, inc, then, label },
+                    span,
+                )))
             })?;
-            self.pop_loop()?;
-            return Ok(Some(Box::new(Node::new(
-                NodeKind::For { init, cond, inc, then, label },
-                span,
-            ))));
+            return Ok(Some(node));
         }
         Ok(None)
     }

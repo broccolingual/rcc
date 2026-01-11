@@ -263,6 +263,19 @@ impl<'a> Ast<'a> {
         self.loop_stack.last().copied()
     }
 
+    // ループスコープを管理するRAIIヘルパー
+    // スコープを抜ける際に自動的にpop_loopを呼び出す
+    fn with_loop_scope<F, T>(&mut self, label: usize, f: F) -> Result<T, CompileError>
+    where
+        F: FnOnce(&mut Self) -> Result<T, CompileError>,
+    {
+        self.push_loop(label);
+        let result = f(self);
+        // エラーが発生してもpop_loopは必ず実行される
+        self.pop_loop()?;
+        result
+    }
+
     // 現在のトークンを取得
     fn get_token(&self) -> &Token {
         &self.tokens[self.token_pos]
