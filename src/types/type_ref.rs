@@ -234,26 +234,15 @@ impl TypeRef {
             TypeKind::Array { base, size } => {
                 let new_base = base.replace_type(target, replacement);
                 TypeRef::register(
-                    TypeKind::Array {
-                        base: new_base,
-                        size,
-                    },
+                    TypeKind::Array { base: new_base, size },
                     self.attr(),
                     self.storage_class(),
                 )
             }
-            TypeKind::Func {
-                return_ty,
-                params,
-                is_variadic,
-            } => {
+            TypeKind::Func { return_ty, params, is_variadic } => {
                 let new_return = return_ty.replace_type(target, replacement);
                 TypeRef::register(
-                    TypeKind::Func {
-                        return_ty: new_return,
-                        params,
-                        is_variadic,
-                    },
+                    TypeKind::Func { return_ty: new_return, params, is_variadic },
                     self.attr(),
                     self.storage_class(),
                 )
