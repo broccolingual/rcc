@@ -599,8 +599,7 @@ impl Ast<'_> {
     //                     | direct_declarator "(" param_type_list ")"
     fn direct_declarator(&mut self, base_ty: &TypeRef) -> Result<Decl, CompileError> {
         if let Some(paren_span) = self.consume_punct("(") {
-            // 括弧で囲まれた宣言子の場合、プレースホルダーを使って内側の型を一時的に表現
-            let placeholder = TypeRef::default();
+            let placeholder = TypeRef::default(); // プレースホルダーを使って内側の型を一時的に表現
             let inner_decl = self.declarator(&placeholder)?;
             self.expect_punct(")")?;
             let suffix_ty = self.direct_declarator_suffix(base_ty)?; // 外側のsuffixを先にパース
@@ -767,14 +766,16 @@ impl Ast<'_> {
     //                          | direct_abst_declarator "[" type_qual_list? assign_expr? "]"
     //                          | direct_abst_declarator "(" param_type_list ")"
     fn direct_abst_declarator(&mut self, base_ty: &TypeRef) -> Result<TypeRef, CompileError> {
-        let current_ty = if self.consume_punct("(").is_some() {
-            let inner_ty = self.abst_declarator(base_ty)?;
+        if self.consume_punct("(").is_some() {
+            let placeholder = TypeRef::default(); // プレースホルダーを使って内側の型を一時的に表現
+            let inner_ty = self.abst_declarator(&placeholder)?;
             self.expect_punct(")")?;
-            inner_ty
+            let suffix_ty = self.direct_abst_declarator_suffix(base_ty)?; // 外側のsuffixを先にパース
+            // プレースホルダーをsuffix_tyで置き換え
+            Ok(inner_ty.replace_type(placeholder, suffix_ty))
         } else {
-            *base_ty
-        };
-        self.direct_abst_declarator_suffix(&current_ty)
+            self.direct_abst_declarator_suffix(base_ty)
+        }
     }
 
     // 右結合で解析
