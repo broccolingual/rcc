@@ -117,7 +117,7 @@ impl Ast<'_> {
 
     // プロトタイプ宣言を検証
     fn validate_func_prototype(&mut self, decl: &Decl) -> Result<(), CompileError> {
-        if let Some(symbol) = self.find_symbol_mut(&decl.name) {
+        if let Some(symbol) = self.find_symbol(&decl.name) {
             if !symbol.is_func() {
                 return Err(CompileError::InvalidDecl {
                     msg: format!("'{}' は関数ではありません", decl.name),
