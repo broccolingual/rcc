@@ -127,6 +127,17 @@ impl Generator<'_> {
 
     fn gen_unary(&mut self, op: &UnaryOp, expr: &Node, ty: &TypeRef) -> Result<(), CompileError> {
         match op {
+            UnaryOp::Plus => {
+                // unary plus: 式を評価してそのまま返す
+                self.gen_expr(expr)?;
+            }
+            UnaryOp::Minus => {
+                // unary minus: 式を評価して符号を反転
+                self.gen_expr(expr)?;
+                self.builder.add_row("pop rax", true);
+                self.builder.add_row("neg rax", true);
+                self.builder.add_row("push rax", true);
+            }
             UnaryOp::BitNot => {
                 self.gen_expr(expr)?;
                 self.builder.add_row("not QWORD PTR [rsp]", true);

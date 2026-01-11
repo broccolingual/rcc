@@ -5,6 +5,8 @@ use crate::types::TypeKind;
 use crate::utils::Span;
 use core::str::FromStr;
 
+type BinaryOpConstructor = dyn Fn(Box<Node>, Box<Node>, Span) -> Result<Node, CompileError>;
+
 impl Ast<'_> {
     // 二項演算子の共通パース処理を行うヘルパー関数
     // next_parser: 次の優先度の式をパースする関数
@@ -12,7 +14,7 @@ impl Ast<'_> {
     fn parse_binary_op<F>(
         &mut self,
         mut next_parser: F,
-        operators: &[(&str, &dyn Fn(Box<Node>, Box<Node>, Span) -> Result<Node, CompileError>)],
+        operators: &[(&str, &BinaryOpConstructor)],
     ) -> Result<Option<Box<Node>>, CompileError>
     where
         F: FnMut(&mut Self) -> Result<Option<Box<Node>>, CompileError>,
@@ -92,6 +94,8 @@ impl Ast<'_> {
             NodeKind::UnaryOp { op, expr } => {
                 let val = Self::eval_const_expr(expr)?;
                 match op {
+                    UnaryOp::Plus => Ok(val),
+                    UnaryOp::Minus => Ok(-val),
                     UnaryOp::BitNot => Ok(!val),
                     UnaryOp::LogicalNot => Ok(if val == 0 { 1 } else { 0 }),
                     _ => Err(CompileError::InvalidExpr {
@@ -436,9 +440,13 @@ impl Ast<'_> {
             return Ok(Some(Box::new(Node::new_scaled_decrement(node, true, span)?)));
         }
 
-        if self.consume_punct("+").is_some() {
+        if let Some(span) = self.consume_punct("+") {
             // unary plus
-            return self.cast_expr();
+            let expr = self.cast_expr()?.ok_or_else(|| CompileError::InvalidExpr {
+                msg: "単項'+'の後に式がありません".to_string(),
+                span,
+            })?;
+            return Ok(Some(Box::new(Node::new_unary(UnaryOp::Plus, expr, span)?)));
         }
         if let Some(span) = self.consume_punct("-") {
             // unary minus
@@ -446,12 +454,7 @@ impl Ast<'_> {
                 msg: "単項'-'の後に式がありません".to_string(),
                 span,
             })?;
-            return Ok(Some(Box::new(Node::new_binary(
-                BinaryOp::Sub,
-                Box::new(Node::new_num(0, span)),
-                expr,
-                span,
-            )?)));
+            return Ok(Some(Box::new(Node::new_unary(UnaryOp::Minus, expr, span)?)));
         }
         if let Some(span) = self.consume_punct("&") {
             // address-of

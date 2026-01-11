@@ -233,6 +233,21 @@ impl Node {
         span: Span,
     ) -> Result<Self, CompileError> {
         let ty = match op {
+            UnaryOp::Plus | UnaryOp::Minus => {
+                let expr_ty = &expr.ty;
+
+                if expr_ty.is_integer() {
+                    TypeRef::register(TypeKind::Int, TypeAttr::default(), None) // 整数拡張
+                } else {
+                    return Err(CompileError::InvalidExpr {
+                        msg: format!(
+                            "単項演算子 '{:?}' は整数型にのみ適用可能です: {:?}",
+                            op, expr_ty
+                        ),
+                        span,
+                    });
+                }
+            }
             UnaryOp::BitNot => {
                 let expr_ty = &expr.ty;
 
