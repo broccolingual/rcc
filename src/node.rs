@@ -45,6 +45,9 @@ impl fmt::Debug for Node {
                 write!(f, ", name: {}", name)?;
                 write!(f, ", expr: {:?}", expr)?;
             }
+            NodeKind::Comma { lhs, rhs } => {
+                write!(f, ", lhs: {:?}, rhs: {:?}", lhs, rhs)?;
+            }
             _ => {}
         }
         write!(f, " }}")
@@ -194,7 +197,12 @@ impl Node {
                     });
                 }
             }
-            BinaryOp::Eq | BinaryOp::Ne | BinaryOp::Lt | BinaryOp::Le => {
+            BinaryOp::Eq
+            | BinaryOp::Ne
+            | BinaryOp::Lt
+            | BinaryOp::Le
+            | BinaryOp::Gt
+            | BinaryOp::Ge => {
                 let lhs_ty = lhs.ty;
                 let rhs_ty = rhs.ty;
 
@@ -225,6 +233,21 @@ impl Node {
         span: Span,
     ) -> Result<Self, CompileError> {
         let ty = match op {
+            UnaryOp::Plus | UnaryOp::Minus => {
+                let expr_ty = &expr.ty;
+
+                if expr_ty.is_integer() {
+                    TypeRef::register(TypeKind::Int, TypeAttr::default(), None) // 整数拡張
+                } else {
+                    return Err(CompileError::InvalidExpr {
+                        msg: format!(
+                            "単項演算子 '{:?}' は整数型にのみ適用可能です: {:?}",
+                            op, expr_ty
+                        ),
+                        span,
+                    });
+                }
+            }
             UnaryOp::BitNot => {
                 let expr_ty = &expr.ty;
 
@@ -339,6 +362,12 @@ impl Node {
         };
 
         Ok(Node { kind: NodeKind::LogicalOr { lhs, rhs, label }, ty, span })
+    }
+
+    pub(crate) fn new_comma(lhs: Box<Node>, rhs: Box<Node>, span: Span) -> Self {
+        // カンマ演算子の型は右辺の型とする
+        let ty = rhs.ty;
+        Node { kind: NodeKind::Comma { lhs, rhs }, ty, span }
     }
 
     pub(crate) fn new_ternary(

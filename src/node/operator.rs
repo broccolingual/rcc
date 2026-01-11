@@ -17,6 +17,8 @@ pub(crate) enum BinaryOp {
     Ne,     // !=
     Lt,     // <
     Le,     // <=
+    Gt,     // >
+    Ge,     // >=
 }
 
 impl FromStr for BinaryOp {
@@ -42,6 +44,8 @@ impl FromStr for BinaryOp {
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub(crate) enum UnaryOp {
+    Plus,       // +
+    Minus,      // -
     BitNot,     // ~
     LogicalNot, // !
     Addr,       // &

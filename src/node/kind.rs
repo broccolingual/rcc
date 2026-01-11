@@ -27,6 +27,10 @@ pub(crate) enum NodeKind {
         rhs: Box<Node>,
         label: usize,
     }, // ||
+    Comma {
+        lhs: Box<Node>,
+        rhs: Box<Node>,
+    }, // ,
     If {
         cond: Box<Node>,
         then: Box<Node>,
