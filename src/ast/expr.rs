@@ -44,6 +44,24 @@ impl Ast<'_> {
         }
     }
 
+    // 単項演算子の共通パース処理を行うヘルパー関数
+    // operators: パース対象の演算子のリスト ("演算子文字列", UnaryOp)
+    fn parse_unary_op(
+        &mut self,
+        operators: &[(&str, UnaryOp)],
+    ) -> Result<Option<Box<Node>>, CompileError> {
+        for (op_str, unary_op) in operators {
+            if let Some(span) = self.consume_punct(op_str) {
+                let expr = self.cast_expr()?.ok_or_else(|| CompileError::InvalidExpr {
+                    msg: format!("単項'{}'の後に式がありません", op_str),
+                    span,
+                })?;
+                return Ok(Some(Box::new(Node::new_unary(*unary_op, expr, span)?)));
+            }
+        }
+        Ok(None)
+    }
+
     // 論理演算子の共通パース処理を行うヘルパー関数（ラベル付き）
     // next_parser: 次の優先度の式をパースする関数
     // op_str: 演算子文字列
@@ -423,8 +441,8 @@ impl Ast<'_> {
     //              | sizeof unary_expr
     //              | sizeof "(" type_name ")"
     fn unary_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
+        // ("++" | "--") unary_expr
         if let Some(span) = self.consume_punct("++") {
-            // pre-increment
             let node = self.unary_expr()?.ok_or_else(|| CompileError::InvalidExpr {
                 msg: "単項'++'の後に式がありません".to_string(),
                 span,
@@ -432,7 +450,6 @@ impl Ast<'_> {
             return Ok(Some(Box::new(Node::new_scaled_increment(node, true, span)?)));
         }
         if let Some(span) = self.consume_punct("--") {
-            // pre-decrement
             let node = self.unary_expr()?.ok_or_else(|| CompileError::InvalidExpr {
                 msg: "単項'--'の後に式がありません".to_string(),
                 span,
@@ -440,55 +457,19 @@ impl Ast<'_> {
             return Ok(Some(Box::new(Node::new_scaled_decrement(node, true, span)?)));
         }
 
-        if let Some(span) = self.consume_punct("+") {
-            // unary plus
-            let expr = self.cast_expr()?.ok_or_else(|| CompileError::InvalidExpr {
-                msg: "単項'+'の後に式がありません".to_string(),
-                span,
-            })?;
-            return Ok(Some(Box::new(Node::new_unary(UnaryOp::Plus, expr, span)?)));
-        }
-        if let Some(span) = self.consume_punct("-") {
-            // unary minus
-            let expr = self.cast_expr()?.ok_or_else(|| CompileError::InvalidExpr {
-                msg: "単項'-'の後に式がありません".to_string(),
-                span,
-            })?;
-            return Ok(Some(Box::new(Node::new_unary(UnaryOp::Minus, expr, span)?)));
-        }
-        if let Some(span) = self.consume_punct("&") {
-            // address-of
-            let expr = self.cast_expr()?.ok_or_else(|| CompileError::InvalidExpr {
-                msg: "単項'&'の後に式がありません".to_string(),
-                span,
-            })?;
-            return Ok(Some(Box::new(Node::new_unary(UnaryOp::Addr, expr, span)?)));
-        }
-        if let Some(span) = self.consume_punct("*") {
-            // dereference
-            let expr = self.cast_expr()?.ok_or_else(|| CompileError::InvalidExpr {
-                msg: "単項'*'の後に式がありません".to_string(),
-                span,
-            })?;
-            return Ok(Some(Box::new(Node::new_unary(UnaryOp::Deref, expr, span)?)));
-        }
-        if let Some(span) = self.consume_punct("~") {
-            // bitwise not
-            let expr = self.cast_expr()?.ok_or_else(|| CompileError::InvalidExpr {
-                msg: "単項'~'の後に式がありません".to_string(),
-                span,
-            })?;
-            return Ok(Some(Box::new(Node::new_unary(UnaryOp::BitNot, expr, span)?)));
-        }
-        if let Some(span) = self.consume_punct("!") {
-            // logical not
-            let expr = self.cast_expr()?.ok_or_else(|| CompileError::InvalidExpr {
-                msg: "単項'!'の後に式がありません".to_string(),
-                span,
-            })?;
-            return Ok(Some(Box::new(Node::new_unary(UnaryOp::LogicalNot, expr, span)?)));
+        // ( "&" | "*" | "+" | "-" | "~" | "!") cast_expr
+        if let Some(node) = self.parse_unary_op(&[
+            ("&", UnaryOp::Addr),
+            ("*", UnaryOp::Deref),
+            ("+", UnaryOp::Plus),
+            ("-", UnaryOp::Minus),
+            ("~", UnaryOp::BitNot),
+            ("!", UnaryOp::LogicalNot),
+        ])? {
+            return Ok(Some(node));
         }
 
+        // sizeof unary_expr | sizeof "(" type_name ")"
         if let Some(span) = self.consume_keyword("sizeof") {
             // sizeof ( type_name )
             if self.peek_punct("(")
