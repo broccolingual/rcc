@@ -266,12 +266,14 @@ impl<'a> Ast<'a> {
     fn pop_loop(&mut self) -> Result<(), CompileError> {
         match self.breakable_stack.pop() {
             Some(BreakableCtx::Loop(_)) => Ok(()),
-            _ => Err(CompileError::InternalError {
-                msg: "breakable_stackの整合性が取れていません。Loopコンテキストを期待しました。"
+            Some(BreakableCtx::Switch(_)) => Err(CompileError::InternalError {
+                msg: "breakable_stackの整合性が取れていません。Loopコンテキストを期待しましたが、Switchコンテキストが見つかりました。"
                     .to_string(),
             }),
-        }?;
-        Ok(())
+            None => Err(CompileError::InternalError {
+                msg: "ループスタックが空です".to_string(),
+            }),
+        }
     }
 
     fn current_loop_label(&self) -> Option<usize> {
@@ -302,11 +304,15 @@ impl<'a> Ast<'a> {
     }
 
     fn pop_switch(&mut self) -> Result<SwitchCtx, CompileError> {
-        // breakable_stackからpop
-        if let Some(BreakableCtx::Switch(ctx)) = self.breakable_stack.pop() {
-            Ok(*ctx)
-        } else {
-            Err(CompileError::InternalError { msg: "switchスタックが空です".to_string() })
+        match self.breakable_stack.pop() {
+            Some(BreakableCtx::Switch(ctx)) => Ok(*ctx),
+            Some(BreakableCtx::Loop(_)) => Err(CompileError::InternalError {
+                msg: "breakable_stackの整合性が取れていません。Switchコンテキストを期待しましたが、Loopコンテキストが見つかりました。"
+                    .to_string(),
+            }),
+            None => Err(CompileError::InternalError {
+                msg: "switchスタックが空です".to_string(),
+            }),
         }
     }
 
