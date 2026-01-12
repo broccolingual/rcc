@@ -440,6 +440,9 @@ impl Node {
             | NodeKind::While { .. }
             | NodeKind::For { .. }
             | NodeKind::Do { .. }
+            | NodeKind::Switch { .. }
+            | NodeKind::Case { .. }
+            | NodeKind::Default { .. }
             | NodeKind::Block { .. }
             | NodeKind::Break { .. }
             | NodeKind::Continue { .. }

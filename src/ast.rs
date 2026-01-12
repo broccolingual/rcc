@@ -11,6 +11,19 @@ use crate::types::TypeRef;
 use crate::utils::{AlignUp, Span};
 use std::collections::HashMap;
 
+// switch文のコンテキスト情報
+struct SwitchContext {
+    label: usize,
+    cases: Vec<(i64, usize)>,
+    default_label: Option<usize>,
+}
+
+// ループとswitchを統合したコンテキスト
+enum BreakableContext {
+    Loop(usize),                // ループのラベル
+    Switch(Box<SwitchContext>), // switchのコンテキスト
+}
+
 pub(crate) struct Ast<'a> {
     tokens: &'a [Token],
     token_pos: usize,
@@ -20,6 +33,7 @@ pub(crate) struct Ast<'a> {
     pub(crate) string_literals: HashMap<String, usize>,
     label_seq: usize,
     loop_stack: Vec<usize>,
+    breakable_stack: Vec<BreakableContext>, // ループとswitchを統合
 }
 
 impl<'a> Ast<'a> {
@@ -33,6 +47,7 @@ impl<'a> Ast<'a> {
             string_literals: HashMap::new(),
             label_seq: 0,
             loop_stack: Vec::new(),
+            breakable_stack: Vec::new(),
         }
     }
 
@@ -248,15 +263,18 @@ impl<'a> Ast<'a> {
 
     fn push_loop(&mut self, label_seq: usize) {
         self.loop_stack.push(label_seq);
+        self.breakable_stack.push(BreakableContext::Loop(label_seq));
     }
 
     fn pop_loop(&mut self) -> Result<(), CompileError> {
-        self.loop_stack
-            .pop()
-            .ok_or_else(|| CompileError::InternalError {
-                msg: "ループスタックが空です".to_string(),
-            })
-            .map(|_| ())
+        self.loop_stack.pop().ok_or_else(|| CompileError::InternalError {
+            msg: "ループスタックが空です".to_string(),
+        })?;
+        // breakable_stackからもpop
+        if let Some(BreakableContext::Loop(_)) = self.breakable_stack.last() {
+            self.breakable_stack.pop();
+        }
+        Ok(())
     }
 
     fn current_loop_label(&self) -> Option<usize> {
@@ -271,12 +289,88 @@ impl<'a> Ast<'a> {
     {
         self.push_loop(label);
         let result = f(self);
-        if let Err(pop_err) = self.pop_loop() {
-            if result.is_ok() {
-                return Err(pop_err);
-            }
+        if let Err(pop_err) = self.pop_loop()
+            && result.is_ok()
+        {
+            return Err(pop_err);
         }
         result
+    }
+
+    fn push_switch(&mut self, label: usize) {
+        let ctx = SwitchContext { label, cases: Vec::new(), default_label: None };
+        self.breakable_stack.push(BreakableContext::Switch(Box::new(ctx)));
+    }
+
+    fn pop_switch(&mut self) -> Result<SwitchContext, CompileError> {
+        // breakable_stackからpop
+        if let Some(BreakableContext::Switch(ctx)) = self.breakable_stack.pop() {
+            Ok(*ctx)
+        } else {
+            Err(CompileError::InternalError { msg: "switchスタックが空です".to_string() })
+        }
+    }
+
+    fn current_breakable_label(&self) -> Option<usize> {
+        self.breakable_stack.last().map(|ctx| match ctx {
+            BreakableContext::Loop(label) => *label,
+            BreakableContext::Switch(switch_ctx) => switch_ctx.label,
+        })
+    }
+
+    fn add_case(&mut self, val: i64, case_label: usize, span: Span) -> Result<(), CompileError> {
+        // breakable_stackから最後のswitchを見つける
+        let switch_ctx = self
+            .breakable_stack
+            .iter_mut()
+            .rev()
+            .find_map(|ctx| {
+                if let BreakableContext::Switch(switch_ctx) = ctx {
+                    Some(switch_ctx.as_mut())
+                } else {
+                    None
+                }
+            })
+            .ok_or_else(|| CompileError::InvalidStmt {
+                msg: "case文がswitch文の外にあります".to_string(),
+                span,
+            })?;
+        // 重複チェック
+        if switch_ctx.cases.iter().any(|(v, _)| *v == val) {
+            return Err(CompileError::InvalidStmt {
+                msg: format!("case値 {} が重複しています", val),
+                span,
+            });
+        }
+        switch_ctx.cases.push((val, case_label));
+        Ok(())
+    }
+
+    fn set_default(&mut self, default_label: usize, span: Span) -> Result<(), CompileError> {
+        // breakable_stackから最後のswitchを見つける
+        let switch_ctx = self
+            .breakable_stack
+            .iter_mut()
+            .rev()
+            .find_map(|ctx| {
+                if let BreakableContext::Switch(switch_ctx) = ctx {
+                    Some(switch_ctx.as_mut())
+                } else {
+                    None
+                }
+            })
+            .ok_or_else(|| CompileError::InvalidStmt {
+                msg: "default文がswitch文の外にあります".to_string(),
+                span,
+            })?;
+        if switch_ctx.default_label.is_some() {
+            return Err(CompileError::InvalidStmt {
+                msg: "defaultラベルが重複しています".to_string(),
+                span,
+            });
+        }
+        switch_ctx.default_label = Some(default_label);
+        Ok(())
     }
 
     // 現在のトークンを取得

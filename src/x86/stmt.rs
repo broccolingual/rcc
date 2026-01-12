@@ -70,6 +70,32 @@ impl Generator<'_> {
                 self.builder.add_row(&format!("jne .L.begin.{}", label), true);
                 self.builder.add_row(&format!(".L.break.{}:", label), false);
             }
+            NodeKind::Switch { cond, body, label, cases, default_label } => {
+                self.gen_expr(cond)?; // 条件式を評価
+                self.builder.add_row("pop rax", true);
+
+                // 各caseと比較
+                for (val, case_label) in cases {
+                    self.builder.add_row(&format!("cmp rax, {}", val), true);
+                    self.builder.add_row(&format!("je .L.case.{}", case_label), true);
+                }
+
+                // いずれのcaseにも一致しない場合
+                if let Some(default_label) = default_label {
+                    self.builder.add_row(&format!("jmp .L.default.{}", default_label), true);
+                } else {
+                    // defaultがない場合はswitch文を抜ける
+                    self.builder.add_row(&format!("jmp .L.break.{}", label), true);
+                }
+                self.gen_stmt(body)?; // switch文の本体
+                self.builder.add_row(&format!(".L.break.{}:", label), false);
+            }
+            NodeKind::Case { label, .. } => {
+                self.builder.add_row(&format!(".L.case.{}:", label), false);
+            }
+            NodeKind::Default { label } => {
+                self.builder.add_row(&format!(".L.default.{}:", label), false);
+            }
             NodeKind::Block { body } => {
                 for node in body.iter() {
                     if node.is_expr() {

@@ -5,9 +5,25 @@ use crate::node::{Node, NodeKind};
 
 impl Ast<'_> {
     // labeled_stmt ::= ident ":" stmt
-    //                | "case" const_expr ":" stmt // TODO: 未実装
-    //                | "default" ":" stmt // TODO: 未実装
+    //                | "case" const_expr ":" stmt
+    //                | "default" ":" stmt
     fn labeled_stmt(&mut self) -> Result<Option<Box<Node>>, CompileError> {
+        if let Some(span) = self.consume_keyword("case") {
+            let val = self.const_expr()?;
+            self.expect_punct(":")?;
+            let case_label = self.next_label();
+            self.add_case(val, case_label, span)?;
+            return Ok(Some(Box::new(Node::new(NodeKind::Case { val, label: case_label }, span))));
+        }
+
+        if let Some(span) = self.consume_keyword("default") {
+            self.expect_punct(":")?;
+            let default_label = self.next_label();
+            self.set_default(default_label, span)?;
+            return Ok(Some(Box::new(Node::new(NodeKind::Default { label: default_label }, span))));
+        }
+
+        // 通常のラベル
         if let Some((name, span)) = self.consume_ident() {
             if self.consume_punct(":").is_some() {
                 let expr = self.stmt()?.ok_or_else(|| CompileError::InvalidStmt {
@@ -55,7 +71,7 @@ impl Ast<'_> {
     }
 
     // selection_stmt ::= "if" "(" expr ")" stmt ("else" stmt)?
-    //                  | "switch" "(" expr ")" stmt // TODO: 未実装
+    //                  | "switch" "(" expr ")" stmt
     fn selection_stmt(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         if let Some(span) = self.consume_keyword("if") {
             let label = self.next_label();
@@ -71,6 +87,32 @@ impl Ast<'_> {
             })?;
             let els = if self.consume_keyword("else").is_some() { self.stmt()? } else { None };
             return Ok(Some(Box::new(Node::new(NodeKind::If { cond, then, els, label }, span))));
+        }
+
+        if let Some(span) = self.consume_keyword("switch") {
+            let label = self.next_label();
+            self.expect_punct("(")?;
+            let cond = self.expr()?.ok_or_else(|| CompileError::InvalidStmt {
+                msg: "switch文の条件式がありません".to_string(),
+                span,
+            })?;
+            self.expect_punct(")")?;
+            self.push_switch(label); // switch文のコンテキストをプッシュ
+            let body = self.stmt()?.ok_or_else(|| CompileError::InvalidStmt {
+                msg: "switch文の本体がありません".to_string(),
+                span,
+            })?;
+            let switch_ctx = self.pop_switch()?; // switch文のコンテキストをポップして、case情報を取得
+            return Ok(Some(Box::new(Node::new(
+                NodeKind::Switch {
+                    cond,
+                    body,
+                    label,
+                    cases: switch_ctx.cases,
+                    default_label: switch_ctx.default_label,
+                },
+                span,
+            ))));
         }
         Ok(None)
     }
@@ -181,8 +223,9 @@ impl Ast<'_> {
         }
 
         if let Some(span) = self.consume_keyword("break") {
-            let label = self.current_loop_label().ok_or(CompileError::InvalidStmt {
-                msg: "break文がループの外で使われています".to_string(),
+            // break文は最も近いloopまたはswitchを抜ける
+            let label = self.current_breakable_label().ok_or(CompileError::InvalidStmt {
+                msg: "break文がループまたはswitch文の外で使われています".to_string(),
                 span,
             })?;
             self.expect_punct(";")?;
