@@ -115,6 +115,18 @@ impl<'a> Ast<'a> {
         FuncId(self.funcs.len() - 1)
     }
 
+    // 現在の関数コンテキストを設定して処理を行うRAIIヘルパー
+    fn with_current_func<F, T>(&mut self, func_id: FuncId, f: F) -> Result<T, CompileError>
+    where
+        F: FnOnce(&mut Self) -> Result<T, CompileError>,
+    {
+        let prev = self.current_func;
+        self.current_func = Some(func_id);
+        let result = f(self);
+        self.current_func = prev;
+        result
+    }
+
     fn get_current_func_mut(&mut self) -> Result<&mut Func, CompileError> {
         self.current_func.and_then(|func_id| self.funcs.get_mut(func_id.0)).ok_or_else(|| {
             CompileError::InternalError {
@@ -156,9 +168,9 @@ impl<'a> Ast<'a> {
     where
         F: FnOnce(&mut Self) -> Result<T, CompileError>,
     {
-        self.symbol_table.push_scope();
+        self.symbol_table.push_scope(); // スコープをpush
         let result = f(self);
-        self.symbol_table.pop_scope();
+        self.symbol_table.pop_scope(); // スコープをpop
         result
     }
 
@@ -274,9 +286,9 @@ impl<'a> Ast<'a> {
     where
         F: FnOnce(&mut Self) -> Result<T, CompileError>,
     {
-        self.breakable_stack.push(BreakableCtx::Loop(label)); // ループコンテキストをプッシュ
+        self.breakable_stack.push(BreakableCtx::Loop(label)); // ループコンテキストをpush
         let result = f(self);
-        // ループコンテキストをポップ
+        // ループコンテキストをpop
         match self.breakable_stack.pop() {
             Some(BreakableCtx::Loop(_)) => Ok(()),
             Some(BreakableCtx::Switch(_)) => Err(CompileError::InternalError {
@@ -289,24 +301,6 @@ impl<'a> Ast<'a> {
         }?;
         result
     }
-
-    // fn push_switch(&mut self, label: usize) {
-    //     let ctx = SwitchCtx { label, cases: Vec::new(), default_label: None };
-    //     self.breakable_stack.push(BreakableCtx::Switch(Box::new(ctx)));
-    // }
-
-    // fn pop_switch(&mut self) -> Result<SwitchCtx, CompileError> {
-    //     match self.breakable_stack.pop() {
-    //         Some(BreakableCtx::Switch(ctx)) => Ok(*ctx),
-    //         Some(BreakableCtx::Loop(_)) => Err(CompileError::InternalError {
-    //             msg: "breakable_stackの整合性が取れていません。Switchコンテキストを期待しましたが、Loopコンテキストが見つかりました。"
-    //                 .to_string(),
-    //         }),
-    //         None => Err(CompileError::InternalError {
-    //             msg: "switchスタックが空です".to_string(),
-    //         }),
-    //     }
-    // }
 
     // switchスコープを管理するRAIIヘルパー
     fn with_switch_scope<F, T>(
@@ -321,8 +315,9 @@ impl<'a> Ast<'a> {
             label,
             cases: Vec::new(),
             default_label: None,
-        })));
+        }))); // switchコンテキストをpush
         let result = f(self);
+        // switchコンテキストをpop
         let switch_ctx = match self.breakable_stack.pop() {
             Some(BreakableCtx::Switch(ctx)) => Ok(*ctx),
             Some(BreakableCtx::Loop(_)) => Err(CompileError::InternalError {
