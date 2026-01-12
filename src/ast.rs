@@ -271,8 +271,11 @@ impl<'a> Ast<'a> {
     {
         self.push_loop(label);
         let result = f(self);
-        // エラーが発生してもpop_loopは必ず実行される
-        self.pop_loop()?;
+        if let Err(pop_err) = self.pop_loop() {
+            if result.is_ok() {
+                return Err(pop_err);
+            }
+        }
         result
     }
 
