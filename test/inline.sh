@@ -445,6 +445,25 @@ assert_inline 25 'int x = 2; int r = 0; switch(x) { case 1: r = 10; break; case 
 # switch内でのループ
 assert_inline 15 'int x = 2; int r = 0; int i; switch(x) { case 1: r = 10; break; case 2: for (i = 0; i < 3; i++) r += 5; break; } return r;'
 
+# case内のループでbreak（ループを抜ける）
+assert_inline 10 'int x = 1; int r = 0; int i; switch(x) { case 1: for (i = 0; i < 3; i++) { r += 10; break; } break; case 2: r = 20; break; } return r;'
+assert_inline 102 'int x = 1; int r = 0; int i; switch(x) { case 1: for (i = 0; i < 5; i++) { if (i == 2) break; r += 1; } r += 100; break; case 2: r = 20; break; } return r;'
+
+# case内のループでcontinue
+assert_inline 2 'int x = 1; int r = 0; int i; switch(x) { case 1: for (i = 0; i < 5; i++) { if (i % 2 == 0) continue; r += 1; } break; case 2: r = 20; break; } return r;'
+
+# case内のループ完走後にswitchのbreak
+assert_inline 15 'int x = 2; int r = 0; int i; switch(x) { case 1: r = 10; break; case 2: for (i = 0; i < 3; i++) { r += 5; } break; case 3: r = 30; break; } return r;'
+
+# 複雑な入れ子: ループ内のswitch内のループ
+assert_inline 13 'int r = 0; int i; int j; for (i = 0; i < 2; i++) { switch(i) { case 0: for (j = 0; j < 3; j++) { r += 1; } break; case 1: r += 10; break; } } return r;'
+
+# case内のwhile文でbreak
+assert_inline 3 'int x = 1; int r = 0; int i; switch(x) { case 1: i = 0; while (i < 10) { r += 1; i++; if (i == 3) break; } break; } return r;'
+
+# case内のdo-while文でbreak
+assert_inline 1 'int x = 1; int r = 0; switch(x) { case 1: do { r += 1; break; } while (1); break; } return r;'
+
 # switch内でのswitch（入れ子）
 assert_inline 11 'int x = 1; int y = 1; int r = 0; switch(x) { case 1: switch(y) { case 1: r = 11; break; case 2: r = 12; break; } break; case 2: r = 99; break; } return r;'
 assert_inline 12 'int x = 1; int y = 2; int r = 0; switch(x) { case 1: switch(y) { case 1: r = 11; break; case 2: r = 12; break; } break; case 2: r = 99; break; } return r;'

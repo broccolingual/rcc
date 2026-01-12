@@ -271,8 +271,15 @@ impl<'a> Ast<'a> {
             msg: "ループスタックが空です".to_string(),
         })?;
         // breakable_stackからもpop
-        if let Some(BreakableContext::Loop(_)) = self.breakable_stack.last() {
-            self.breakable_stack.pop();
+        match self.breakable_stack.pop() {
+            Some(BreakableContext::Loop(_)) => (),
+            _ => {
+                return Err(CompileError::InternalError {
+                    msg:
+                        "breakable_stackの整合性が取れていません。Loopコンテキストを期待しました。"
+                            .to_string(),
+                });
+            }
         }
         Ok(())
     }
