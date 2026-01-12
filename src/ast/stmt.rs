@@ -150,10 +150,7 @@ impl Ast<'_> {
                     msg: "for文のthen文がありません".to_string(),
                     span,
                 })?;
-                Ok(Box::new(Node::new(
-                    NodeKind::For { init, cond, inc, then, label },
-                    span,
-                )))
+                Ok(Box::new(Node::new(NodeKind::For { init, cond, inc, then, label }, span)))
             })?;
             return Ok(Some(node));
         }
@@ -203,34 +200,21 @@ impl Ast<'_> {
         Ok(None)
     }
 
-    // stmt ::= labeled_stmt
-    //        | compound_stmt
-    //        | selection_stmt
-    //        | iteration_stmt
-    //        | jump_stmt
-    //        | expr_stmt
+    // stmt ::= labeled_stmt | compound_stmt | selection_stmt | iteration_stmt | jump_stmt | expr_stmt
     fn stmt(&mut self) -> Result<Option<Box<Node>>, CompileError> {
-        // labeled stmt
         if let Some(node) = self.labeled_stmt()? {
-            return Ok(Some(node));
+            Ok(Some(node))
+        } else if let Some(node) = self.selection_stmt()? {
+            Ok(Some(node))
+        } else if let Some(node) = self.iteration_stmt()? {
+            Ok(Some(node))
+        } else if let Some(node) = self.compound_stmt()? {
+            Ok(Some(node))
+        } else if let Some(node) = self.jump_stmt()? {
+            Ok(Some(node))
+        } else {
+            self.expr_stmt()
         }
-        // selection stmt
-        if let Some(node) = self.selection_stmt()? {
-            return Ok(Some(node));
-        }
-        // iteration stmt
-        if let Some(node) = self.iteration_stmt()? {
-            return Ok(Some(node));
-        }
-        // compound stmt
-        if let Some(node) = self.compound_stmt()? {
-            return Ok(Some(node));
-        }
-        // jump stmt
-        if let Some(node) = self.jump_stmt()? {
-            return Ok(Some(node));
-        }
-        self.expr_stmt()
     }
 
     // expr_stmt ::= expr? ";"
