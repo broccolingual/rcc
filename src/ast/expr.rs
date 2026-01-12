@@ -563,10 +563,10 @@ impl Ast<'_> {
     //                | postfix_expr ("++" | "--")
     // Fixed BNF (left recursion removed):
     // postfix_expr ::= primary_expr ( "[" expr "]"
-    //                                 | "(" argument_expr_list? ")"
-    //                                 | "." ident
-    //                                 | "->" ident
-    //                                 | ("++" | "--") )*
+    //                               | "(" argument_expr_list? ")"
+    //                               | "." ident
+    //                               | "->" ident
+    //                               | ("++" | "--") )*
     fn postfix_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         let mut node = self.primary_expr()?;
 
@@ -696,31 +696,22 @@ impl Ast<'_> {
         Ok(args)
     }
 
-    // primary_expr ::= "(" expr ")"
-    //                | ident
-    //                | string
-    //                | number
+    // primary_expr ::= "(" expr ")" | ident | string | const
     fn primary_expr(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         if self.consume_punct("(").is_some()
             && let Some(node) = self.expr()?
         {
             self.expect_punct(")")?;
-            return Ok(Some(node));
-        }
-
-        if let Some((name, span)) = self.consume_ident() {
-            return Ok(Some(Box::new(Node::new(NodeKind::Ident { name }, span))));
-        }
-
-        if let Some((val, span)) = self.consume_string() {
+            Ok(Some(node))
+        } else if let Some((name, span)) = self.consume_ident() {
+            Ok(Some(Box::new(Node::new(NodeKind::Ident { name }, span))))
+        } else if let Some((val, span)) = self.consume_string() {
             let index = self.register_string_literal(&val);
-            return Ok(Some(Box::new(Node::new(NodeKind::String { val, index }, span))));
+            Ok(Some(Box::new(Node::new(NodeKind::String { val, index }, span))))
+        } else if let Some((num, span)) = self.consume_const() {
+            Ok(Some(Box::new(Node::new_num(num, span))))
+        } else {
+            Ok(None)
         }
-
-        if let Some((num, span)) = self.consume_const() {
-            return Ok(Some(Box::new(Node::new_num(num, span))));
-        }
-
-        Ok(None)
     }
 }

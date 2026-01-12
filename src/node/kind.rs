@@ -60,6 +60,20 @@ pub(crate) enum NodeKind {
         then: Box<Node>,
         label: usize,
     }, // do
+    Switch {
+        cond: Box<Node>,
+        body: Box<Node>,
+        label: usize,
+        cases: Vec<(i64, usize)>, // (case値, ラベル番号)
+        default_label: Option<usize>,
+    }, // switch
+    Case {
+        val: i64,
+        label: usize,
+    }, // case
+    Default {
+        label: usize,
+    }, // default
     Block {
         body: Vec<Node>,
     }, // {}

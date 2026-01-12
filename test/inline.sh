@@ -400,3 +400,103 @@ assert_inline 40 'return sizeof(int (*[5])(int, int));'
 
 # キャストで抽象宣言子を使用（型チェックのみ）
 assert_inline 0 'int (*fp)(int, int); fp = (int (*)(int, int))0; return 0;'
+
+# =============================================================================
+# switch-case-default文
+# =============================================================================
+
+# 基本的なswitch文
+assert_inline 10 'int x = 1; switch(x) { case 1: return 10; case 2: return 20; case 3: return 30; } return 99;'
+assert_inline 20 'int x = 2; switch(x) { case 1: return 10; case 2: return 20; case 3: return 30; } return 99;'
+assert_inline 30 'int x = 3; switch(x) { case 1: return 10; case 2: return 20; case 3: return 30; } return 99;'
+assert_inline 99 'int x = 4; switch(x) { case 1: return 10; case 2: return 20; case 3: return 30; } return 99;'
+
+# defaultラベル
+assert_inline 10 'int x = 1; switch(x) { case 1: return 10; case 2: return 20; default: return 99; }'
+assert_inline 20 'int x = 2; switch(x) { case 1: return 10; case 2: return 20; default: return 99; }'
+assert_inline 99 'int x = 5; switch(x) { case 1: return 10; case 2: return 20; default: return 99; }'
+
+# break文
+assert_inline 10 'int x = 1; int r = 0; switch(x) { case 1: r = 10; break; case 2: r = 20; break; } return r;'
+assert_inline 20 'int x = 2; int r = 0; switch(x) { case 1: r = 10; break; case 2: r = 20; break; } return r;'
+assert_inline 0 'int x = 3; int r = 0; switch(x) { case 1: r = 10; break; case 2: r = 20; break; } return r;'
+
+# fall-through（breakなし）
+assert_inline 60 'int x = 1; int r = 0; switch(x) { case 1: r += 10; case 2: r += 20; case 3: r += 30; } return r;'
+assert_inline 50 'int x = 2; int r = 0; switch(x) { case 1: r += 10; case 2: r += 20; case 3: r += 30; } return r;'
+assert_inline 30 'int x = 3; int r = 0; switch(x) { case 1: r += 10; case 2: r += 20; case 3: r += 30; } return r;'
+
+# defaultへのfall-through
+assert_inline 110 'int x = 1; int r = 0; switch(x) { case 1: r += 10; default: r += 100; } return r;'
+assert_inline 100 'int x = 5; int r = 0; switch(x) { case 1: r += 10; default: r += 100; } return r;'
+
+# 式による条件
+assert_inline 20 'int x = 5; switch(x * 2) { case 5: return 10; case 10: return 20; case 15: return 30; } return 99;'
+assert_inline 30 'int x = 3; switch(x + 4) { case 5: return 10; case 6: return 20; case 7: return 30; } return 99;'
+
+# 負の値のcase
+assert_inline 10 'int x = -1; switch(x) { case -1: return 10; case 0: return 20; case 1: return 30; } return 99;'
+assert_inline 20 'int x = 0; switch(x) { case -1: return 10; case 0: return 20; case 1: return 30; } return 99;'
+assert_inline 30 'int x = 1; switch(x) { case -1: return 10; case 0: return 20; case 1: return 30; } return 99;'
+
+# switch内でのif文
+assert_inline 25 'int x = 2; int r = 0; switch(x) { case 1: r = 10; break; case 2: if (x == 2) r = 25; break; case 3: r = 30; break; } return r;'
+
+# switch内でのループ
+assert_inline 15 'int x = 2; int r = 0; int i; switch(x) { case 1: r = 10; break; case 2: for (i = 0; i < 3; i++) r += 5; break; } return r;'
+
+# case内のループでbreak（ループを抜ける）
+assert_inline 10 'int x = 1; int r = 0; int i; switch(x) { case 1: for (i = 0; i < 3; i++) { r += 10; break; } break; case 2: r = 20; break; } return r;'
+assert_inline 102 'int x = 1; int r = 0; int i; switch(x) { case 1: for (i = 0; i < 5; i++) { if (i == 2) break; r += 1; } r += 100; break; case 2: r = 20; break; } return r;'
+
+# case内のループでcontinue
+assert_inline 2 'int x = 1; int r = 0; int i; switch(x) { case 1: for (i = 0; i < 5; i++) { if (i % 2 == 0) continue; r += 1; } break; case 2: r = 20; break; } return r;'
+
+# case内のループ完走後にswitchのbreak
+assert_inline 15 'int x = 2; int r = 0; int i; switch(x) { case 1: r = 10; break; case 2: for (i = 0; i < 3; i++) { r += 5; } break; case 3: r = 30; break; } return r;'
+
+# 複雑な入れ子: ループ内のswitch内のループ
+assert_inline 13 'int r = 0; int i; int j; for (i = 0; i < 2; i++) { switch(i) { case 0: for (j = 0; j < 3; j++) { r += 1; } break; case 1: r += 10; break; } } return r;'
+
+# case内のwhile文でbreak
+assert_inline 3 'int x = 1; int r = 0; int i; switch(x) { case 1: i = 0; while (i < 10) { r += 1; i++; if (i == 3) break; } break; } return r;'
+
+# case内のdo-while文でbreak
+assert_inline 1 'int x = 1; int r = 0; switch(x) { case 1: do { r += 1; break; } while (1); break; } return r;'
+
+# switch内でのswitch（入れ子）
+assert_inline 11 'int x = 1; int y = 1; int r = 0; switch(x) { case 1: switch(y) { case 1: r = 11; break; case 2: r = 12; break; } break; case 2: r = 99; break; } return r;'
+assert_inline 12 'int x = 1; int y = 2; int r = 0; switch(x) { case 1: switch(y) { case 1: r = 11; break; case 2: r = 12; break; } break; case 2: r = 99; break; } return r;'
+assert_inline 99 'int x = 2; int y = 1; int r = 0; switch(x) { case 1: switch(y) { case 1: r = 11; break; case 2: r = 12; break; } break; case 2: r = 99; break; } return r;'
+
+# ループ内のswitch
+assert_inline 6 'int r = 0; int i; for (i = 1; i <= 3; i++) { switch(i) { case 1: r += 1; break; case 2: r += 2; break; case 3: r += 3; break; } } return r;'
+
+# switchとgotoの組み合わせ
+assert_inline 42 'int x = 1; switch(x) { case 1: goto label; case 2: return 20; } label: return 42;'
+
+# defaultが最初にある場合
+assert_inline 10 'int x = 1; switch(x) { default: return 99; case 1: return 10; case 2: return 20; }'
+assert_inline 99 'int x = 5; switch(x) { default: return 99; case 1: return 10; case 2: return 20; }'
+
+# defaultが中間にある場合
+assert_inline 10 'int x = 1; switch(x) { case 1: return 10; default: return 99; case 2: return 20; }'
+assert_inline 99 'int x = 5; switch(x) { case 1: return 10; default: return 99; case 2: return 20; }'
+
+# 空のswitch本体
+assert_inline 42 'int x = 1; switch(x) { } return 42;'
+
+# caseのみで本体が空
+assert_inline 42 'int x = 1; switch(x) { case 1: case 2: case 3: } return 42;'
+
+# 複数のcaseが同じ処理を実行
+assert_inline 10 'int x = 1; switch(x) { case 1: case 2: case 3: return 10; } return 99;'
+assert_inline 10 'int x = 2; switch(x) { case 1: case 2: case 3: return 10; } return 99;'
+assert_inline 10 'int x = 3; switch(x) { case 1: case 2: case 3: return 10; } return 99;'
+assert_inline 99 'int x = 4; switch(x) { case 1: case 2: case 3: return 10; } return 99;'
+
+# ブロックスコープ内のswitch
+assert_inline 20 'int x = 2; int r = 0; { switch(x) { case 1: r = 10; break; case 2: r = 20; break; } } return r;'
+
+# switch内での変数宣言
+assert_inline 42 'int x = 1; switch(x) { case 1: { int y = 42; return y; } case 2: return 20; } return 99;'
