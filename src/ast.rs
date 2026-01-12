@@ -12,16 +12,16 @@ use crate::utils::{AlignUp, Span};
 use std::collections::HashMap;
 
 // switch文のコンテキスト情報
-struct SwitchContext {
+struct SwitchCtx {
     label: usize,
     cases: Vec<(i64, usize)>,
     default_label: Option<usize>,
 }
 
 // ループとswitchを統合したコンテキスト
-enum BreakableContext {
-    Loop(usize),                // ループのラベル
-    Switch(Box<SwitchContext>), // switchのコンテキスト
+enum BreakableCtx {
+    Loop(usize),            // ループのラベル
+    Switch(Box<SwitchCtx>), // switchのコンテキスト
 }
 
 pub(crate) struct Ast<'a> {
@@ -33,7 +33,7 @@ pub(crate) struct Ast<'a> {
     pub(crate) string_literals: HashMap<String, usize>,
     label_seq: usize,
     loop_stack: Vec<usize>,
-    breakable_stack: Vec<BreakableContext>, // ループとswitchを統合
+    breakable_stack: Vec<BreakableCtx>, // ループとswitchを統合
 }
 
 impl<'a> Ast<'a> {
@@ -263,7 +263,7 @@ impl<'a> Ast<'a> {
 
     fn push_loop(&mut self, label_seq: usize) {
         self.loop_stack.push(label_seq);
-        self.breakable_stack.push(BreakableContext::Loop(label_seq));
+        self.breakable_stack.push(BreakableCtx::Loop(label_seq));
     }
 
     fn pop_loop(&mut self) -> Result<(), CompileError> {
@@ -272,7 +272,7 @@ impl<'a> Ast<'a> {
         })?;
         // breakable_stackからもpop
         match self.breakable_stack.pop() {
-            Some(BreakableContext::Loop(_)) => (),
+            Some(BreakableCtx::Loop(_)) => (),
             _ => {
                 return Err(CompileError::InternalError {
                     msg:
@@ -305,13 +305,13 @@ impl<'a> Ast<'a> {
     }
 
     fn push_switch(&mut self, label: usize) {
-        let ctx = SwitchContext { label, cases: Vec::new(), default_label: None };
-        self.breakable_stack.push(BreakableContext::Switch(Box::new(ctx)));
+        let ctx = SwitchCtx { label, cases: Vec::new(), default_label: None };
+        self.breakable_stack.push(BreakableCtx::Switch(Box::new(ctx)));
     }
 
-    fn pop_switch(&mut self) -> Result<SwitchContext, CompileError> {
+    fn pop_switch(&mut self) -> Result<SwitchCtx, CompileError> {
         // breakable_stackからpop
-        if let Some(BreakableContext::Switch(ctx)) = self.breakable_stack.pop() {
+        if let Some(BreakableCtx::Switch(ctx)) = self.breakable_stack.pop() {
             Ok(*ctx)
         } else {
             Err(CompileError::InternalError { msg: "switchスタックが空です".to_string() })
@@ -320,8 +320,8 @@ impl<'a> Ast<'a> {
 
     fn current_breakable_label(&self) -> Option<usize> {
         self.breakable_stack.last().map(|ctx| match ctx {
-            BreakableContext::Loop(label) => *label,
-            BreakableContext::Switch(switch_ctx) => switch_ctx.label,
+            BreakableCtx::Loop(label) => *label,
+            BreakableCtx::Switch(switch_ctx) => switch_ctx.label,
         })
     }
 
@@ -331,12 +331,9 @@ impl<'a> Ast<'a> {
             .breakable_stack
             .iter_mut()
             .rev()
-            .find_map(|ctx| {
-                if let BreakableContext::Switch(switch_ctx) = ctx {
-                    Some(switch_ctx.as_mut())
-                } else {
-                    None
-                }
+            .find_map(|ctx| match ctx {
+                BreakableCtx::Switch(switch_ctx) => Some(switch_ctx.as_mut()),
+                _ => None,
             })
             .ok_or_else(|| CompileError::InvalidStmt {
                 msg: "case文がswitch文の外にあります".to_string(),
@@ -360,7 +357,7 @@ impl<'a> Ast<'a> {
             .iter_mut()
             .rev()
             .find_map(|ctx| {
-                if let BreakableContext::Switch(switch_ctx) = ctx {
+                if let BreakableCtx::Switch(switch_ctx) = ctx {
                     Some(switch_ctx.as_mut())
                 } else {
                     None
