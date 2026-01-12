@@ -272,15 +272,12 @@ impl<'a> Ast<'a> {
         })?;
         // breakable_stackからもpop
         match self.breakable_stack.pop() {
-            Some(BreakableCtx::Loop(_)) => (),
-            _ => {
-                return Err(CompileError::InternalError {
-                    msg:
-                        "breakable_stackの整合性が取れていません。Loopコンテキストを期待しました。"
-                            .to_string(),
-                });
-            }
-        }
+            Some(BreakableCtx::Loop(_)) => Ok(()),
+            _ => Err(CompileError::InternalError {
+                msg: "breakable_stackの整合性が取れていません。Loopコンテキストを期待しました。"
+                    .to_string(),
+            }),
+        }?;
         Ok(())
     }
 
@@ -296,12 +293,11 @@ impl<'a> Ast<'a> {
     {
         self.push_loop(label);
         let result = f(self);
-        if let Err(pop_err) = self.pop_loop()
-            && result.is_ok()
-        {
-            return Err(pop_err);
+        let pop_result = self.pop_loop();
+        match result {
+            Ok(value) => pop_result.map(|_| value),
+            Err(e) => Err(e),
         }
-        result
     }
 
     fn push_switch(&mut self, label: usize) {
@@ -356,12 +352,9 @@ impl<'a> Ast<'a> {
             .breakable_stack
             .iter_mut()
             .rev()
-            .find_map(|ctx| {
-                if let BreakableCtx::Switch(switch_ctx) = ctx {
-                    Some(switch_ctx.as_mut())
-                } else {
-                    None
-                }
+            .find_map(|ctx| match ctx {
+                BreakableCtx::Switch(switch_ctx) => Some(switch_ctx.as_mut()),
+                _ => None,
             })
             .ok_or_else(|| CompileError::InvalidStmt {
                 msg: "default文がswitch文の外にあります".to_string(),
