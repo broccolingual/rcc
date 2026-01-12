@@ -107,10 +107,8 @@ impl Ast<'_> {
                 this.get_current_func_mut()?.body = body;
                 Ok(())
             })?;
-            this.calc_current_func_offset()?; // ローカル変数のオフセットを計算
-            Ok(())
-        })?;
-        Ok(())
+            this.calc_current_func_offset() // ローカル変数のオフセットを計算
+        })
     }
 
     // プロトタイプ宣言を検証
