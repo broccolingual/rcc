@@ -526,15 +526,7 @@ impl Ast<'_> {
         member_name: &str,
         span: Span,
     ) -> Result<Box<Node>, CompileError> {
-        if !obj.ty.is_struct_or_union() {
-            return Err(CompileError::InvalidExpr {
-                msg: format!(
-                    "型 '{:?}' は構造体/共用体型ではありません。メンバアクセス演算子 '.' は構造体/共用体型にのみ使用できます",
-                    obj.ty
-                ),
-                span,
-            });
-        }
+        obj.ty.require_struct_or_union(span)?;
         let member_decl =
             obj.ty
                 .find_struct_or_union_member(member_name)
@@ -638,16 +630,7 @@ impl Ast<'_> {
                     msg: "構造体/共用体ポインタがありません".to_string(),
                     span,
                 })?;
-                // ポインタであることを確認
-                if !(ptr.ty.is_ptr() || ptr.ty.is_array()) {
-                    return Err(CompileError::InvalidExpr {
-                        msg: format!(
-                            "型 '{:?}' はポインタ型または配列型ではありません。アロー演算子 '->' はポインタ型にのみ使用できます\n  ヒント: 通常の構造体/共用体変数には '.' 演算子を使用してください",
-                            ptr.ty
-                        ),
-                        span: ptr.span,
-                    });
-                }
+                ptr.ty.require_pointer_or_array(ptr.span)?;
                 // デリファレンスして構造体/共用体を取得
                 let deref_node = Box::new(Node::new_unary(UnaryOp::Deref, ptr, span)?);
                 node = Some(self.create_member_access_node(deref_node, &member_name, span)?);

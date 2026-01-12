@@ -81,38 +81,34 @@ impl Ast<'_> {
 
         // 関数本体をパース
         let func_id = self.register_func_def(Func::new(&decl.name));
-        self.current_func = Some(func_id);
-        self.push_scope(); // 引数スコープに入る
+        self.with_current_func(func_id, |this| {
+            this.with_scope(|this| {
+                // パラメータを登録
+                for param_decl in params {
+                    let symbol_id = this.register_var(param_decl, Some(func_id))?;
+                    this.get_current_func_mut()?.params.push(LocalVar::new(symbol_id));
+                }
 
-        // パラメータを登録
-        for param_decl in params {
-            let symbol_id = self.register_var(param_decl, Some(func_id))?;
-            self.get_current_func_mut()?.params.push(LocalVar::new(symbol_id));
-        }
+                this.get_current_func_mut()?.return_ty = *return_ty; // 戻り値の型を設定
 
-        // 戻り値の型を設定
-        self.get_current_func_mut()?.return_ty = *return_ty;
+                // 関数本体をパース
+                let func_body = this.compound_stmt()?.ok_or_else(|| CompileError::InvalidDecl {
+                    msg: "関数本体が必要です".to_string(),
+                    span: this.current_span(),
+                })?;
 
-        // 関数本体をパース
-        let func_body = self.compound_stmt()?.ok_or_else(|| CompileError::InvalidDecl {
-            msg: "関数本体が必要です".to_string(),
-            span: self.current_span(),
-        })?;
-
-        let NodeKind::Block { body } = func_body.kind else {
-            return Err(CompileError::InvalidDecl {
-                msg: "関数本体がブロックではありません。'{' と '}' で囲まれた複合文が必要です"
-                    .to_string(),
-                span: func_body.span,
-            });
-        };
-
-        self.get_current_func_mut()?.body = body;
-        self.pop_scope(); // 引数スコープを抜ける
-        self.calc_current_func_offset()?; // ローカル変数のオフセットを計算
-        self.current_func = None;
-
-        Ok(())
+                let NodeKind::Block { body } = func_body.kind else {
+                    return Err(CompileError::InvalidDecl {
+                        msg: "関数本体がブロックではありません。'{' と '}' で囲まれた複合文が必要です"
+                            .to_string(),
+                        span: func_body.span,
+                    });
+                };
+                this.get_current_func_mut()?.body = body;
+                Ok(())
+            })?;
+            this.calc_current_func_offset() // ローカル変数のオフセットを計算
+        })
     }
 
     // プロトタイプ宣言を検証

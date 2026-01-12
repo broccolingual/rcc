@@ -3,6 +3,8 @@ use super::{
     get_type_table,
 };
 use crate::decl::MemberDecl;
+use crate::errors::CompileError;
+use crate::utils::Span;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub(crate) struct TypeRef(pub usize);
@@ -249,5 +251,30 @@ impl TypeRef {
             }
             _ => self,
         }
+    }
+
+    /// 構造体型または共用体型であることを要求
+    pub(crate) fn require_struct_or_union(&self, span: Span) -> Result<(), CompileError> {
+        if !self.is_struct_or_union() {
+            return Err(CompileError::InvalidExpr {
+                msg: format!("構造体/共用体型が必要ですが、{:?}型が見つかりました", self.kind()),
+                span,
+            });
+        }
+        Ok(())
+    }
+
+    /// ポインタ型または配列型であることを要求
+    pub(crate) fn require_pointer_or_array(&self, span: Span) -> Result<(), CompileError> {
+        if !self.is_ptr() && !self.is_array() {
+            return Err(CompileError::InvalidExpr {
+                msg: format!(
+                    "ポインタ型または配列型が必要ですが、{:?}型が見つかりました",
+                    self.kind()
+                ),
+                span,
+            });
+        }
+        Ok(())
     }
 }

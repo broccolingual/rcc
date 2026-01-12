@@ -42,29 +42,30 @@ impl Ast<'_> {
     // compound_stmt ::= "{" decl* stmt* "}"
     pub(super) fn compound_stmt(&mut self) -> Result<Option<Box<Node>>, CompileError> {
         if let Some(span) = self.consume_punct("{") {
-            self.push_scope(); // 新しいスコープに入る
             let mut body = Vec::new();
-            while self.consume_punct("}").is_none() {
-                if let Some(decls) = self.decl()? {
-                    for decl in decls {
-                        if decl.ty.is_typedef() {
-                            self.register_typedef(&decl.name, decl.ty, decl.span)?;
-                        } else {
-                            let symbol_id = self.register_var(&decl, self.current_func)?;
-                            self.get_current_func_mut()?.locals.push(LocalVar::new(symbol_id));
+            self.with_scope(|this| {
+                while this.consume_punct("}").is_none() {
+                    if let Some(decls) = this.decl()? {
+                        for decl in decls {
+                            if decl.ty.is_typedef() {
+                                this.register_typedef(&decl.name, decl.ty, decl.span)?;
+                            } else {
+                                let symbol_id = this.register_var(&decl, this.current_func)?;
+                                this.get_current_func_mut()?.locals.push(LocalVar::new(symbol_id));
+                            }
                         }
+                        continue;
+                    } else if let Some(stmt) = this.stmt()? {
+                        body.push(*stmt);
+                    } else {
+                        return Err(CompileError::InvalidStmt {
+                            msg: "ブロック内で無効な文が見つかりました".to_string(),
+                            span,
+                        });
                     }
-                    continue;
-                } else if let Some(stmt) = self.stmt()? {
-                    body.push(*stmt);
-                } else {
-                    return Err(CompileError::InvalidStmt {
-                        msg: "ブロック内で無効な文が見つかりました".to_string(),
-                        span,
-                    });
                 }
-            }
-            self.pop_scope(); // スコープを抜ける
+                Ok(())
+            })?;
             return Ok(Some(Box::new(Node::new(NodeKind::Block { body }, span))));
         }
         Ok(None)
@@ -97,12 +98,13 @@ impl Ast<'_> {
                 span,
             })?;
             self.expect_punct(")")?;
-            self.push_switch(label); // switch文のコンテキストをプッシュ
-            let body = self.stmt()?.ok_or_else(|| CompileError::InvalidStmt {
-                msg: "switch文の本体がありません".to_string(),
-                span,
+            let (body, switch_ctx) = self.with_switch_scope(label, |this| {
+                let body = this.stmt()?.ok_or_else(|| CompileError::InvalidStmt {
+                    msg: "switch文の本体がありません".to_string(),
+                    span,
+                })?;
+                Ok(body)
             })?;
-            let switch_ctx = self.pop_switch()?; // switch文のコンテキストをポップして、case情報を取得
             return Ok(Some(Box::new(Node::new(
                 NodeKind::Switch {
                     cond,
