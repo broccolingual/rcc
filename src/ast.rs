@@ -290,12 +290,10 @@ impl<'a> Ast<'a> {
         self.push_loop(label);
         let result = f(self);
         let pop_result = self.pop_loop();
-        let value = match result {
-            Ok(v) => v,
-            Err(e) => return Err(e),
-        };
-        pop_result?;
-        Ok(value)
+        match result {
+            Ok(value) => pop_result.map(|_| value),
+            Err(e) => Err(e),
+        }
     }
 
     fn push_switch(&mut self, label: usize) {
