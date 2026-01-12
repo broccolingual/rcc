@@ -32,7 +32,6 @@ pub(crate) struct Ast<'a> {
     symbol_table: ScopedTable,
     pub(crate) string_literals: HashMap<String, usize>,
     label_seq: usize,
-    loop_stack: Vec<usize>,
     breakable_stack: Vec<BreakableCtx>, // ループとswitchを統合
 }
 
@@ -46,7 +45,6 @@ impl<'a> Ast<'a> {
             symbol_table: ScopedTable::new(),
             string_literals: HashMap::new(),
             label_seq: 0,
-            loop_stack: Vec::new(),
             breakable_stack: Vec::new(),
         }
     }
@@ -262,15 +260,10 @@ impl<'a> Ast<'a> {
     }
 
     fn push_loop(&mut self, label_seq: usize) {
-        self.loop_stack.push(label_seq);
         self.breakable_stack.push(BreakableCtx::Loop(label_seq));
     }
 
     fn pop_loop(&mut self) -> Result<(), CompileError> {
-        self.loop_stack.pop().ok_or_else(|| CompileError::InternalError {
-            msg: "ループスタックが空です".to_string(),
-        })?;
-        // breakable_stackからもpop
         match self.breakable_stack.pop() {
             Some(BreakableCtx::Loop(_)) => Ok(()),
             _ => Err(CompileError::InternalError {
@@ -282,7 +275,10 @@ impl<'a> Ast<'a> {
     }
 
     fn current_loop_label(&self) -> Option<usize> {
-        self.loop_stack.last().copied()
+        self.breakable_stack
+            .iter()
+            .rev()
+            .find_map(|ctx| if let BreakableCtx::Loop(label) = ctx { Some(*label) } else { None })
     }
 
     // ループスコープを管理するRAIIヘルパー
@@ -294,10 +290,12 @@ impl<'a> Ast<'a> {
         self.push_loop(label);
         let result = f(self);
         let pop_result = self.pop_loop();
-        match result {
-            Ok(value) => pop_result.map(|_| value),
-            Err(e) => Err(e),
-        }
+        let value = match result {
+            Ok(v) => v,
+            Err(e) => return Err(e),
+        };
+        pop_result?;
+        Ok(value)
     }
 
     fn push_switch(&mut self, label: usize) {
@@ -321,20 +319,24 @@ impl<'a> Ast<'a> {
         })
     }
 
-    fn add_case(&mut self, val: i64, case_label: usize, span: Span) -> Result<(), CompileError> {
-        // breakable_stackから最後のswitchを見つける
-        let switch_ctx = self
-            .breakable_stack
+    fn current_switch_ctx_mut(
+        &mut self,
+        error_msg: &str,
+        span: Span,
+    ) -> Result<&mut SwitchCtx, CompileError> {
+        self.breakable_stack
             .iter_mut()
             .rev()
             .find_map(|ctx| match ctx {
                 BreakableCtx::Switch(switch_ctx) => Some(switch_ctx.as_mut()),
                 _ => None,
             })
-            .ok_or_else(|| CompileError::InvalidStmt {
-                msg: "case文がswitch文の外にあります".to_string(),
-                span,
-            })?;
+            .ok_or_else(|| CompileError::InvalidStmt { msg: error_msg.to_string(), span })
+    }
+
+    fn add_case(&mut self, val: i64, case_label: usize, span: Span) -> Result<(), CompileError> {
+        // breakable_stackから最後のswitchを見つける
+        let switch_ctx = self.current_switch_ctx_mut("case文がswitch文の外にあります", span)?;
         // 重複チェック
         if switch_ctx.cases.iter().any(|(v, _)| *v == val) {
             return Err(CompileError::InvalidStmt {
@@ -348,18 +350,8 @@ impl<'a> Ast<'a> {
 
     fn set_default(&mut self, default_label: usize, span: Span) -> Result<(), CompileError> {
         // breakable_stackから最後のswitchを見つける
-        let switch_ctx = self
-            .breakable_stack
-            .iter_mut()
-            .rev()
-            .find_map(|ctx| match ctx {
-                BreakableCtx::Switch(switch_ctx) => Some(switch_ctx.as_mut()),
-                _ => None,
-            })
-            .ok_or_else(|| CompileError::InvalidStmt {
-                msg: "default文がswitch文の外にあります".to_string(),
-                span,
-            })?;
+        let switch_ctx = self.current_switch_ctx_mut("default文がswitch文の外にあります", span)?;
+        // 重複チェック
         if switch_ctx.default_label.is_some() {
             return Err(CompileError::InvalidStmt {
                 msg: "defaultラベルが重複しています".to_string(),
